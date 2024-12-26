@@ -212,8 +212,8 @@ Flashbots: Research and development organization focused on MEV.
 📫 Contact
 For any questions, suggestions, or support, feel free to reach out:
 
-Email: your.email@example.com
-LinkedIn: Your LinkedIn Profile
-Twitter: @YourTwitterHandle
+Email: klustertech34@gmail.com
+Twitter: @KlusTechDev
+GitHub: https://github.com/klustechDev
 Happy Sniping! 🏹
 
