@@ -2,9 +2,9 @@
 
 const { executePurchase } = require('./tradingOperations');
 const { logMessage } = require('./logging');
-const settings = require('./settings');
+const { getSettings } = require('./settings'); // Updated import to use getSettings directly
 const { evaluatePair } = require('./utils');
-const { isHoneypot } = require('./tokenAnalysis'); // Ensure this module exists and is correctly implemented
+const { isHoneypot } = require('./honeypotCheck'); // Updated import path
 
 /**
  * Executes the purchase logic for a detected pair.
@@ -14,9 +14,9 @@ const { isHoneypot } = require('./tokenAnalysis'); // Ensure this module exists 
  */
 async function executePurchaseLogic(pairAddress, token0, token1) {
     try {
-        logMessage(`Preparing to execute purchase for pair ${pairAddress}.`, {});
+        logMessage(`Preparing to execute purchase for pair ${pairAddress}.`, {}, 'info');
 
-        const baseTokenAddress = settings.BASE_TOKEN_ADDRESS.toLowerCase();
+        const baseTokenAddress = getSettings().BASE_TOKEN_ADDRESS.toLowerCase();
         if (
             token0.toLowerCase() !== baseTokenAddress &&
             token1.toLowerCase() !== baseTokenAddress
@@ -28,7 +28,7 @@ async function executePurchaseLogic(pairAddress, token0, token1) {
         const newTokenAddress =
             token0.toLowerCase() === baseTokenAddress ? token1 : token0;
 
-        logMessage(`New Token Address: ${newTokenAddress}`, {});
+        logMessage(`New Token Address: ${newTokenAddress}`, {}, 'info');
 
         // Evaluate the pair based on predefined criteria
         const isPairViable = await evaluatePair(pairAddress, token0, token1);

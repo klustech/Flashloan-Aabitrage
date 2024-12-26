@@ -3615,3 +3615,1015 @@
 {"timestamp":"2024-12-01T17:02:03.068Z","level":"info","message":"Pair 0x22c5A40ea0907eF1AF01Dc9474C8CcAFFB2F615a passed evaluation.","data":{}}
 {"timestamp":"2024-12-01T17:02:03.180Z","level":"error","message":"No balance for token 0x0689044FAC452106939Bccfd70c3EFEF66B80723. Cannot check honeypot.","data":{}}
 {"timestamp":"2024-12-01T17:02:03.181Z","level":"info","message":"Token 0x0689044FAC452106939Bccfd70c3EFEF66B80723 is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T01:44:47.204Z","level":"info","message":"Backend server is running on port 3001","data":{}}
+{"timestamp":"2024-12-25T01:45:28.684Z","level":"info","message":"Initializing contracts...","data":{}}
+{"timestamp":"2024-12-25T01:45:28.996Z","level":"info","message":"Wallet initialized: 0x3772316FD86F64C7aa672ef8f2D4a19A7394d53d","data":{}}
+{"timestamp":"2024-12-25T01:45:29.628Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:45:29.630Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:45:31.260Z","level":"info","message":"Initializing contracts...","data":{}}
+{"timestamp":"2024-12-25T01:45:31.274Z","level":"info","message":"Wallet initialized: 0x3772316FD86F64C7aa672ef8f2D4a19A7394d53d","data":{}}
+{"timestamp":"2024-12-25T01:45:31.660Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:45:31.660Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:45:35.025Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:45:35.027Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:45:37.015Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:45:37.016Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:45:37.354Z","level":"error","message":"Database is not initialized.","data":{}}
+{"timestamp":"2024-12-25T01:45:37.355Z","level":"error","message":"Error fetching trades: Database is not initialized.","data":{}}
+{"timestamp":"2024-12-25T01:45:40.117Z","level":"info","message":"Initializing contracts...","data":{}}
+{"timestamp":"2024-12-25T01:45:40.125Z","level":"info","message":"Wallet initialized: 0x3772316FD86F64C7aa672ef8f2D4a19A7394d53d","data":{}}
+{"timestamp":"2024-12-25T01:45:40.426Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:45:40.427Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:45:40.530Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:45:40.530Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:45:42.364Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:45:42.365Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:45:45.822Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:45:45.823Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:45:45.963Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:45:45.964Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:45:47.754Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:45:47.754Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:45:51.219Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:45:51.220Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:45:51.357Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:45:51.358Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:45:53.102Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:45:53.103Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:45:56.574Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:45:56.575Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:45:56.709Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:45:56.710Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:45:58.458Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:45:58.460Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:46:01.970Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:46:01.970Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:46:02.060Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:46:02.061Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:46:02.439Z","level":"info","message":"Bot is not running.","data":{}}
+{"timestamp":"2024-12-25T01:46:03.853Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:46:03.854Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:46:07.369Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:46:07.370Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:46:07.414Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:46:07.415Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:46:09.246Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:46:09.246Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:46:12.720Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:46:12.720Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:46:12.763Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:46:12.764Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:46:14.599Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:46:14.600Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:46:18.074Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:46:18.075Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:46:18.150Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:46:18.150Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:46:19.987Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:46:19.987Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:46:23.424Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:46:23.425Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:46:23.546Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:46:23.547Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:46:25.351Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:46:25.351Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:46:28.805Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:46:28.805Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:46:28.895Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:46:28.896Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:46:30.755Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:46:30.756Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:53:17.041Z","level":"info","message":"Backend server is running on port 3001","data":{}}
+{"timestamp":"2024-12-25T01:55:08.522Z","level":"info","message":"Backend server is running on port 3001","data":{}}
+{"timestamp":"2024-12-25T01:58:19.748Z","level":"info","message":"Initializing contracts...","data":{}}
+{"timestamp":"2024-12-25T01:58:19.927Z","level":"info","message":"Wallet initialized: 0x3772316FD86F64C7aa672ef8f2D4a19A7394d53d","data":{}}
+{"timestamp":"2024-12-25T01:58:20.292Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:58:20.294Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:58:25.655Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:58:25.656Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:58:31.041Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:58:31.042Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:58:36.452Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:58:36.453Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:58:41.851Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:58:41.852Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:58:45.859Z","level":"info","message":"Bot is not running.","data":{}}
+{"timestamp":"2024-12-25T01:58:47.210Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:58:47.211Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:58:52.643Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:58:52.644Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:58:58.018Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:58:58.018Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:59:03.455Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:59:03.456Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:59:05.493Z","level":"info","message":"Bot is not running.","data":{}}
+{"timestamp":"2024-12-25T01:59:05.738Z","level":"info","message":"Bot is not running.","data":{}}
+{"timestamp":"2024-12-25T01:59:09.339Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:59:09.340Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:59:14.734Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:59:14.734Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:59:20.111Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:59:20.112Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:59:25.475Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:59:25.476Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:59:30.869Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:59:30.870Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:59:36.386Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:59:36.386Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:59:43.317Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:59:43.319Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:59:50.293Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:59:50.294Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T01:59:55.729Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T01:59:55.730Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:00:01.194Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:00:01.195Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:00:06.609Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:00:06.610Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:00:12.000Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:00:12.001Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:00:17.421Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:00:17.422Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:00:22.824Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:00:22.824Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:00:28.176Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:00:28.177Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:00:33.537Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:00:33.537Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:00:38.960Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:00:38.961Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:00:44.406Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:00:44.407Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:00:49.808Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:00:49.808Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:00:55.194Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:00:55.194Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:01:00.604Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:01:00.605Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:01:06.006Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:01:06.007Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:01:11.475Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:01:11.476Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:03:33.468Z","level":"info","message":"Backend server is running on port 3001","data":{}}
+{"timestamp":"2024-12-25T02:03:41.735Z","level":"info","message":"Initializing contracts...","data":{}}
+{"timestamp":"2024-12-25T02:03:41.945Z","level":"info","message":"Wallet initialized: 0x3772316FD86F64C7aa672ef8f2D4a19A7394d53d","data":{}}
+{"timestamp":"2024-12-25T02:03:42.310Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:03:42.312Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:03:43.129Z","level":"info","message":"Initializing contracts...","data":{}}
+{"timestamp":"2024-12-25T02:03:43.144Z","level":"info","message":"Wallet initialized: 0x3772316FD86F64C7aa672ef8f2D4a19A7394d53d","data":{}}
+{"timestamp":"2024-12-25T02:03:43.543Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:03:43.543Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:03:47.727Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:03:47.728Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:03:48.943Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:03:48.944Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:03:53.144Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:03:53.145Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:03:54.299Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:03:54.300Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:03:58.599Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:03:58.599Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:03:59.662Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:03:59.663Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:04:03.948Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:04:03.949Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:04:05.055Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:04:05.056Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:04:09.356Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:04:09.359Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:04:10.411Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:04:10.412Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:04:14.770Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:04:14.771Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:04:15.979Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:04:15.980Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:07:05.463Z","level":"info","message":"Backend server is running on port 3001","data":{}}
+{"timestamp":"2024-12-25T02:07:20.144Z","level":"info","message":"Initializing contracts...","data":{}}
+{"timestamp":"2024-12-25T02:07:20.339Z","level":"info","message":"Wallet initialized: 0x3772316FD86F64C7aa672ef8f2D4a19A7394d53d","data":{}}
+{"timestamp":"2024-12-25T02:07:20.757Z","level":"info","message":"Initializing contracts...","data":{}}
+{"timestamp":"2024-12-25T02:07:20.773Z","level":"info","message":"Wallet initialized: 0x3772316FD86F64C7aa672ef8f2D4a19A7394d53d","data":{}}
+{"timestamp":"2024-12-25T02:07:21.020Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:07:21.021Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:07:21.294Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:07:21.295Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:07:26.421Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:07:26.422Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:07:26.674Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:07:26.676Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:07:31.853Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:07:31.855Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:07:32.074Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:07:32.075Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:07:37.260Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:07:37.260Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:07:37.473Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:07:37.474Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:07:42.677Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:07:42.678Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:07:42.887Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:07:42.887Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:07:48.031Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:07:48.031Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:07:48.250Z","level":"error","message":"WebSocket error: Unexpected server response: 404","data":{}}
+{"timestamp":"2024-12-25T02:07:48.251Z","level":"error","message":"WebSocket closed: 1006 - No reason provided","data":{}}
+{"timestamp":"2024-12-25T02:09:53.724Z","level":"info","message":"Backend server is running on port 3001","data":{}}
+{"timestamp":"2024-12-25T02:10:12.029Z","level":"info","message":"Initializing contracts...","data":{}}
+{"timestamp":"2024-12-25T02:10:12.029Z","level":"error","message":"Error initializing contracts: RPC_URL_MAINNET must be defined in .env file.","data":{}}
+{"timestamp":"2024-12-25T02:10:12.031Z","level":"error","message":"Failed to start bot: RPC_URL_MAINNET must be defined in .env file.","data":{}}
+{"timestamp":"2024-12-25T02:10:23.741Z","level":"info","message":"Bot is not running.","data":{}}
+{"timestamp":"2024-12-25T02:10:24.011Z","level":"info","message":"Bot is not running.","data":{}}
+{"timestamp":"2024-12-25T02:10:34.200Z","level":"info","message":"Initializing contracts...","data":{}}
+{"timestamp":"2024-12-25T02:10:34.200Z","level":"error","message":"Error initializing contracts: RPC_URL_MAINNET must be defined in .env file.","data":{}}
+{"timestamp":"2024-12-25T02:10:34.201Z","level":"error","message":"Failed to start bot: RPC_URL_MAINNET must be defined in .env file.","data":{}}
+{"timestamp":"2024-12-25T02:42:19.337Z","level":"info","message":"Backend server is running on port 3001","data":{}}
+{"timestamp":"2024-12-25T02:43:49.196Z","level":"info","message":"Initializing contracts...","data":{}}
+{"timestamp":"2024-12-25T02:43:49.197Z","level":"error","message":"Error initializing contracts: RPC_URL_MAINNET must be defined in .env file.","data":{}}
+{"timestamp":"2024-12-25T02:43:49.198Z","level":"error","message":"Failed to start bot: RPC_URL_MAINNET must be defined in .env file.","data":{}}
+{"timestamp":"2024-12-25T02:44:03.290Z","level":"error","message":"Database is not initialized.","data":{}}
+{"timestamp":"2024-12-25T02:44:03.291Z","level":"error","message":"Error fetching trades: Database is not initialized.","data":{}}
+{"timestamp":"2024-12-25T03:12:43.836Z","level":"info","message":"Backend server is running on port 3001","data":{}}
+{"timestamp":"2024-12-25T03:13:36.251Z","level":"info","message":"Initializing contracts...","data":{}}
+{"timestamp":"2024-12-25T03:13:36.456Z","level":"info","message":"Wallet initialized: 0x3772316FD86F64C7aa672ef8f2D4a19A7394d53d","data":{}}
+{"timestamp":"2024-12-25T03:13:36.941Z","level":"info","message":"FlashbotsBundleProvider initialized.","data":{}}
+{"timestamp":"2024-12-25T03:13:36.950Z","level":"info","message":"Factory and Router contracts initialized.","data":{}}
+{"timestamp":"2024-12-25T03:13:37.048Z","level":"info","message":"Connected to the blockchain. Current block number: 21476727","data":{}}
+{"timestamp":"2024-12-25T03:13:37.050Z","level":"info","message":"Database initialized.","data":{}}
+{"timestamp":"2024-12-25T03:13:37.050Z","level":"info","message":"Bot started.","data":{}}
+{"timestamp":"2024-12-25T03:13:37.054Z","level":"info","message":"Listener for PairCreated events has been set up successfully.","data":{}}
+{"timestamp":"2024-12-25T03:13:37.074Z","level":"info","message":"Connected to the trades database.","data":{}}
+{"timestamp":"2024-12-25T03:13:37.081Z","level":"info","message":"Trades table is ready.","data":{}}
+{"timestamp":"2024-12-25T03:16:11.580Z","level":"info","message":"Received settings update: {\"ETH_AMOUNT_TO_SWAP\":0.1,\"SLIPPAGE_TOLERANCE\":5,\"GAS_PRICE_MULTIPLIER\":120,\"PROFIT_THRESHOLD\":5,\"DEADLINE_BUFFER\":60,\"MINIMUM_LOCKED_ETH\":\"0.08\",\"MAX_GAS_PRICE\":200,\"TOKEN_WHITELIST\":[],\"TOKEN_BLACKLIST\":[]}","data":{}}
+{"timestamp":"2024-12-25T03:16:11.588Z","level":"info","message":"Settings updated successfully.","data":{}}
+{"timestamp":"2024-12-25T10:19:41.359Z","level":"info","message":"Bot stopped.","data":{}}
+{"timestamp":"2024-12-25T10:19:41.376Z","level":"info","message":"Database connection closed.","data":{}}
+{"timestamp":"2024-12-25T10:19:49.971Z","level":"info","message":"Initializing contracts...","data":{}}
+{"timestamp":"2024-12-25T10:19:49.993Z","level":"info","message":"Wallet initialized: 0x3772316FD86F64C7aa672ef8f2D4a19A7394d53d","data":{}}
+{"timestamp":"2024-12-25T10:19:50.488Z","level":"info","message":"FlashbotsBundleProvider initialized.","data":{}}
+{"timestamp":"2024-12-25T10:19:50.497Z","level":"info","message":"Factory and Router contracts initialized.","data":{}}
+{"timestamp":"2024-12-25T10:19:50.599Z","level":"info","message":"Connected to the blockchain. Current block number: 21478849","data":{}}
+{"timestamp":"2024-12-25T10:19:50.600Z","level":"info","message":"Database initialized.","data":{}}
+{"timestamp":"2024-12-25T10:19:50.600Z","level":"info","message":"Bot started.","data":{}}
+{"timestamp":"2024-12-25T10:19:50.603Z","level":"info","message":"Listener for PairCreated events has been set up successfully.","data":{}}
+{"timestamp":"2024-12-25T10:19:50.607Z","level":"info","message":"Connected to the trades database.","data":{}}
+{"timestamp":"2024-12-25T10:19:50.617Z","level":"info","message":"Trades table is ready.","data":{}}
+{"timestamp":"2024-12-25T10:20:17.309Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x7a79670b6f14dc9eB6114CA154492db66bcFf9e7","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0x9797aa51c1425e896483018B72E43E3d5B86225e"}}
+{"timestamp":"2024-12-25T10:20:17.309Z","level":"info","message":"New Token Address: 0x7a79670b6f14dc9eB6114CA154492db66bcFf9e7","data":{}}
+{"timestamp":"2024-12-25T10:20:17.310Z","level":"info","message":"Evaluating pair 0x9797aa51c1425e896483018B72E43E3d5B86225e for viability.","data":{}}
+{"timestamp":"2024-12-25T10:20:17.780Z","level":"info","message":"Pair token0: 0x7a79670b6f14dc9eB6114CA154492db66bcFf9e7, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-25T10:20:17.883Z","level":"info","message":"Pair Reserves: reserve0 = 0.272172506226731778 ETH, reserve1 = 3.625200000000000005 ETH","data":{}}
+{"timestamp":"2024-12-25T10:20:17.885Z","level":"info","message":"Base Token (token1) Reserve: 3.625200000000000005 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T10:20:17.886Z","level":"info","message":"Pair 0x9797aa51c1425e896483018B72E43E3d5B86225e passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T10:20:17.989Z","level":"error","message":"No balance for token 0x7a79670b6f14dc9eB6114CA154492db66bcFf9e7. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T10:20:17.989Z","level":"info","message":"Token 0x7a79670b6f14dc9eB6114CA154492db66bcFf9e7 is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T10:20:38.348Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","token1":"0xFc9ef59A5abf2f40Eab47837f1285Af3640F6e2D","pairAddress":"0xBDE72030F8412069C6e9252b3C43A85fc9c8A1c1"}}
+{"timestamp":"2024-12-25T10:20:38.349Z","level":"info","message":"New Token Address: 0xFc9ef59A5abf2f40Eab47837f1285Af3640F6e2D","data":{}}
+{"timestamp":"2024-12-25T10:20:38.349Z","level":"info","message":"Evaluating pair 0xBDE72030F8412069C6e9252b3C43A85fc9c8A1c1 for viability.","data":{}}
+{"timestamp":"2024-12-25T10:20:38.872Z","level":"info","message":"Pair token0: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2, token1: 0xFc9ef59A5abf2f40Eab47837f1285Af3640F6e2D","data":{}}
+{"timestamp":"2024-12-25T10:20:38.975Z","level":"info","message":"Pair Reserves: reserve0 = 1.0 ETH, reserve1 = 777000000.0 ETH","data":{}}
+{"timestamp":"2024-12-25T10:20:38.976Z","level":"info","message":"Base Token (token0) Reserve: 1.0 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T10:20:38.977Z","level":"info","message":"Pair 0xBDE72030F8412069C6e9252b3C43A85fc9c8A1c1 passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T10:20:39.078Z","level":"error","message":"No balance for token 0xFc9ef59A5abf2f40Eab47837f1285Af3640F6e2D. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T10:20:39.078Z","level":"info","message":"Token 0xFc9ef59A5abf2f40Eab47837f1285Af3640F6e2D is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T10:22:52.466Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x2b4e266b7d04f945f0de4B5b9FAc5cA440974736","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0x3ed8dD9B66AD1381a55d84AD72DC66eBb7F0046B"}}
+{"timestamp":"2024-12-25T10:22:52.467Z","level":"info","message":"New Token Address: 0x2b4e266b7d04f945f0de4B5b9FAc5cA440974736","data":{}}
+{"timestamp":"2024-12-25T10:22:52.467Z","level":"info","message":"Evaluating pair 0x3ed8dD9B66AD1381a55d84AD72DC66eBb7F0046B for viability.","data":{}}
+{"timestamp":"2024-12-25T10:22:52.813Z","level":"info","message":"Pair token0: 0x2b4e266b7d04f945f0de4B5b9FAc5cA440974736, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-25T10:22:52.926Z","level":"info","message":"Pair Reserves: reserve0 = 1.0 ETH, reserve1 = 2.5 ETH","data":{}}
+{"timestamp":"2024-12-25T10:22:52.928Z","level":"info","message":"Base Token (token1) Reserve: 2.5 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T10:22:52.928Z","level":"info","message":"Pair 0x3ed8dD9B66AD1381a55d84AD72DC66eBb7F0046B passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T10:22:53.040Z","level":"error","message":"No balance for token 0x2b4e266b7d04f945f0de4B5b9FAc5cA440974736. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T10:22:53.040Z","level":"info","message":"Token 0x2b4e266b7d04f945f0de4B5b9FAc5cA440974736 is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T10:24:42.710Z","level":"error","message":"WebSocket closed: 1001 - terminating websocket connection because of inactivity","data":{}}
+{"timestamp":"2024-12-25T17:05:28.224Z","level":"info","message":"Backend server is running on port 3001","data":{}}
+{"timestamp":"2024-12-25T17:06:30.616Z","level":"info","message":"Initializing contracts...","data":{}}
+{"timestamp":"2024-12-25T17:06:31.009Z","level":"info","message":"Wallet initialized: 0x3772316FD86F64C7aa672ef8f2D4a19A7394d53d","data":{}}
+{"timestamp":"2024-12-25T17:06:31.511Z","level":"info","message":"FlashbotsBundleProvider initialized.","data":{}}
+{"timestamp":"2024-12-25T17:06:31.518Z","level":"info","message":"Factory and Router contracts initialized.","data":{}}
+{"timestamp":"2024-12-25T17:06:31.619Z","level":"info","message":"Connected to the blockchain. Current block number: 21480872","data":{}}
+{"timestamp":"2024-12-25T17:06:31.620Z","level":"info","message":"Database initialized.","data":{}}
+{"timestamp":"2024-12-25T17:06:31.620Z","level":"info","message":"Bot started.","data":{}}
+{"timestamp":"2024-12-25T17:06:31.623Z","level":"info","message":"Listener for PairCreated events has been set up successfully.","data":{}}
+{"timestamp":"2024-12-25T17:06:31.635Z","level":"info","message":"Connected to the trades database.","data":{}}
+{"timestamp":"2024-12-25T17:06:31.643Z","level":"info","message":"Trades table is ready.","data":{}}
+{"timestamp":"2024-12-25T17:15:25.248Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x1529f59b5910eDf0545c4cD9F38434f3F3c1fC2e","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0x67C3144bE39dC5fb61970362D78c22Bb76877dD6"}}
+{"timestamp":"2024-12-25T17:15:25.253Z","level":"info","message":"New Token Address: 0x1529f59b5910eDf0545c4cD9F38434f3F3c1fC2e","data":{}}
+{"timestamp":"2024-12-25T17:15:25.254Z","level":"info","message":"Evaluating pair 0x67C3144bE39dC5fb61970362D78c22Bb76877dD6 for viability.","data":{}}
+{"timestamp":"2024-12-25T17:15:25.741Z","level":"info","message":"Pair token0: 0x1529f59b5910eDf0545c4cD9F38434f3F3c1fC2e, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-25T17:15:25.838Z","level":"info","message":"Pair Reserves: reserve0 = 0.223149638812278614 ETH, reserve1 = 6.63630000000000005 ETH","data":{}}
+{"timestamp":"2024-12-25T17:15:25.841Z","level":"info","message":"Base Token (token1) Reserve: 6.63630000000000005 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T17:15:25.841Z","level":"info","message":"Pair 0x67C3144bE39dC5fb61970362D78c22Bb76877dD6 passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T17:15:25.939Z","level":"error","message":"No balance for token 0x1529f59b5910eDf0545c4cD9F38434f3F3c1fC2e. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T17:15:25.940Z","level":"info","message":"Token 0x1529f59b5910eDf0545c4cD9F38434f3F3c1fC2e is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T17:19:50.740Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x2821D5EF9036A42309F478a2EcB5b2cDaC6f411B","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0xBF33D8e434A36198D75d4a4427cefF924225be73"}}
+{"timestamp":"2024-12-25T17:19:50.741Z","level":"info","message":"New Token Address: 0x2821D5EF9036A42309F478a2EcB5b2cDaC6f411B","data":{}}
+{"timestamp":"2024-12-25T17:19:50.742Z","level":"info","message":"Evaluating pair 0xBF33D8e434A36198D75d4a4427cefF924225be73 for viability.","data":{}}
+{"timestamp":"2024-12-25T17:19:51.102Z","level":"info","message":"Pair token0: 0x2821D5EF9036A42309F478a2EcB5b2cDaC6f411B, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-25T17:19:51.214Z","level":"info","message":"Pair Reserves: reserve0 = 750500000.0 ETH, reserve1 = 1.0 ETH","data":{}}
+{"timestamp":"2024-12-25T17:19:51.216Z","level":"info","message":"Base Token (token1) Reserve: 1.0 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T17:19:51.216Z","level":"info","message":"Pair 0xBF33D8e434A36198D75d4a4427cefF924225be73 passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T17:19:51.313Z","level":"error","message":"No balance for token 0x2821D5EF9036A42309F478a2EcB5b2cDaC6f411B. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T17:19:51.315Z","level":"info","message":"Token 0x2821D5EF9036A42309F478a2EcB5b2cDaC6f411B is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T17:22:01.615Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x9fD6A1025d68bE185C950C0098DDa5409aCEaC0C","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0xe0f16e3aCBF1eC98f800BF20148866BBDaBAf1b8"}}
+{"timestamp":"2024-12-25T17:22:01.617Z","level":"info","message":"New Token Address: 0x9fD6A1025d68bE185C950C0098DDa5409aCEaC0C","data":{}}
+{"timestamp":"2024-12-25T17:22:01.618Z","level":"info","message":"Evaluating pair 0xe0f16e3aCBF1eC98f800BF20148866BBDaBAf1b8 for viability.","data":{}}
+{"timestamp":"2024-12-25T17:22:01.953Z","level":"info","message":"Pair token0: 0x9fD6A1025d68bE185C950C0098DDa5409aCEaC0C, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-25T17:22:02.050Z","level":"info","message":"Pair Reserves: reserve0 = 0.095 ETH, reserve1 = 1.0 ETH","data":{}}
+{"timestamp":"2024-12-25T17:22:02.051Z","level":"info","message":"Base Token (token1) Reserve: 1.0 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T17:22:02.052Z","level":"info","message":"Pair 0xe0f16e3aCBF1eC98f800BF20148866BBDaBAf1b8 passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T17:22:02.153Z","level":"error","message":"No balance for token 0x9fD6A1025d68bE185C950C0098DDa5409aCEaC0C. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T17:22:02.154Z","level":"info","message":"Token 0x9fD6A1025d68bE185C950C0098DDa5409aCEaC0C is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T17:34:25.162Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x0cB00eC8AFD05389Ac6F9D32e558e67B43fCDAB2","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0x2a1E3564ceb76F9e17B398F8538aDc80198FE6d8"}}
+{"timestamp":"2024-12-25T17:34:25.164Z","level":"info","message":"New Token Address: 0x0cB00eC8AFD05389Ac6F9D32e558e67B43fCDAB2","data":{}}
+{"timestamp":"2024-12-25T17:34:25.164Z","level":"info","message":"Evaluating pair 0x2a1E3564ceb76F9e17B398F8538aDc80198FE6d8 for viability.","data":{}}
+{"timestamp":"2024-12-25T17:34:25.517Z","level":"info","message":"Pair token0: 0x0cB00eC8AFD05389Ac6F9D32e558e67B43fCDAB2, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-25T17:34:25.620Z","level":"info","message":"Pair Reserves: reserve0 = 420690000000000.0 ETH, reserve1 = 1.0 ETH","data":{}}
+{"timestamp":"2024-12-25T17:34:25.624Z","level":"info","message":"Pair 0x2a1E3564ceb76F9e17B398F8538aDc80198FE6d8 passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T17:34:25.623Z","level":"info","message":"Base Token (token1) Reserve: 1.0 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T17:34:25.728Z","level":"error","message":"No balance for token 0x0cB00eC8AFD05389Ac6F9D32e558e67B43fCDAB2. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T17:34:25.729Z","level":"info","message":"Token 0x0cB00eC8AFD05389Ac6F9D32e558e67B43fCDAB2 is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T17:41:38.919Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x2078BB4892F79831f2B5c70D8e3B29E487e36CE8","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0x05dE7EFD47366ac39C1Fc8e88B34C4B7Fa2851B1"}}
+{"timestamp":"2024-12-25T17:41:38.919Z","level":"info","message":"New Token Address: 0x2078BB4892F79831f2B5c70D8e3B29E487e36CE8","data":{}}
+{"timestamp":"2024-12-25T17:41:38.920Z","level":"info","message":"Evaluating pair 0x05dE7EFD47366ac39C1Fc8e88B34C4B7Fa2851B1 for viability.","data":{}}
+{"timestamp":"2024-12-25T17:41:39.327Z","level":"info","message":"Pair token0: 0x2078BB4892F79831f2B5c70D8e3B29E487e36CE8, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-25T17:41:39.428Z","level":"info","message":"Pair Reserves: reserve0 = 0.0 ETH, reserve1 = 0.0 ETH","data":{}}
+{"timestamp":"2024-12-25T17:41:39.429Z","level":"info","message":"Base Token (token1) Reserve: 0.0 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T17:41:39.430Z","level":"error","message":"Base token reserve too low. reserve: 0.0 ETH, minimum required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T17:41:39.431Z","level":"info","message":"Pair 0x05dE7EFD47366ac39C1Fc8e88B34C4B7Fa2851B1 did not pass evaluation. Ignoring.","data":{}}
+{"timestamp":"2024-12-25T17:45:26.271Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x39579Eec6EC7be2201278700a5f8d5EabcA14a50","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0x7c85b00F8b992b1815C98C2404f9FAf7dd371414"}}
+{"timestamp":"2024-12-25T17:45:26.272Z","level":"info","message":"New Token Address: 0x39579Eec6EC7be2201278700a5f8d5EabcA14a50","data":{}}
+{"timestamp":"2024-12-25T17:45:26.272Z","level":"info","message":"Evaluating pair 0x7c85b00F8b992b1815C98C2404f9FAf7dd371414 for viability.","data":{}}
+{"timestamp":"2024-12-25T17:45:26.613Z","level":"info","message":"Pair token0: 0x39579Eec6EC7be2201278700a5f8d5EabcA14a50, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-25T17:45:26.719Z","level":"info","message":"Pair Reserves: reserve0 = 1000000000.0 ETH, reserve1 = 0.28 ETH","data":{}}
+{"timestamp":"2024-12-25T17:45:26.720Z","level":"info","message":"Base Token (token1) Reserve: 0.28 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T17:45:26.720Z","level":"info","message":"Pair 0x7c85b00F8b992b1815C98C2404f9FAf7dd371414 passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T17:45:26.821Z","level":"error","message":"No balance for token 0x39579Eec6EC7be2201278700a5f8d5EabcA14a50. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T17:45:26.822Z","level":"info","message":"Token 0x39579Eec6EC7be2201278700a5f8d5EabcA14a50 is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T18:08:13.812Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x131c1d2EEF8c4fd641A0eA487DaDCF33371346dD","token1":"0xdAC17F958D2ee523a2206206994597C13D831ec7","pairAddress":"0xe6d569d10592919e5f5427101196ba4Fcc533F25"}}
+{"timestamp":"2024-12-25T18:08:13.813Z","level":"info","message":"New Token Address: 0x131c1d2EEF8c4fd641A0eA487DaDCF33371346dD","data":{}}
+{"timestamp":"2024-12-25T18:08:13.813Z","level":"info","message":"Evaluating pair 0xe6d569d10592919e5f5427101196ba4Fcc533F25 for viability.","data":{}}
+{"timestamp":"2024-12-25T18:08:14.162Z","level":"info","message":"Pair token0: 0x131c1d2EEF8c4fd641A0eA487DaDCF33371346dD, token1: 0xdAC17F958D2ee523a2206206994597C13D831ec7","data":{}}
+{"timestamp":"2024-12-25T18:08:14.291Z","level":"info","message":"Pair Reserves: reserve0 = 20000000.0 ETH, reserve1 = 0.000000001 ETH","data":{}}
+{"timestamp":"2024-12-25T18:08:14.292Z","level":"info","message":"Base Token (token1) Reserve: 0.000000001 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T18:08:14.293Z","level":"error","message":"Base token reserve too low. reserve: 0.000000001 ETH, minimum required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T18:08:14.293Z","level":"info","message":"Pair 0xe6d569d10592919e5f5427101196ba4Fcc533F25 did not pass evaluation. Ignoring.","data":{}}
+{"timestamp":"2024-12-25T18:10:02.341Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x0b72EE2f4E41488aC2F2f189d8eeEFeB150C7665","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0x82b4c4BE4D62da633EDDF817943d332E8c38C218"}}
+{"timestamp":"2024-12-25T18:10:02.342Z","level":"info","message":"New Token Address: 0x0b72EE2f4E41488aC2F2f189d8eeEFeB150C7665","data":{}}
+{"timestamp":"2024-12-25T18:10:02.342Z","level":"info","message":"Evaluating pair 0x82b4c4BE4D62da633EDDF817943d332E8c38C218 for viability.","data":{}}
+{"timestamp":"2024-12-25T18:10:03.146Z","level":"info","message":"Pair token0: 0x0b72EE2f4E41488aC2F2f189d8eeEFeB150C7665, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-25T18:10:03.246Z","level":"info","message":"Pair Reserves: reserve0 = 741000000.0 ETH, reserve1 = 1.0 ETH","data":{}}
+{"timestamp":"2024-12-25T18:10:03.247Z","level":"info","message":"Base Token (token1) Reserve: 1.0 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T18:10:03.247Z","level":"info","message":"Pair 0x82b4c4BE4D62da633EDDF817943d332E8c38C218 passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T18:10:03.360Z","level":"error","message":"No balance for token 0x0b72EE2f4E41488aC2F2f189d8eeEFeB150C7665. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T18:10:03.361Z","level":"info","message":"Token 0x0b72EE2f4E41488aC2F2f189d8eeEFeB150C7665 is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T18:23:49.110Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x762c8D04f37Ef9755Fe3DF797E07d4bACC1D3360","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0xb6a0906C833bb17a481ac0F77C7799610A1AD81A"}}
+{"timestamp":"2024-12-25T18:23:49.111Z","level":"info","message":"New Token Address: 0x762c8D04f37Ef9755Fe3DF797E07d4bACC1D3360","data":{}}
+{"timestamp":"2024-12-25T18:23:49.111Z","level":"info","message":"Evaluating pair 0xb6a0906C833bb17a481ac0F77C7799610A1AD81A for viability.","data":{}}
+{"timestamp":"2024-12-25T18:23:49.439Z","level":"info","message":"Pair token0: 0x762c8D04f37Ef9755Fe3DF797E07d4bACC1D3360, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-25T18:23:49.533Z","level":"info","message":"Pair Reserves: reserve0 = 0.764776000000000011 ETH, reserve1 = 2.564733334807394509 ETH","data":{}}
+{"timestamp":"2024-12-25T18:23:49.534Z","level":"info","message":"Base Token (token1) Reserve: 2.564733334807394509 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T18:23:49.534Z","level":"info","message":"Pair 0xb6a0906C833bb17a481ac0F77C7799610A1AD81A passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T18:23:49.629Z","level":"error","message":"No balance for token 0x762c8D04f37Ef9755Fe3DF797E07d4bACC1D3360. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T18:23:49.629Z","level":"info","message":"Token 0x762c8D04f37Ef9755Fe3DF797E07d4bACC1D3360 is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T18:25:37.537Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","token1":"0xde6b99316d2A2E990F6D7a2Ce484B1e06930a8e1","pairAddress":"0x9927D5DF94d3fBf6c7a1efF57608898355801059"}}
+{"timestamp":"2024-12-25T18:25:37.538Z","level":"info","message":"Evaluating pair 0x9927D5DF94d3fBf6c7a1efF57608898355801059 for viability.","data":{}}
+{"timestamp":"2024-12-25T18:25:37.538Z","level":"info","message":"New Token Address: 0xde6b99316d2A2E990F6D7a2Ce484B1e06930a8e1","data":{}}
+{"timestamp":"2024-12-25T18:25:37.866Z","level":"info","message":"Pair token0: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2, token1: 0xde6b99316d2A2E990F6D7a2Ce484B1e06930a8e1","data":{}}
+{"timestamp":"2024-12-25T18:25:37.981Z","level":"info","message":"Pair Reserves: reserve0 = 8.143634223260135005 ETH, reserve1 = 0.012354532253829892 ETH","data":{}}
+{"timestamp":"2024-12-25T18:25:37.982Z","level":"info","message":"Base Token (token0) Reserve: 8.143634223260135005 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T18:25:37.982Z","level":"info","message":"Pair 0x9927D5DF94d3fBf6c7a1efF57608898355801059 passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T18:25:38.081Z","level":"error","message":"No balance for token 0xde6b99316d2A2E990F6D7a2Ce484B1e06930a8e1. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T18:25:38.082Z","level":"info","message":"Token 0xde6b99316d2A2E990F6D7a2Ce484B1e06930a8e1 is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T18:31:01.134Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","token1":"0xC3de27aB7D237ceA7eD6A32A3D2BE0cb0336C298","pairAddress":"0x452Cc664E8606Aa1a6a15Ab305d3e4ff39fbc54d"}}
+{"timestamp":"2024-12-25T18:31:01.135Z","level":"info","message":"New Token Address: 0xC3de27aB7D237ceA7eD6A32A3D2BE0cb0336C298","data":{}}
+{"timestamp":"2024-12-25T18:31:01.135Z","level":"info","message":"Evaluating pair 0x452Cc664E8606Aa1a6a15Ab305d3e4ff39fbc54d for viability.","data":{}}
+{"timestamp":"2024-12-25T18:31:01.445Z","level":"info","message":"Pair token0: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2, token1: 0xC3de27aB7D237ceA7eD6A32A3D2BE0cb0336C298","data":{}}
+{"timestamp":"2024-12-25T18:31:01.553Z","level":"info","message":"Pair Reserves: reserve0 = 21.0 ETH, reserve1 = 29430000.0 ETH","data":{}}
+{"timestamp":"2024-12-25T18:31:01.554Z","level":"info","message":"Base Token (token0) Reserve: 21.0 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T18:31:01.554Z","level":"info","message":"Pair 0x452Cc664E8606Aa1a6a15Ab305d3e4ff39fbc54d passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T18:31:01.653Z","level":"error","message":"No balance for token 0xC3de27aB7D237ceA7eD6A32A3D2BE0cb0336C298. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T18:31:01.653Z","level":"info","message":"Token 0xC3de27aB7D237ceA7eD6A32A3D2BE0cb0336C298 is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T18:33:37.740Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x7006F11F0151fAF9B2Daf3Eb7d5aa97100b6A5BC","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0x11593d0Adbe0d2C58bB8548049Bfba4fb3F8679C"}}
+{"timestamp":"2024-12-25T18:33:37.740Z","level":"info","message":"New Token Address: 0x7006F11F0151fAF9B2Daf3Eb7d5aa97100b6A5BC","data":{}}
+{"timestamp":"2024-12-25T18:33:37.740Z","level":"info","message":"Evaluating pair 0x11593d0Adbe0d2C58bB8548049Bfba4fb3F8679C for viability.","data":{}}
+{"timestamp":"2024-12-25T18:33:38.046Z","level":"info","message":"Pair token0: 0x7006F11F0151fAF9B2Daf3Eb7d5aa97100b6A5BC, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-25T18:33:38.140Z","level":"info","message":"Pair Reserves: reserve0 = 1000000000.0 ETH, reserve1 = 0.28 ETH","data":{}}
+{"timestamp":"2024-12-25T18:33:38.141Z","level":"info","message":"Base Token (token1) Reserve: 0.28 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T18:33:38.141Z","level":"info","message":"Pair 0x11593d0Adbe0d2C58bB8548049Bfba4fb3F8679C passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T18:33:38.266Z","level":"error","message":"No balance for token 0x7006F11F0151fAF9B2Daf3Eb7d5aa97100b6A5BC. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T18:33:38.266Z","level":"info","message":"Token 0x7006F11F0151fAF9B2Daf3Eb7d5aa97100b6A5BC is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T18:48:13.451Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","token1":"0xCFf0917D8093F402FC5a2002f31c494aaAD30649","pairAddress":"0x5585660E614a990eB709472FcbAA5e8dBBb68b70"}}
+{"timestamp":"2024-12-25T18:48:13.451Z","level":"info","message":"Evaluating pair 0x5585660E614a990eB709472FcbAA5e8dBBb68b70 for viability.","data":{}}
+{"timestamp":"2024-12-25T18:48:13.451Z","level":"info","message":"New Token Address: 0xCFf0917D8093F402FC5a2002f31c494aaAD30649","data":{}}
+{"timestamp":"2024-12-25T18:48:13.806Z","level":"info","message":"Pair token0: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2, token1: 0xCFf0917D8093F402FC5a2002f31c494aaAD30649","data":{}}
+{"timestamp":"2024-12-25T18:48:13.905Z","level":"info","message":"Pair Reserves: reserve0 = 5.196170138372511394 ETH, reserve1 = 0.502708422297849707 ETH","data":{}}
+{"timestamp":"2024-12-25T18:48:13.907Z","level":"info","message":"Base Token (token0) Reserve: 5.196170138372511394 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T18:48:13.907Z","level":"info","message":"Pair 0x5585660E614a990eB709472FcbAA5e8dBBb68b70 passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T18:48:14.011Z","level":"error","message":"No balance for token 0xCFf0917D8093F402FC5a2002f31c494aaAD30649. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T18:48:14.011Z","level":"info","message":"Token 0xCFf0917D8093F402FC5a2002f31c494aaAD30649 is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T19:03:02.837Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x1C8E3Ce29D796486dB15a69e50c5c040B00A001A","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0x15912620de026D0718e253707989Fb31313de71C"}}
+{"timestamp":"2024-12-25T19:03:02.837Z","level":"info","message":"New Token Address: 0x1C8E3Ce29D796486dB15a69e50c5c040B00A001A","data":{}}
+{"timestamp":"2024-12-25T19:03:02.838Z","level":"info","message":"Evaluating pair 0x15912620de026D0718e253707989Fb31313de71C for viability.","data":{}}
+{"timestamp":"2024-12-25T19:03:03.159Z","level":"info","message":"Pair token0: 0x1C8E3Ce29D796486dB15a69e50c5c040B00A001A, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-25T19:03:03.253Z","level":"info","message":"Pair Reserves: reserve0 = 31972.44 ETH, reserve1 = 1.052791985285871952 ETH","data":{}}
+{"timestamp":"2024-12-25T19:03:03.254Z","level":"info","message":"Base Token (token1) Reserve: 1.052791985285871952 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T19:03:03.254Z","level":"info","message":"Pair 0x15912620de026D0718e253707989Fb31313de71C passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T19:03:03.350Z","level":"error","message":"No balance for token 0x1C8E3Ce29D796486dB15a69e50c5c040B00A001A. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T19:03:03.350Z","level":"info","message":"Token 0x1C8E3Ce29D796486dB15a69e50c5c040B00A001A is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T19:29:50.520Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0xbbEBD95De194733d2bE57DB753D1af0dff283569","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0xE7D92249FDC109daE70AC9c3F6BD4324b3C43450"}}
+{"timestamp":"2024-12-25T19:29:50.520Z","level":"info","message":"New Token Address: 0xbbEBD95De194733d2bE57DB753D1af0dff283569","data":{}}
+{"timestamp":"2024-12-25T19:29:50.521Z","level":"info","message":"Evaluating pair 0xE7D92249FDC109daE70AC9c3F6BD4324b3C43450 for viability.","data":{}}
+{"timestamp":"2024-12-25T19:29:50.840Z","level":"info","message":"Pair token0: 0xbbEBD95De194733d2bE57DB753D1af0dff283569, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-25T19:29:50.936Z","level":"info","message":"Pair Reserves: reserve0 = 0.044190083769449505 ETH, reserve1 = 1.78739746171227472 ETH","data":{}}
+{"timestamp":"2024-12-25T19:29:50.937Z","level":"info","message":"Base Token (token1) Reserve: 1.78739746171227472 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T19:29:50.937Z","level":"info","message":"Pair 0xE7D92249FDC109daE70AC9c3F6BD4324b3C43450 passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T19:29:51.029Z","level":"error","message":"No balance for token 0xbbEBD95De194733d2bE57DB753D1af0dff283569. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T19:29:51.029Z","level":"info","message":"Token 0xbbEBD95De194733d2bE57DB753D1af0dff283569 is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T19:36:38.435Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","token1":"0xDd71e93749Ee44Cba59A9c0621C5afbb6000E4fd","pairAddress":"0xE753d326409998753820341b5D0bC9f85B824323"}}
+{"timestamp":"2024-12-25T19:36:38.435Z","level":"info","message":"New Token Address: 0xDd71e93749Ee44Cba59A9c0621C5afbb6000E4fd","data":{}}
+{"timestamp":"2024-12-25T19:36:38.435Z","level":"info","message":"Evaluating pair 0xE753d326409998753820341b5D0bC9f85B824323 for viability.","data":{}}
+{"timestamp":"2024-12-25T19:36:38.817Z","level":"info","message":"Pair token0: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2, token1: 0xDd71e93749Ee44Cba59A9c0621C5afbb6000E4fd","data":{}}
+{"timestamp":"2024-12-25T19:36:38.931Z","level":"info","message":"Pair Reserves: reserve0 = 4.703754629348637328 ETH, reserve1 = 0.200919000000000038 ETH","data":{}}
+{"timestamp":"2024-12-25T19:36:38.932Z","level":"info","message":"Base Token (token0) Reserve: 4.703754629348637328 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T19:36:38.932Z","level":"info","message":"Pair 0xE753d326409998753820341b5D0bC9f85B824323 passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T19:36:39.049Z","level":"error","message":"No balance for token 0xDd71e93749Ee44Cba59A9c0621C5afbb6000E4fd. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T19:36:39.050Z","level":"info","message":"Token 0xDd71e93749Ee44Cba59A9c0621C5afbb6000E4fd is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T19:39:37.509Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","token1":"0xc9a53E88AaEdd61ee7418B24519f87746062B846","pairAddress":"0xBD31bc0d0E61fc99Ec07ec0ecfa290edBCE4AF09"}}
+{"timestamp":"2024-12-25T19:39:37.510Z","level":"info","message":"Evaluating pair 0xBD31bc0d0E61fc99Ec07ec0ecfa290edBCE4AF09 for viability.","data":{}}
+{"timestamp":"2024-12-25T19:39:37.510Z","level":"info","message":"New Token Address: 0xc9a53E88AaEdd61ee7418B24519f87746062B846","data":{}}
+{"timestamp":"2024-12-25T19:39:37.875Z","level":"info","message":"Pair token0: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2, token1: 0xc9a53E88AaEdd61ee7418B24519f87746062B846","data":{}}
+{"timestamp":"2024-12-25T19:39:37.973Z","level":"info","message":"Pair Reserves: reserve0 = 1.250830221464566037 ETH, reserve1 = 0.08000000000000001 ETH","data":{}}
+{"timestamp":"2024-12-25T19:39:37.974Z","level":"info","message":"Base Token (token0) Reserve: 1.250830221464566037 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T19:39:37.974Z","level":"info","message":"Pair 0xBD31bc0d0E61fc99Ec07ec0ecfa290edBCE4AF09 passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T19:39:38.070Z","level":"error","message":"No balance for token 0xc9a53E88AaEdd61ee7418B24519f87746062B846. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T19:39:38.070Z","level":"info","message":"Token 0xc9a53E88AaEdd61ee7418B24519f87746062B846 is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T19:41:50.144Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x02817CFdb6917CD40afAa081b261Fc61B4d6e6a0","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0x775888D92b807322d970Aa204b17c655aAcDb544"}}
+{"timestamp":"2024-12-25T19:41:50.145Z","level":"info","message":"Evaluating pair 0x775888D92b807322d970Aa204b17c655aAcDb544 for viability.","data":{}}
+{"timestamp":"2024-12-25T19:41:50.145Z","level":"info","message":"New Token Address: 0x02817CFdb6917CD40afAa081b261Fc61B4d6e6a0","data":{}}
+{"timestamp":"2024-12-25T19:41:50.517Z","level":"info","message":"Pair token0: 0x02817CFdb6917CD40afAa081b261Fc61B4d6e6a0, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-25T19:41:50.613Z","level":"info","message":"Pair Reserves: reserve0 = 0.144583120988814111 ETH, reserve1 = 6.704634049832838351 ETH","data":{}}
+{"timestamp":"2024-12-25T19:41:50.613Z","level":"info","message":"Base Token (token1) Reserve: 6.704634049832838351 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T19:41:50.614Z","level":"info","message":"Pair 0x775888D92b807322d970Aa204b17c655aAcDb544 passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T19:41:50.712Z","level":"error","message":"No balance for token 0x02817CFdb6917CD40afAa081b261Fc61B4d6e6a0. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T19:41:50.712Z","level":"info","message":"Token 0x02817CFdb6917CD40afAa081b261Fc61B4d6e6a0 is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T19:59:13.373Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x0c7628b3E0B97eE8a212aC966d210D964d0Afa1b","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0x129390Fe51d2389B29E7570D3D7D9B9870Fc0a3B"}}
+{"timestamp":"2024-12-25T19:59:13.374Z","level":"info","message":"Evaluating pair 0x129390Fe51d2389B29E7570D3D7D9B9870Fc0a3B for viability.","data":{}}
+{"timestamp":"2024-12-25T19:59:13.374Z","level":"info","message":"New Token Address: 0x0c7628b3E0B97eE8a212aC966d210D964d0Afa1b","data":{}}
+{"timestamp":"2024-12-25T19:59:13.706Z","level":"info","message":"Pair token0: 0x0c7628b3E0B97eE8a212aC966d210D964d0Afa1b, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-25T19:59:13.810Z","level":"info","message":"Pair Reserves: reserve0 = 60000000.0 ETH, reserve1 = 1.0 ETH","data":{}}
+{"timestamp":"2024-12-25T19:59:13.811Z","level":"info","message":"Base Token (token1) Reserve: 1.0 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T19:59:13.811Z","level":"info","message":"Pair 0x129390Fe51d2389B29E7570D3D7D9B9870Fc0a3B passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T19:59:13.911Z","level":"error","message":"No balance for token 0x0c7628b3E0B97eE8a212aC966d210D964d0Afa1b. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T19:59:13.911Z","level":"info","message":"Token 0x0c7628b3E0B97eE8a212aC966d210D964d0Afa1b is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T20:01:37.571Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","token1":"0xc5dBbdFD907427089DedBDf27F7dc890a3c25296","pairAddress":"0x77aC53286daC13c6D3855bB1b8786B5431fD9787"}}
+{"timestamp":"2024-12-25T20:01:37.571Z","level":"info","message":"Evaluating pair 0x77aC53286daC13c6D3855bB1b8786B5431fD9787 for viability.","data":{}}
+{"timestamp":"2024-12-25T20:01:37.571Z","level":"info","message":"New Token Address: 0xc5dBbdFD907427089DedBDf27F7dc890a3c25296","data":{}}
+{"timestamp":"2024-12-25T20:01:37.904Z","level":"info","message":"Pair token0: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2, token1: 0xc5dBbdFD907427089DedBDf27F7dc890a3c25296","data":{}}
+{"timestamp":"2024-12-25T20:01:38.000Z","level":"info","message":"Pair Reserves: reserve0 = 0.0 ETH, reserve1 = 0.0 ETH","data":{}}
+{"timestamp":"2024-12-25T20:01:38.002Z","level":"info","message":"Base Token (token0) Reserve: 0.0 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T20:01:38.003Z","level":"error","message":"Base token reserve too low. reserve: 0.0 ETH, minimum required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T20:01:38.003Z","level":"info","message":"Pair 0x77aC53286daC13c6D3855bB1b8786B5431fD9787 did not pass evaluation. Ignoring.","data":{}}
+{"timestamp":"2024-12-25T20:17:01.532Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","token1":"0xE9eF0c6B501bc3F19CbdCC4282A0E4a64e1fcD3D","pairAddress":"0xafc86dc7B1895D0e158a53f37b19AD2A75925803"}}
+{"timestamp":"2024-12-25T20:17:01.532Z","level":"info","message":"New Token Address: 0xE9eF0c6B501bc3F19CbdCC4282A0E4a64e1fcD3D","data":{}}
+{"timestamp":"2024-12-25T20:17:01.533Z","level":"info","message":"Evaluating pair 0xafc86dc7B1895D0e158a53f37b19AD2A75925803 for viability.","data":{}}
+{"timestamp":"2024-12-25T20:17:01.880Z","level":"info","message":"Pair token0: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2, token1: 0xE9eF0c6B501bc3F19CbdCC4282A0E4a64e1fcD3D","data":{}}
+{"timestamp":"2024-12-25T20:17:01.975Z","level":"info","message":"Pair Reserves: reserve0 = 5.404688302311655722 ETH, reserve1 = 0.07436 ETH","data":{}}
+{"timestamp":"2024-12-25T20:17:01.976Z","level":"info","message":"Base Token (token0) Reserve: 5.404688302311655722 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T20:17:01.976Z","level":"info","message":"Pair 0xafc86dc7B1895D0e158a53f37b19AD2A75925803 passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T20:17:02.082Z","level":"error","message":"No balance for token 0xE9eF0c6B501bc3F19CbdCC4282A0E4a64e1fcD3D. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T20:17:02.082Z","level":"info","message":"Token 0xE9eF0c6B501bc3F19CbdCC4282A0E4a64e1fcD3D is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T20:23:50.319Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","token1":"0xF7897866DE5758a53a13fBc16A485a67eD6f39Eb","pairAddress":"0xDd447d9fa797D297E075923c412946704889F3D6"}}
+{"timestamp":"2024-12-25T20:23:50.320Z","level":"info","message":"Evaluating pair 0xDd447d9fa797D297E075923c412946704889F3D6 for viability.","data":{}}
+{"timestamp":"2024-12-25T20:23:50.320Z","level":"info","message":"New Token Address: 0xF7897866DE5758a53a13fBc16A485a67eD6f39Eb","data":{}}
+{"timestamp":"2024-12-25T20:23:50.652Z","level":"info","message":"Pair token0: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2, token1: 0xF7897866DE5758a53a13fBc16A485a67eD6f39Eb","data":{}}
+{"timestamp":"2024-12-25T20:23:50.748Z","level":"info","message":"Pair Reserves: reserve0 = 1.0 ETH, reserve1 = 4000.0 ETH","data":{}}
+{"timestamp":"2024-12-25T20:23:50.749Z","level":"info","message":"Base Token (token0) Reserve: 1.0 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T20:23:50.749Z","level":"info","message":"Pair 0xDd447d9fa797D297E075923c412946704889F3D6 passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T20:23:50.854Z","level":"error","message":"No balance for token 0xF7897866DE5758a53a13fBc16A485a67eD6f39Eb. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T20:23:50.855Z","level":"info","message":"Token 0xF7897866DE5758a53a13fBc16A485a67eD6f39Eb is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T20:41:13.282Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x7E4dFECbfCBd3D12721B5A2c87Cc1FA5938dF212","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0x0fc6195811360BA8A36242615367c18cfDF3f5f4"}}
+{"timestamp":"2024-12-25T20:41:13.283Z","level":"info","message":"Evaluating pair 0x0fc6195811360BA8A36242615367c18cfDF3f5f4 for viability.","data":{}}
+{"timestamp":"2024-12-25T20:41:13.283Z","level":"info","message":"New Token Address: 0x7E4dFECbfCBd3D12721B5A2c87Cc1FA5938dF212","data":{}}
+{"timestamp":"2024-12-25T20:41:13.631Z","level":"info","message":"Pair token0: 0x7E4dFECbfCBd3D12721B5A2c87Cc1FA5938dF212, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-25T20:41:13.726Z","level":"info","message":"Pair Reserves: reserve0 = 1500000000000.0 ETH, reserve1 = 50.0 ETH","data":{}}
+{"timestamp":"2024-12-25T20:41:13.727Z","level":"info","message":"Base Token (token1) Reserve: 50.0 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T20:41:13.727Z","level":"info","message":"Pair 0x0fc6195811360BA8A36242615367c18cfDF3f5f4 passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T20:41:13.823Z","level":"error","message":"No balance for token 0x7E4dFECbfCBd3D12721B5A2c87Cc1FA5938dF212. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T20:41:13.824Z","level":"info","message":"Token 0x7E4dFECbfCBd3D12721B5A2c87Cc1FA5938dF212 is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T20:52:01.758Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","token1":"0xe082c049281E940c154060667401b964618bD46F","pairAddress":"0x51685f8C2D8F39772F64A1D3328F4406D8Bc3624"}}
+{"timestamp":"2024-12-25T20:52:01.758Z","level":"info","message":"Evaluating pair 0x51685f8C2D8F39772F64A1D3328F4406D8Bc3624 for viability.","data":{}}
+{"timestamp":"2024-12-25T20:52:01.758Z","level":"info","message":"New Token Address: 0xe082c049281E940c154060667401b964618bD46F","data":{}}
+{"timestamp":"2024-12-25T20:52:02.110Z","level":"info","message":"Pair token0: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2, token1: 0xe082c049281E940c154060667401b964618bD46F","data":{}}
+{"timestamp":"2024-12-25T20:52:02.214Z","level":"info","message":"Pair Reserves: reserve0 = 1.0 ETH, reserve1 = 4000.0 ETH","data":{}}
+{"timestamp":"2024-12-25T20:52:02.214Z","level":"info","message":"Base Token (token0) Reserve: 1.0 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T20:52:02.215Z","level":"info","message":"Pair 0x51685f8C2D8F39772F64A1D3328F4406D8Bc3624 passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T20:52:02.317Z","level":"error","message":"No balance for token 0xe082c049281E940c154060667401b964618bD46F. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T20:52:02.317Z","level":"info","message":"Token 0xe082c049281E940c154060667401b964618bD46F is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T21:01:02.490Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x4c897A93272589245d2a46E5489049a1240EBEd8","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0x89e4E573dBdE409eDb3c824FA7F349ca3A4aD797"}}
+{"timestamp":"2024-12-25T21:01:02.491Z","level":"info","message":"Evaluating pair 0x89e4E573dBdE409eDb3c824FA7F349ca3A4aD797 for viability.","data":{}}
+{"timestamp":"2024-12-25T21:01:02.490Z","level":"info","message":"New Token Address: 0x4c897A93272589245d2a46E5489049a1240EBEd8","data":{}}
+{"timestamp":"2024-12-25T21:01:02.829Z","level":"info","message":"Pair token0: 0x4c897A93272589245d2a46E5489049a1240EBEd8, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-25T21:01:02.949Z","level":"info","message":"Pair Reserves: reserve0 = 395360000.0 ETH, reserve1 = 20.0 ETH","data":{}}
+{"timestamp":"2024-12-25T21:01:02.949Z","level":"info","message":"Base Token (token1) Reserve: 20.0 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T21:01:02.949Z","level":"info","message":"Pair 0x89e4E573dBdE409eDb3c824FA7F349ca3A4aD797 passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T21:01:03.046Z","level":"error","message":"No balance for token 0x4c897A93272589245d2a46E5489049a1240EBEd8. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T21:01:03.047Z","level":"info","message":"Token 0x4c897A93272589245d2a46E5489049a1240EBEd8 is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T21:07:26.426Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x12466fA1702e20B424DCfD58E6924dd86069Bd94","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0xcb28A1555d2f18174ebC13402Bd80d8396265c21"}}
+{"timestamp":"2024-12-25T21:07:26.426Z","level":"info","message":"Evaluating pair 0xcb28A1555d2f18174ebC13402Bd80d8396265c21 for viability.","data":{}}
+{"timestamp":"2024-12-25T21:07:26.426Z","level":"info","message":"New Token Address: 0x12466fA1702e20B424DCfD58E6924dd86069Bd94","data":{}}
+{"timestamp":"2024-12-25T21:07:26.744Z","level":"info","message":"Pair token0: 0x12466fA1702e20B424DCfD58E6924dd86069Bd94, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-25T21:07:26.848Z","level":"info","message":"Pair Reserves: reserve0 = 0.745624000000000012 ETH, reserve1 = 2.630808941727661711 ETH","data":{}}
+{"timestamp":"2024-12-25T21:07:26.849Z","level":"info","message":"Pair 0xcb28A1555d2f18174ebC13402Bd80d8396265c21 passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T21:07:26.849Z","level":"info","message":"Base Token (token1) Reserve: 2.630808941727661711 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T21:07:26.943Z","level":"error","message":"No balance for token 0x12466fA1702e20B424DCfD58E6924dd86069Bd94. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T21:07:26.944Z","level":"info","message":"Token 0x12466fA1702e20B424DCfD58E6924dd86069Bd94 is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T21:16:11.738Z","level":"info","message":"Backend server is running on port 3001","data":{}}
+{"timestamp":"2024-12-25T21:16:25.623Z","level":"info","message":"Initializing contracts...","data":{}}
+{"timestamp":"2024-12-25T21:16:25.745Z","level":"info","message":"Wallet initialized: 0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199","data":{}}
+{"timestamp":"2024-12-25T21:16:26.317Z","level":"info","message":"FlashbotsBundleProvider initialized.","data":{}}
+{"timestamp":"2024-12-25T21:16:26.330Z","level":"info","message":"Factory and Router contracts initialized.","data":{}}
+{"timestamp":"2024-12-25T21:16:27.083Z","level":"info","message":"Connected to the blockchain. Current block number: 21482112","data":{}}
+{"timestamp":"2024-12-25T21:16:27.084Z","level":"info","message":"Database initialized.","data":{}}
+{"timestamp":"2024-12-25T21:16:27.084Z","level":"info","message":"Bot started.","data":{}}
+{"timestamp":"2024-12-25T21:16:27.089Z","level":"info","message":"Listener for PairCreated events has been set up successfully.","data":{}}
+{"timestamp":"2024-12-25T21:16:27.101Z","level":"info","message":"Connected to the trades database.","data":{}}
+{"timestamp":"2024-12-25T21:16:27.115Z","level":"info","message":"Trades table is ready.","data":{}}
+{"timestamp":"2024-12-25T21:26:02.438Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x1bd7447e5cfBD5E15e29f6391379818898Bd96ed","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0x0E3E30883C1754a9da2A5F04390A1cB1FabcDF05"}}
+{"timestamp":"2024-12-25T21:26:02.439Z","level":"info","message":"New Token Address: 0x1bd7447e5cfBD5E15e29f6391379818898Bd96ed","data":{}}
+{"timestamp":"2024-12-25T21:26:02.440Z","level":"info","message":"Evaluating pair 0x0E3E30883C1754a9da2A5F04390A1cB1FabcDF05 for viability.","data":{}}
+{"timestamp":"2024-12-25T21:26:03.884Z","level":"info","message":"Pair token0: 0x1bd7447e5cfBD5E15e29f6391379818898Bd96ed, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-25T21:26:03.993Z","level":"info","message":"Pair Reserves: reserve0 = 0.086044221344638863 ETH, reserve1 = 2.325431039862866785 ETH","data":{}}
+{"timestamp":"2024-12-25T21:26:03.995Z","level":"info","message":"Base Token (token1) Reserve: 2.325431039862866785 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T21:26:03.996Z","level":"info","message":"Pair 0x0E3E30883C1754a9da2A5F04390A1cB1FabcDF05 passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T21:26:04.111Z","level":"error","message":"No balance for token 0x1bd7447e5cfBD5E15e29f6391379818898Bd96ed. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T21:26:04.112Z","level":"info","message":"Token 0x1bd7447e5cfBD5E15e29f6391379818898Bd96ed is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T21:48:27.389Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","token1":"0xe8dCF1a04481C9cFeE008795A8537FeBDFD46392","pairAddress":"0xC28A574c2455767a04A737A95f4c6d060ad5A87c"}}
+{"timestamp":"2024-12-25T21:48:27.390Z","level":"info","message":"New Token Address: 0xe8dCF1a04481C9cFeE008795A8537FeBDFD46392","data":{}}
+{"timestamp":"2024-12-25T21:48:27.391Z","level":"info","message":"Evaluating pair 0xC28A574c2455767a04A737A95f4c6d060ad5A87c for viability.","data":{}}
+{"timestamp":"2024-12-25T21:48:27.793Z","level":"info","message":"Pair token0: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2, token1: 0xe8dCF1a04481C9cFeE008795A8537FeBDFD46392","data":{}}
+{"timestamp":"2024-12-25T21:48:27.906Z","level":"info","message":"Pair Reserves: reserve0 = 1.0 ETH, reserve1 = 4000.0 ETH","data":{}}
+{"timestamp":"2024-12-25T21:48:27.908Z","level":"info","message":"Base Token (token0) Reserve: 1.0 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T21:48:27.909Z","level":"info","message":"Pair 0xC28A574c2455767a04A737A95f4c6d060ad5A87c passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T21:48:28.029Z","level":"error","message":"No balance for token 0xe8dCF1a04481C9cFeE008795A8537FeBDFD46392. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T21:48:28.030Z","level":"info","message":"Token 0xe8dCF1a04481C9cFeE008795A8537FeBDFD46392 is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T21:52:01.768Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x2Ba66F24327f28624d5A7289cc38ADeB49fACf32","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0x0c1d82cdE5980FABe24BA681c5e2dC67C4F4E717"}}
+{"timestamp":"2024-12-25T21:52:01.769Z","level":"info","message":"New Token Address: 0x2Ba66F24327f28624d5A7289cc38ADeB49fACf32","data":{}}
+{"timestamp":"2024-12-25T21:52:01.769Z","level":"info","message":"Evaluating pair 0x0c1d82cdE5980FABe24BA681c5e2dC67C4F4E717 for viability.","data":{}}
+{"timestamp":"2024-12-25T21:52:02.211Z","level":"info","message":"Pair token0: 0x2Ba66F24327f28624d5A7289cc38ADeB49fACf32, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-25T21:52:02.328Z","level":"info","message":"Pair Reserves: reserve0 = 0.0 ETH, reserve1 = 0.0 ETH","data":{}}
+{"timestamp":"2024-12-25T21:52:02.329Z","level":"info","message":"Base Token (token1) Reserve: 0.0 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T21:52:02.330Z","level":"error","message":"Base token reserve too low. reserve: 0.0 ETH, minimum required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T21:52:02.331Z","level":"info","message":"Pair 0x0c1d82cdE5980FABe24BA681c5e2dC67C4F4E717 did not pass evaluation. Ignoring.","data":{}}
+{"timestamp":"2024-12-25T21:56:13.959Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","token1":"0xC16d88fCC29f1AF69376D237Da627D3F4B842Ad5","pairAddress":"0x92f325fEDF244d56a1Bb4e219F71030Cc763AE34"}}
+{"timestamp":"2024-12-25T21:56:13.960Z","level":"info","message":"Evaluating pair 0x92f325fEDF244d56a1Bb4e219F71030Cc763AE34 for viability.","data":{}}
+{"timestamp":"2024-12-25T21:56:13.960Z","level":"info","message":"New Token Address: 0xC16d88fCC29f1AF69376D237Da627D3F4B842Ad5","data":{}}
+{"timestamp":"2024-12-25T21:56:16.833Z","level":"info","message":"Pair token0: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2, token1: 0xC16d88fCC29f1AF69376D237Da627D3F4B842Ad5","data":{}}
+{"timestamp":"2024-12-25T21:56:16.944Z","level":"info","message":"Pair Reserves: reserve0 = 5.5927 ETH, reserve1 = 140.48949365624387556 ETH","data":{}}
+{"timestamp":"2024-12-25T21:56:16.946Z","level":"info","message":"Base Token (token0) Reserve: 5.5927 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T21:56:16.946Z","level":"info","message":"Pair 0x92f325fEDF244d56a1Bb4e219F71030Cc763AE34 passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T21:56:17.056Z","level":"error","message":"No balance for token 0xC16d88fCC29f1AF69376D237Da627D3F4B842Ad5. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T21:56:17.056Z","level":"info","message":"Token 0xC16d88fCC29f1AF69376D237Da627D3F4B842Ad5 is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T22:15:03.371Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0xA3d82308CB56Ca65748CfEC809a43273Bf2306Da","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0x22699417970B32cCe447A9312E8FFA3B49C2dbc5"}}
+{"timestamp":"2024-12-25T22:15:03.372Z","level":"info","message":"New Token Address: 0xA3d82308CB56Ca65748CfEC809a43273Bf2306Da","data":{}}
+{"timestamp":"2024-12-25T22:15:03.372Z","level":"info","message":"Evaluating pair 0x22699417970B32cCe447A9312E8FFA3B49C2dbc5 for viability.","data":{}}
+{"timestamp":"2024-12-25T22:15:03.956Z","level":"info","message":"Pair token0: 0xA3d82308CB56Ca65748CfEC809a43273Bf2306Da, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-25T22:15:04.142Z","level":"info","message":"Pair Reserves: reserve0 = 0.235 ETH, reserve1 = 3.759325972038048255 ETH","data":{}}
+{"timestamp":"2024-12-25T22:15:04.144Z","level":"info","message":"Base Token (token1) Reserve: 3.759325972038048255 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T22:15:04.145Z","level":"info","message":"Pair 0x22699417970B32cCe447A9312E8FFA3B49C2dbc5 passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T22:15:04.341Z","level":"error","message":"No balance for token 0xA3d82308CB56Ca65748CfEC809a43273Bf2306Da. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T22:15:04.341Z","level":"info","message":"Token 0xA3d82308CB56Ca65748CfEC809a43273Bf2306Da is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T22:16:14.866Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x173eCD02550e0f5C77F41a4E508cb3178949DAf9","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0xCc1D0e57f1F2C5D5b917bC757aEad2C44A132fF3"}}
+{"timestamp":"2024-12-25T22:16:14.867Z","level":"info","message":"New Token Address: 0x173eCD02550e0f5C77F41a4E508cb3178949DAf9","data":{}}
+{"timestamp":"2024-12-25T22:16:14.867Z","level":"info","message":"Evaluating pair 0xCc1D0e57f1F2C5D5b917bC757aEad2C44A132fF3 for viability.","data":{}}
+{"timestamp":"2024-12-25T22:16:16.152Z","level":"info","message":"Pair token0: 0x173eCD02550e0f5C77F41a4E508cb3178949DAf9, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-25T22:16:16.330Z","level":"info","message":"Pair Reserves: reserve0 = 10.0 ETH, reserve1 = 1.0 ETH","data":{}}
+{"timestamp":"2024-12-25T22:16:16.331Z","level":"info","message":"Base Token (token1) Reserve: 1.0 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T22:16:16.331Z","level":"info","message":"Pair 0xCc1D0e57f1F2C5D5b917bC757aEad2C44A132fF3 passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T22:16:16.519Z","level":"error","message":"No balance for token 0x173eCD02550e0f5C77F41a4E508cb3178949DAf9. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T22:16:16.519Z","level":"info","message":"Token 0x173eCD02550e0f5C77F41a4E508cb3178949DAf9 is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T22:17:15.850Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x9B37e451785cB68d2B0A9F0c8a4a93b22766CcF3","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0x617B0462574F78B08397e3813FE6CD96FDd919c8"}}
+{"timestamp":"2024-12-25T22:17:15.850Z","level":"info","message":"New Token Address: 0x9B37e451785cB68d2B0A9F0c8a4a93b22766CcF3","data":{}}
+{"timestamp":"2024-12-25T22:17:15.850Z","level":"info","message":"Evaluating pair 0x617B0462574F78B08397e3813FE6CD96FDd919c8 for viability.","data":{}}
+{"timestamp":"2024-12-25T22:17:16.972Z","level":"info","message":"Pair token0: 0x9B37e451785cB68d2B0A9F0c8a4a93b22766CcF3, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-25T22:17:17.079Z","level":"info","message":"Pair Reserves: reserve0 = 0.0 ETH, reserve1 = 0.0 ETH","data":{}}
+{"timestamp":"2024-12-25T22:17:17.080Z","level":"info","message":"Base Token (token1) Reserve: 0.0 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T22:17:17.080Z","level":"error","message":"Base token reserve too low. reserve: 0.0 ETH, minimum required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T22:17:17.080Z","level":"info","message":"Pair 0x617B0462574F78B08397e3813FE6CD96FDd919c8 did not pass evaluation. Ignoring.","data":{}}
+{"timestamp":"2024-12-25T22:19:27.807Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x2e9818D630cd5341adf4FF9D4Dd33cdaf389ee32","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0xC91339C9a7043a29f4cAf5cd7ACF0e2BB8F2a389"}}
+{"timestamp":"2024-12-25T22:19:27.808Z","level":"info","message":"New Token Address: 0x2e9818D630cd5341adf4FF9D4Dd33cdaf389ee32","data":{}}
+{"timestamp":"2024-12-25T22:19:27.808Z","level":"info","message":"Evaluating pair 0xC91339C9a7043a29f4cAf5cd7ACF0e2BB8F2a389 for viability.","data":{}}
+{"timestamp":"2024-12-25T22:19:28.931Z","level":"info","message":"Pair token0: 0x2e9818D630cd5341adf4FF9D4Dd33cdaf389ee32, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-25T22:19:29.036Z","level":"info","message":"Pair Reserves: reserve0 = 3000000.0 ETH, reserve1 = 1.0 ETH","data":{}}
+{"timestamp":"2024-12-25T22:19:29.038Z","level":"info","message":"Base Token (token1) Reserve: 1.0 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T22:19:29.038Z","level":"info","message":"Pair 0xC91339C9a7043a29f4cAf5cd7ACF0e2BB8F2a389 passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T22:19:29.153Z","level":"error","message":"No balance for token 0x2e9818D630cd5341adf4FF9D4Dd33cdaf389ee32. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T22:19:29.154Z","level":"info","message":"Token 0x2e9818D630cd5341adf4FF9D4Dd33cdaf389ee32 is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T22:26:14.338Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x1Fe8d35Fe58468d9Edf28116E92063689587b9D6","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0xf02dedCBfF6f7284FEAF42b353cf6cc9927124C7"}}
+{"timestamp":"2024-12-25T22:26:14.339Z","level":"info","message":"Evaluating pair 0xf02dedCBfF6f7284FEAF42b353cf6cc9927124C7 for viability.","data":{}}
+{"timestamp":"2024-12-25T22:26:14.339Z","level":"info","message":"New Token Address: 0x1Fe8d35Fe58468d9Edf28116E92063689587b9D6","data":{}}
+{"timestamp":"2024-12-25T22:26:14.954Z","level":"info","message":"Pair token0: 0x1Fe8d35Fe58468d9Edf28116E92063689587b9D6, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-25T22:26:15.069Z","level":"info","message":"Pair Reserves: reserve0 = 23000000000.0 ETH, reserve1 = 6.388888888888888888 ETH","data":{}}
+{"timestamp":"2024-12-25T22:26:15.071Z","level":"info","message":"Base Token (token1) Reserve: 6.388888888888888888 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T22:26:15.071Z","level":"info","message":"Pair 0xf02dedCBfF6f7284FEAF42b353cf6cc9927124C7 passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T22:26:15.178Z","level":"error","message":"No balance for token 0x1Fe8d35Fe58468d9Edf28116E92063689587b9D6. Cannot check honeypot.","data":{}}
+{"timestamp":"2024-12-25T22:26:15.178Z","level":"info","message":"Token 0x1Fe8d35Fe58468d9Edf28116E92063689587b9D6 is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-25T23:36:46.618Z","level":"info","message":"Backend server is running on port 3001","data":{}}
+{"timestamp":"2024-12-25T23:37:02.768Z","level":"info","message":"Initializing contracts...","data":{}}
+{"timestamp":"2024-12-25T23:37:02.882Z","level":"info","message":"Wallet initialized: 0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199","data":{}}
+{"timestamp":"2024-12-25T23:37:03.424Z","level":"info","message":"FlashbotsBundleProvider initialized.","data":{}}
+{"timestamp":"2024-12-25T23:37:03.435Z","level":"info","message":"Factory and Router contracts initialized.","data":{}}
+{"timestamp":"2024-12-25T23:37:03.548Z","level":"info","message":"Connected to the blockchain. Current block number: 21482809","data":{}}
+{"timestamp":"2024-12-25T23:37:03.549Z","level":"info","message":"Database initialized.","data":{}}
+{"timestamp":"2024-12-25T23:37:03.549Z","level":"info","message":"Bot started.","data":{}}
+{"timestamp":"2024-12-25T23:37:03.552Z","level":"info","message":"Listener for PairCreated events has been set up successfully.","data":{}}
+{"timestamp":"2024-12-25T23:37:03.570Z","level":"info","message":"Connected to the trades database.","data":{}}
+{"timestamp":"2024-12-25T23:37:03.578Z","level":"info","message":"Trades table is ready.","data":{}}
+{"timestamp":"2024-12-25T23:42:15.089Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x4202977a5a9CDF14A84eb8Afb0A3b3Ecc8818047","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0x558e002d168979a374E03834Bf1e617322c31312"}}
+{"timestamp":"2024-12-25T23:42:15.095Z","level":"info","message":"New Token Address: 0x4202977a5a9CDF14A84eb8Afb0A3b3Ecc8818047","data":{}}
+{"timestamp":"2024-12-25T23:42:15.096Z","level":"info","message":"Evaluating pair 0x558e002d168979a374E03834Bf1e617322c31312 for viability.","data":{}}
+{"timestamp":"2024-12-25T23:42:15.668Z","level":"info","message":"Pair token0: 0x4202977a5a9CDF14A84eb8Afb0A3b3Ecc8818047, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-25T23:42:15.778Z","level":"info","message":"Pair Reserves: reserve0 = 236000000.0 ETH, reserve1 = 1.0 ETH","data":{}}
+{"timestamp":"2024-12-25T23:42:15.780Z","level":"info","message":"Base Token (token1) Reserve: 1.0 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-25T23:42:15.781Z","level":"info","message":"Pair 0x558e002d168979a374E03834Bf1e617322c31312 passed evaluation.","data":{}}
+{"timestamp":"2024-12-25T23:42:16.208Z","level":"info","message":"Token Details - Name: Art Intelligence, Symbol: ARTI, Decimals: 18, Total Supply: 236000000.0","data":{}}
+{"timestamp":"2024-12-25T23:42:16.317Z","level":"info","message":"Transfer function is callable for token 0x4202977a5a9CDF14A84eb8Afb0A3b3Ecc8818047.","data":{}}
+{"timestamp":"2024-12-25T23:42:16.423Z","level":"info","message":"Approve function is callable for token 0x4202977a5a9CDF14A84eb8Afb0A3b3Ecc8818047.","data":{}}
+{"timestamp":"2024-12-25T23:42:16.424Z","level":"info","message":"Token 0x4202977a5a9CDF14A84eb8Afb0A3b3Ecc8818047 passed honeypot checks.","data":{}}
+{"timestamp":"2024-12-25T23:42:16.425Z","level":"error","message":"Error executing purchase for token 0x4202977a5a9CDF14A84eb8Afb0A3b3Ecc8818047: ethers is not defined","data":{}}
+{"timestamp":"2024-12-25T23:55:04.530Z","level":"info","message":"Backend server is running on port 3001","data":{}}
+{"timestamp":"2024-12-25T23:55:20.819Z","level":"info","message":"Initializing contracts...","data":{}}
+{"timestamp":"2024-12-25T23:55:20.944Z","level":"info","message":"Wallet initialized: 0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199","data":{}}
+{"timestamp":"2024-12-25T23:55:21.498Z","level":"info","message":"FlashbotsBundleProvider initialized.","data":{}}
+{"timestamp":"2024-12-25T23:55:21.507Z","level":"info","message":"Factory and Router contracts initialized.","data":{}}
+{"timestamp":"2024-12-25T23:55:21.623Z","level":"info","message":"Connected to the blockchain. Current block number: 21482900","data":{}}
+{"timestamp":"2024-12-25T23:55:21.623Z","level":"info","message":"Database initialized.","data":{}}
+{"timestamp":"2024-12-25T23:55:21.627Z","level":"info","message":"Listener for PairCreated events has been set up successfully.","data":{}}
+{"timestamp":"2024-12-25T23:55:21.624Z","level":"info","message":"Bot started.","data":{}}
+{"timestamp":"2024-12-25T23:55:21.642Z","level":"info","message":"Connected to the trades database.","data":{}}
+{"timestamp":"2024-12-25T23:55:21.650Z","level":"info","message":"Trades table is ready.","data":{}}
+{"timestamp":"2024-12-25T23:57:03.018Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x377Fc4622a223B2C487223BCC00bAf424f8D9AaE","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0x598bbDa07998aEe4F80b7341e93986E81F590cDc"}}
+{"timestamp":"2024-12-25T23:57:03.019Z","level":"info","message":"New Token Address: 0x377Fc4622a223B2C487223BCC00bAf424f8D9AaE","data":{}}
+{"timestamp":"2024-12-25T23:57:03.023Z","level":"info","message":"Preparing to execute purchase for pair 0x598bbDa07998aEe4F80b7341e93986E81F590cDc.","data":{}}
+{"timestamp":"2024-12-25T23:57:03.023Z","level":"error","message":"Error executing purchase logic: baseToken_address is not defined","data":{}}
+{"timestamp":"2024-12-26T00:00:41.019Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","token1":"0xd7B0Aa41b778ac06c5f5d4d814Bb764C46eF3De9","pairAddress":"0x8b04d3f7aaBeFcd62Bb9E4e7e1426575311846Cc"}}
+{"timestamp":"2024-12-26T00:00:41.025Z","level":"info","message":"Preparing to execute purchase for pair 0x8b04d3f7aaBeFcd62Bb9E4e7e1426575311846Cc.","data":{}}
+{"timestamp":"2024-12-26T00:00:41.025Z","level":"error","message":"Error executing purchase logic: baseToken_address is not defined","data":{}}
+{"timestamp":"2024-12-26T00:00:41.024Z","level":"info","message":"New Token Address: 0xd7B0Aa41b778ac06c5f5d4d814Bb764C46eF3De9","data":{}}
+{"timestamp":"2024-12-26T00:05:27.689Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x8947DC5F1AF4e21Ce4a6a20D8Cc4A1176d5882A7","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0x6D6a76b36C64fFD21a72983741d7f5baa9518660"}}
+{"timestamp":"2024-12-26T00:05:27.689Z","level":"info","message":"New Token Address: 0x8947DC5F1AF4e21Ce4a6a20D8Cc4A1176d5882A7","data":{}}
+{"timestamp":"2024-12-26T00:05:27.689Z","level":"info","message":"Preparing to execute purchase for pair 0x6D6a76b36C64fFD21a72983741d7f5baa9518660.","data":{}}
+{"timestamp":"2024-12-26T00:05:27.690Z","level":"error","message":"Error executing purchase logic: baseToken_address is not defined","data":{}}
+{"timestamp":"2024-12-26T00:06:40.638Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x97894627AD005047503b18Df2eBf4Dba23A4CA3F","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0xa6F393BCa70caFd822d2152aB60fcc1b77686640"}}
+{"timestamp":"2024-12-26T00:06:40.638Z","level":"info","message":"New Token Address: 0x97894627AD005047503b18Df2eBf4Dba23A4CA3F","data":{}}
+{"timestamp":"2024-12-26T00:06:40.639Z","level":"error","message":"Error executing purchase logic: baseToken_address is not defined","data":{}}
+{"timestamp":"2024-12-26T00:06:40.639Z","level":"info","message":"Preparing to execute purchase for pair 0xa6F393BCa70caFd822d2152aB60fcc1b77686640.","data":{}}
+{"timestamp":"2024-12-26T00:14:02.057Z","level":"info","message":"Backend server is running on port 3001","data":{}}
+{"timestamp":"2024-12-26T00:14:19.416Z","level":"info","message":"Initializing contracts...","data":{}}
+{"timestamp":"2024-12-26T00:14:19.543Z","level":"info","message":"Wallet initialized: 0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199","data":{}}
+{"timestamp":"2024-12-26T00:14:20.038Z","level":"info","message":"FlashbotsBundleProvider initialized.","data":{}}
+{"timestamp":"2024-12-26T00:14:20.055Z","level":"info","message":"Factory and Router contracts initialized.","data":{}}
+{"timestamp":"2024-12-26T00:14:20.160Z","level":"info","message":"Connected to the blockchain. Current block number: 21482995","data":{}}
+{"timestamp":"2024-12-26T00:14:20.161Z","level":"info","message":"Database initialized.","data":{}}
+{"timestamp":"2024-12-26T00:14:20.161Z","level":"info","message":"Bot started.","data":{}}
+{"timestamp":"2024-12-26T00:14:20.164Z","level":"info","message":"Listener for PairCreated events has been set up successfully.","data":{}}
+{"timestamp":"2024-12-26T00:14:20.179Z","level":"info","message":"Connected to the trades database.","data":{}}
+{"timestamp":"2024-12-26T00:14:20.183Z","level":"info","message":"Trades table is ready.","data":{}}
+{"timestamp":"2024-12-26T00:19:16.016Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","token1":"0xfadb145722607459e6b073BBf177f79A69F4B264","pairAddress":"0x50D7F548Bb4238Fadf19A7260Ce2Dd2971291844"}}
+{"timestamp":"2024-12-26T00:19:16.017Z","level":"info","message":"New Token Address: 0xfadb145722607459e6b073BBf177f79A69F4B264","data":{}}
+{"timestamp":"2024-12-26T00:19:16.018Z","level":"info","message":"Preparing to execute purchase for pair 0x50D7F548Bb4238Fadf19A7260Ce2Dd2971291844.","data":{}}
+{"timestamp":"2024-12-26T00:19:16.018Z","level":"info","message":"New Token Address: 0xfadb145722607459e6b073BBf177f79A69F4B264","data":{}}
+{"timestamp":"2024-12-26T00:19:16.026Z","level":"info","message":"Evaluating pair 0x50D7F548Bb4238Fadf19A7260Ce2Dd2971291844 for viability.","data":{}}
+{"timestamp":"2024-12-26T00:19:16.474Z","level":"info","message":"Pair token0: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2, token1: 0xfadb145722607459e6b073BBf177f79A69F4B264","data":{}}
+{"timestamp":"2024-12-26T00:19:16.576Z","level":"info","message":"Pair Reserves: reserve0 = 10.0 ETH, reserve1 = 10000000000.0 ETH","data":{}}
+{"timestamp":"2024-12-26T00:19:16.578Z","level":"info","message":"Base Token (token0) Reserve: 10.0 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-26T00:19:16.578Z","level":"info","message":"Pair 0x50D7F548Bb4238Fadf19A7260Ce2Dd2971291844 passed evaluation.","data":{}}
+{"timestamp":"2024-12-26T00:19:16.981Z","level":"info","message":"Token Details - Name: Fart Cat, Symbol: FARTCAT, Decimals: 18, Total Supply: 10000000000.0","data":{}}
+{"timestamp":"2024-12-26T00:19:17.081Z","level":"info","message":"Transfer function is callable for token 0xfadb145722607459e6b073BBf177f79A69F4B264.","data":{}}
+{"timestamp":"2024-12-26T00:19:17.180Z","level":"info","message":"Approve function is callable for token 0xfadb145722607459e6b073BBf177f79A69F4B264.","data":{}}
+{"timestamp":"2024-12-26T00:19:17.181Z","level":"info","message":"Token 0xfadb145722607459e6b073BBf177f79A69F4B264 passed honeypot checks.","data":{}}
+{"timestamp":"2024-12-26T00:19:17.182Z","level":"info","message":"Executing purchase on pair 0x50D7F548Bb4238Fadf19A7260Ce2Dd2971291844...","data":{}}
+{"timestamp":"2024-12-26T00:19:17.315Z","level":"info","message":"Adjusted Gas Prices: maxFeePerGas = 16.809571536 gwei, maxPriorityFeePerGas = 1.8 gwei","data":{}}
+{"timestamp":"2024-12-26T00:19:17.724Z","level":"error","message":"Error executing purchase on pair 0x50D7F548Bb4238Fadf19A7260Ce2Dd2971291844: insufficient funds for intrinsic transaction cost","data":{}}
+{"timestamp":"2024-12-26T00:25:32.571Z","level":"info","message":"Received settings update: {\"ETH_AMOUNT_TO_SWAP\":0.1,\"SLIPPAGE_TOLERANCE\":5,\"GAS_PRICE_MULTIPLIER\":120,\"PROFIT_THRESHOLD\":5,\"DEADLINE_BUFFER\":60,\"MINIMUM_LOCKED_ETH\":0.08,\"MAX_GAS_PRICE\":200,\"TOKEN_WHITELIST\":[],\"TOKEN_BLACKLIST\":[]}","data":{}}
+{"timestamp":"2024-12-26T00:25:32.579Z","level":"info","message":"Settings updated successfully.","data":{}}
+{"timestamp":"2024-12-26T00:47:07.345Z","level":"error","message":"Error checking wallet balance: invalid hexlify value (argument=\"value\", value=\"YOUR_PRIVATE_KEY\", code=INVALID_ARGUMENT, version=bytes/5.7.0)","data":{}}
+{"timestamp":"2024-12-26T00:47:07.354Z","level":"info","message":"Backend server is running on port 3001","data":{}}
+{"timestamp":"2024-12-26T00:54:53.278Z","level":"info","message":"Backend server is running on port 3001","data":{}}
+{"timestamp":"2024-12-26T00:54:53.319Z","level":"info","message":"Wallet Balance: 10000.0 ETH","data":{}}
+{"timestamp":"2024-12-26T00:55:26.056Z","level":"info","message":"Initializing contracts...","data":{}}
+{"timestamp":"2024-12-26T00:55:26.057Z","level":"error","message":"Error initializing contracts: Invalid PRIVATE_KEY format in .env file.","data":{}}
+{"timestamp":"2024-12-26T00:55:26.058Z","level":"error","message":"Failed to start bot: Invalid PRIVATE_KEY format in .env file.","data":{}}
+{"timestamp":"2024-12-26T00:59:05.071Z","level":"info","message":"Backend server is running on port 3001","data":{}}
+{"timestamp":"2024-12-26T00:59:05.163Z","level":"info","message":"Wallet Balance: 10000.0 ETH","data":{}}
+{"timestamp":"2024-12-26T00:59:46.672Z","level":"info","message":"Initializing contracts...","data":{}}
+{"timestamp":"2024-12-26T00:59:46.672Z","level":"error","message":"Error initializing contracts: Invalid PRIVATE_KEY format in .env file.","data":{}}
+{"timestamp":"2024-12-26T00:59:46.673Z","level":"error","message":"Failed to start bot: Invalid PRIVATE_KEY format in .env file.","data":{}}
+{"timestamp":"2024-12-26T01:00:37.477Z","level":"info","message":"Backend server is running on port 3001","data":{}}
+{"timestamp":"2024-12-26T01:00:37.531Z","level":"info","message":"Wallet Balance: 10000.0 ETH","data":{}}
+{"timestamp":"2024-12-26T01:00:43.403Z","level":"info","message":"Initializing contracts...","data":{}}
+{"timestamp":"2024-12-26T01:00:43.405Z","level":"error","message":"Failed to start bot: Invalid PRIVATE_KEY format in .env file.","data":{}}
+{"timestamp":"2024-12-26T01:00:43.404Z","level":"error","message":"Error initializing contracts: Invalid PRIVATE_KEY format in .env file.","data":{}}
+{"timestamp":"2024-12-26T01:03:26.681Z","level":"info","message":"Backend server is running on port 3001","data":{}}
+{"timestamp":"2024-12-26T01:03:26.739Z","level":"info","message":"Wallet Balance: 10000.0 ETH","data":{}}
+{"timestamp":"2024-12-26T01:03:41.120Z","level":"info","message":"Initializing contracts...","data":{}}
+{"timestamp":"2024-12-26T01:03:41.185Z","level":"info","message":"Wallet initialized: 0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199","data":{}}
+{"timestamp":"2024-12-26T01:03:41.668Z","level":"info","message":"FlashbotsBundleProvider initialized.","data":{}}
+{"timestamp":"2024-12-26T01:03:41.677Z","level":"info","message":"Factory and Router contracts initialized.","data":{}}
+{"timestamp":"2024-12-26T01:03:41.785Z","level":"info","message":"Connected to the blockchain. Current block number: 21483238","data":{}}
+{"timestamp":"2024-12-26T01:03:41.786Z","level":"info","message":"Database initialized.","data":{}}
+{"timestamp":"2024-12-26T01:03:41.787Z","level":"info","message":"Bot started.","data":{}}
+{"timestamp":"2024-12-26T01:03:41.790Z","level":"info","message":"Listener for PairCreated events has been set up successfully.","data":{}}
+{"timestamp":"2024-12-26T01:03:41.809Z","level":"info","message":"Connected to the trades database.","data":{}}
+{"timestamp":"2024-12-26T01:03:41.826Z","level":"info","message":"Trades table is ready.","data":{}}
+{"timestamp":"2024-12-26T01:04:06.043Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x9AFCe142153F17E868AB65085FD7AB5d2D6521EB","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0x881D3e6D35c0D815D2570BB2598B842F98515377"}}
+{"timestamp":"2024-12-26T01:04:06.044Z","level":"info","message":"New Token Address: 0x9AFCe142153F17E868AB65085FD7AB5d2D6521EB","data":{}}
+{"timestamp":"2024-12-26T01:04:06.044Z","level":"info","message":"Preparing to execute purchase for pair 0x881D3e6D35c0D815D2570BB2598B842F98515377.","data":{}}
+{"timestamp":"2024-12-26T01:04:06.044Z","level":"info","message":"New Token Address: 0x9AFCe142153F17E868AB65085FD7AB5d2D6521EB","data":{}}
+{"timestamp":"2024-12-26T01:04:06.045Z","level":"info","message":"Evaluating pair 0x881D3e6D35c0D815D2570BB2598B842F98515377 for viability.","data":{}}
+{"timestamp":"2024-12-26T01:04:06.530Z","level":"info","message":"Pair token0: 0x9AFCe142153F17E868AB65085FD7AB5d2D6521EB, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-26T01:04:06.628Z","level":"info","message":"Pair Reserves: reserve0 = 374.4141 ETH, reserve1 = 0.550608970588235294 ETH","data":{}}
+{"timestamp":"2024-12-26T01:04:06.630Z","level":"info","message":"Base Token (token1) Reserve: 0.550608970588235294 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-26T01:04:06.630Z","level":"info","message":"Pair 0x881D3e6D35c0D815D2570BB2598B842F98515377 passed evaluation.","data":{}}
+{"timestamp":"2024-12-26T01:04:07.033Z","level":"info","message":"Token Details - Name: SquidGame2, Symbol: SQUID2, Decimals: 9, Total Supply: 420690000000.0","data":{}}
+{"timestamp":"2024-12-26T01:04:07.133Z","level":"info","message":"Transfer function is callable for token 0x9AFCe142153F17E868AB65085FD7AB5d2D6521EB.","data":{}}
+{"timestamp":"2024-12-26T01:04:07.231Z","level":"info","message":"Approve function is callable for token 0x9AFCe142153F17E868AB65085FD7AB5d2D6521EB.","data":{}}
+{"timestamp":"2024-12-26T01:04:07.232Z","level":"info","message":"Token 0x9AFCe142153F17E868AB65085FD7AB5d2D6521EB passed honeypot checks.","data":{}}
+{"timestamp":"2024-12-26T01:04:07.232Z","level":"info","message":"Executing purchase on pair 0x881D3e6D35c0D815D2570BB2598B842F98515377...","data":{}}
+{"timestamp":"2024-12-26T01:04:07.355Z","level":"info","message":"Adjusted Gas Prices: maxFeePerGas = 12.28508022 gwei, maxPriorityFeePerGas = 1.8 gwei","data":{}}
+{"timestamp":"2024-12-26T01:04:07.710Z","level":"error","message":"Error executing purchase on pair 0x881D3e6D35c0D815D2570BB2598B842F98515377: insufficient funds for intrinsic transaction cost","data":{}}
+{"timestamp":"2024-12-26T01:09:02.584Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","token1":"0xC7cbC771bEc8986D387C032df56584B9Aa1eB118","pairAddress":"0x31F85a78D83AE04ae0390280849d781048E65278"}}
+{"timestamp":"2024-12-26T01:09:02.585Z","level":"info","message":"Preparing to execute purchase for pair 0x31F85a78D83AE04ae0390280849d781048E65278.","data":{}}
+{"timestamp":"2024-12-26T01:09:02.584Z","level":"info","message":"New Token Address: 0xC7cbC771bEc8986D387C032df56584B9Aa1eB118","data":{}}
+{"timestamp":"2024-12-26T01:09:02.585Z","level":"info","message":"New Token Address: 0xC7cbC771bEc8986D387C032df56584B9Aa1eB118","data":{}}
+{"timestamp":"2024-12-26T01:09:02.585Z","level":"info","message":"Evaluating pair 0x31F85a78D83AE04ae0390280849d781048E65278 for viability.","data":{}}
+{"timestamp":"2024-12-26T01:09:03.046Z","level":"info","message":"Pair token0: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2, token1: 0xC7cbC771bEc8986D387C032df56584B9Aa1eB118","data":{}}
+{"timestamp":"2024-12-26T01:09:03.147Z","level":"info","message":"Pair Reserves: reserve0 = 0.0 ETH, reserve1 = 0.0 ETH","data":{}}
+{"timestamp":"2024-12-26T01:09:03.149Z","level":"info","message":"Base Token (token0) Reserve: 0.0 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-26T01:09:03.149Z","level":"error","message":"Base token reserve too low. reserve: 0.0 ETH, minimum required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-26T01:09:03.150Z","level":"info","message":"Pair evaluation failed. Ignoring.","data":{}}
+{"timestamp":"2024-12-26T01:09:26.062Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x3fc9b5D63dA783Aa85ba5d9DdE6c392c8fC1441C","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0x2E6112F22CA761Baf85eBE16f63DF1c236570AaA"}}
+{"timestamp":"2024-12-26T01:09:26.063Z","level":"info","message":"New Token Address: 0x3fc9b5D63dA783Aa85ba5d9DdE6c392c8fC1441C","data":{}}
+{"timestamp":"2024-12-26T01:09:26.063Z","level":"info","message":"Preparing to execute purchase for pair 0x2E6112F22CA761Baf85eBE16f63DF1c236570AaA.","data":{}}
+{"timestamp":"2024-12-26T01:09:26.063Z","level":"info","message":"New Token Address: 0x3fc9b5D63dA783Aa85ba5d9DdE6c392c8fC1441C","data":{}}
+{"timestamp":"2024-12-26T01:09:26.063Z","level":"info","message":"Evaluating pair 0x2E6112F22CA761Baf85eBE16f63DF1c236570AaA for viability.","data":{}}
+{"timestamp":"2024-12-26T01:09:26.376Z","level":"info","message":"Pair token0: 0x3fc9b5D63dA783Aa85ba5d9DdE6c392c8fC1441C, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-26T01:09:25.016Z","level":"info","message":"Pair Reserves: reserve0 = 73.15 ETH, reserve1 = 1.0 ETH","data":{}}
+{"timestamp":"2024-12-26T01:09:25.018Z","level":"info","message":"Pair 0x2E6112F22CA761Baf85eBE16f63DF1c236570AaA passed evaluation.","data":{}}
+{"timestamp":"2024-12-26T01:09:25.017Z","level":"info","message":"Base Token (token1) Reserve: 1.0 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-26T01:09:25.420Z","level":"info","message":"Token Details - Name: Ozempic Santa, Symbol: OZEMPIC, Decimals: 9, Total Supply: 100000000000.0","data":{}}
+{"timestamp":"2024-12-26T01:09:25.517Z","level":"info","message":"Transfer function is callable for token 0x3fc9b5D63dA783Aa85ba5d9DdE6c392c8fC1441C.","data":{}}
+{"timestamp":"2024-12-26T01:09:25.613Z","level":"info","message":"Approve function is callable for token 0x3fc9b5D63dA783Aa85ba5d9DdE6c392c8fC1441C.","data":{}}
+{"timestamp":"2024-12-26T01:09:25.613Z","level":"info","message":"Token 0x3fc9b5D63dA783Aa85ba5d9DdE6c392c8fC1441C passed honeypot checks.","data":{}}
+{"timestamp":"2024-12-26T01:09:25.614Z","level":"info","message":"Executing purchase on pair 0x2E6112F22CA761Baf85eBE16f63DF1c236570AaA...","data":{}}
+{"timestamp":"2024-12-26T01:09:25.729Z","level":"info","message":"Adjusted Gas Prices: maxFeePerGas = 13.186391361 gwei, maxPriorityFeePerGas = 1.8 gwei","data":{}}
+{"timestamp":"2024-12-26T01:09:26.070Z","level":"error","message":"Error executing purchase on pair 0x2E6112F22CA761Baf85eBE16f63DF1c236570AaA: insufficient funds for intrinsic transaction cost","data":{}}
+{"timestamp":"2024-12-26T01:09:40.671Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","token1":"0xe0A1a487ECada5A5D764731006cbB71D7C02246c","pairAddress":"0xD6a8C00829DD5DA304D340a7577C384308DFfc36"}}
+{"timestamp":"2024-12-26T01:09:40.671Z","level":"info","message":"New Token Address: 0xe0A1a487ECada5A5D764731006cbB71D7C02246c","data":{}}
+{"timestamp":"2024-12-26T01:09:40.671Z","level":"info","message":"Preparing to execute purchase for pair 0xD6a8C00829DD5DA304D340a7577C384308DFfc36.","data":{}}
+{"timestamp":"2024-12-26T01:09:40.671Z","level":"info","message":"New Token Address: 0xe0A1a487ECada5A5D764731006cbB71D7C02246c","data":{}}
+{"timestamp":"2024-12-26T01:09:40.672Z","level":"info","message":"Evaluating pair 0xD6a8C00829DD5DA304D340a7577C384308DFfc36 for viability.","data":{}}
+{"timestamp":"2024-12-26T01:09:41.191Z","level":"info","message":"Pair token0: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2, token1: 0xe0A1a487ECada5A5D764731006cbB71D7C02246c","data":{}}
+{"timestamp":"2024-12-26T01:09:41.287Z","level":"info","message":"Pair Reserves: reserve0 = 1.0 ETH, reserve1 = 315517.5 ETH","data":{}}
+{"timestamp":"2024-12-26T01:09:41.288Z","level":"info","message":"Base Token (token0) Reserve: 1.0 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-26T01:09:41.288Z","level":"info","message":"Pair 0xD6a8C00829DD5DA304D340a7577C384308DFfc36 passed evaluation.","data":{}}
+{"timestamp":"2024-12-26T01:09:41.691Z","level":"info","message":"Token Details - Name: Ozempic Santa, Symbol: SANTA, Decimals: 9, Total Supply: 420690000000000.0","data":{}}
+{"timestamp":"2024-12-26T01:09:41.793Z","level":"info","message":"Transfer function is callable for token 0xe0A1a487ECada5A5D764731006cbB71D7C02246c.","data":{}}
+{"timestamp":"2024-12-26T01:09:41.892Z","level":"info","message":"Approve function is callable for token 0xe0A1a487ECada5A5D764731006cbB71D7C02246c.","data":{}}
+{"timestamp":"2024-12-26T01:09:41.892Z","level":"info","message":"Token 0xe0A1a487ECada5A5D764731006cbB71D7C02246c passed honeypot checks.","data":{}}
+{"timestamp":"2024-12-26T01:09:41.892Z","level":"info","message":"Executing purchase on pair 0xD6a8C00829DD5DA304D340a7577C384308DFfc36...","data":{}}
+{"timestamp":"2024-12-26T01:09:42.009Z","level":"info","message":"Adjusted Gas Prices: maxFeePerGas = 12.58304309 gwei, maxPriorityFeePerGas = 1.8 gwei","data":{}}
+{"timestamp":"2024-12-26T01:09:42.328Z","level":"error","message":"Error executing purchase on pair 0xD6a8C00829DD5DA304D340a7577C384308DFfc36: insufficient funds for intrinsic transaction cost","data":{}}
+{"timestamp":"2024-12-26T01:13:05.520Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","token1":"0xe59947BAE11Ba9A52E5B4B7c6416F9d0966751E0","pairAddress":"0xc81d75D892d6683e32100741C7d5A363fF8138Ab"}}
+{"timestamp":"2024-12-26T01:13:05.521Z","level":"info","message":"New Token Address: 0xe59947BAE11Ba9A52E5B4B7c6416F9d0966751E0","data":{}}
+{"timestamp":"2024-12-26T01:13:05.521Z","level":"info","message":"Preparing to execute purchase for pair 0xc81d75D892d6683e32100741C7d5A363fF8138Ab.","data":{}}
+{"timestamp":"2024-12-26T01:13:05.521Z","level":"info","message":"New Token Address: 0xe59947BAE11Ba9A52E5B4B7c6416F9d0966751E0","data":{}}
+{"timestamp":"2024-12-26T01:13:05.521Z","level":"info","message":"Evaluating pair 0xc81d75D892d6683e32100741C7d5A363fF8138Ab for viability.","data":{}}
+{"timestamp":"2024-12-26T01:13:06.036Z","level":"info","message":"Pair token0: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2, token1: 0xe59947BAE11Ba9A52E5B4B7c6416F9d0966751E0","data":{}}
+{"timestamp":"2024-12-26T01:13:06.242Z","level":"info","message":"Pair Reserves: reserve0 = 1.0 ETH, reserve1 = 823000000.0 ETH","data":{}}
+{"timestamp":"2024-12-26T01:13:06.243Z","level":"info","message":"Pair 0xc81d75D892d6683e32100741C7d5A363fF8138Ab passed evaluation.","data":{}}
+{"timestamp":"2024-12-26T01:13:06.243Z","level":"info","message":"Base Token (token0) Reserve: 1.0 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-26T01:13:06.641Z","level":"info","message":"Token Details - Name: BULL TECH, Symbol: BULLTECH, Decimals: 18, Total Supply: 823000000.0","data":{}}
+{"timestamp":"2024-12-26T01:13:06.732Z","level":"error","message":"Transfer function is not callable for token 0xe59947BAE11Ba9A52E5B4B7c6416F9d0966751E0. Possible honeypot. Error: missing revert data in call exception; Transaction reverted without a reason string [ See: https://links.ethers.org/v5-errors-CALL_EXCEPTION ] (data=\"0x\", transaction={\"to\":\"0xe59947BAE11Ba9A52E5B4B7c6416F9d0966751E0\",\"data\":\"0xa9059cbb0000000000000000000000008626f6940e2eb28930efb4cef49b2d1f2c9c11990000000000000000000000000000000000000000000000000000000000000000\",\"accessList\":null}, error={\"code\":429,\"response\":\"{\\\"jsonrpc\\\":\\\"2.0\\\",\\\"id\\\":61,\\\"error\\\":{\\\"code\\\":429,\\\"event\\\":-33200,\\\"message\\\":\\\"Too Many Requests\\\",\\\"details\\\":\\\"You have surpassed your allowed throughput limit. Reduce the amount of requests per second or upgrade for more capacity.\\\"}}\"}, code=CALL_EXCEPTION, version=providers/5.7.2)","data":{}}
+{"timestamp":"2024-12-26T01:13:06.733Z","level":"info","message":"Token is identified as a honeypot. Skipping purchase.","data":{}}
+{"timestamp":"2024-12-26T01:34:06.238Z","level":"info","message":"Wallet initialized: 0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199","data":{}}
+{"timestamp":"2024-12-26T01:34:06.277Z","level":"info","message":"Backend server is running on port 3001","data":{}}
+{"timestamp":"2024-12-26T01:34:06.321Z","level":"info","message":"Wallet Balance: 10000.0 ETH","data":{}}
+{"timestamp":"2024-12-26T01:34:43.215Z","level":"info","message":"Initializing contracts...","data":{}}
+{"timestamp":"2024-12-26T01:34:43.222Z","level":"info","message":"Connected to network: unknown (chainId: 1337)","data":{}}
+{"timestamp":"2024-12-26T01:34:43.223Z","level":"warning","message":"Warning: Connected to network unknown (chainId: 1337) instead of local Hardhat node (chainId: 31337)","data":{}}
+{"timestamp":"2024-12-26T01:34:43.230Z","level":"info","message":"FlashbotsBundleProvider initialized.","data":{}}
+{"timestamp":"2024-12-26T01:34:43.243Z","level":"info","message":"Factory and Router contracts initialized.","data":{}}
+{"timestamp":"2024-12-26T01:34:43.260Z","level":"info","message":"Connected to the blockchain. Current block number: 17500000","data":{}}
+{"timestamp":"2024-12-26T01:34:43.261Z","level":"info","message":"Database initialized.","data":{}}
+{"timestamp":"2024-12-26T01:34:43.262Z","level":"info","message":"Bot started.","data":{}}
+{"timestamp":"2024-12-26T01:34:43.263Z","level":"info","message":"Listener for PairCreated events has been set up successfully.","data":{}}
+{"timestamp":"2024-12-26T01:34:43.288Z","level":"info","message":"Connected to the trades database.","data":{}}
+{"timestamp":"2024-12-26T01:34:43.308Z","level":"info","message":"Trades table is ready.","data":{}}
+{"timestamp":"2024-12-26T01:45:31.134Z","level":"info","message":"Wallet initialized: 0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199","data":{}}
+{"timestamp":"2024-12-26T01:45:31.160Z","level":"info","message":"Backend server is running on port 3001","data":{}}
+{"timestamp":"2024-12-26T01:45:31.185Z","level":"error","message":"Error checking wallet balance: could not detect network (event=\"noNetwork\", code=NETWORK_ERROR, version=providers/5.7.2)","data":{}}
+{"timestamp":"2024-12-26T01:46:57.714Z","level":"info","message":"Wallet initialized: 0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199","data":{}}
+{"timestamp":"2024-12-26T01:46:57.747Z","level":"info","message":"Backend server is running on port 3001","data":{}}
+{"timestamp":"2024-12-26T01:46:57.797Z","level":"info","message":"Wallet Balance: 10000.0 ETH","data":{}}
+{"timestamp":"2024-12-26T01:47:17.879Z","level":"info","message":"Initializing contracts...","data":{}}
+{"timestamp":"2024-12-26T01:47:17.889Z","level":"info","message":"Connected to network: unknown (chainId: 31337)","data":{}}
+{"timestamp":"2024-12-26T01:47:17.895Z","level":"info","message":"FlashbotsBundleProvider initialized.","data":{}}
+{"timestamp":"2024-12-26T01:47:17.907Z","level":"info","message":"Factory and Router contracts initialized.","data":{}}
+{"timestamp":"2024-12-26T01:47:17.916Z","level":"info","message":"Connected to the blockchain. Current block number: 21483407","data":{}}
+{"timestamp":"2024-12-26T01:47:17.916Z","level":"info","message":"Database initialized.","data":{}}
+{"timestamp":"2024-12-26T01:47:17.917Z","level":"info","message":"Bot started.","data":{}}
+{"timestamp":"2024-12-26T01:47:17.919Z","level":"info","message":"Listener for PairCreated events has been set up successfully.","data":{}}
+{"timestamp":"2024-12-26T01:47:17.924Z","level":"info","message":"Connected to the trades database.","data":{}}
+{"timestamp":"2024-12-26T01:47:17.954Z","level":"info","message":"Trades table is ready.","data":{}}
+{"timestamp":"2024-12-26T01:49:50.198Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x021DBfF4A864Aa25c51F0ad2Cd73266Fde66199d","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0x03fa3573b6035E23D97E855647077e9e6d8381a4"}}
+{"timestamp":"2024-12-26T01:49:50.199Z","level":"info","message":"New Token Address: 0x021DBfF4A864Aa25c51F0ad2Cd73266Fde66199d","data":{}}
+{"timestamp":"2024-12-26T01:49:50.200Z","level":"info","message":"Preparing to execute purchase for pair 0x03fa3573b6035E23D97E855647077e9e6d8381a4.","data":{}}
+{"timestamp":"2024-12-26T01:49:50.201Z","level":"info","message":"New Token Address: 0x021DBfF4A864Aa25c51F0ad2Cd73266Fde66199d","data":{}}
+{"timestamp":"2024-12-26T01:49:50.201Z","level":"info","message":"Evaluating pair 0x03fa3573b6035E23D97E855647077e9e6d8381a4 for viability.","data":{}}
+{"timestamp":"2024-12-26T01:49:50.269Z","level":"info","message":"Pair token0: 0x021DBfF4A864Aa25c51F0ad2Cd73266Fde66199d, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-26T01:49:50.379Z","level":"info","message":"Pair Reserves: reserve0 = 0.0 ETH, reserve1 = 0.0 ETH","data":{}}
+{"timestamp":"2024-12-26T01:49:50.381Z","level":"info","message":"Base Token (token1) Reserve: 0.0 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-26T01:49:50.383Z","level":"error","message":"Base token reserve too low. reserve: 0.0 ETH, minimum required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-26T01:49:50.387Z","level":"info","message":"Pair evaluation failed. Ignoring.","data":{}}
+{"timestamp":"2024-12-26T01:51:17.533Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x53E4DAFF2073f848DC3F7a8D7CC95b3607212A73","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0x782f47fEb9010C865843A1Bb78DFA4b06144D708"}}
+{"timestamp":"2024-12-26T01:51:17.534Z","level":"info","message":"New Token Address: 0x53E4DAFF2073f848DC3F7a8D7CC95b3607212A73","data":{}}
+{"timestamp":"2024-12-26T01:51:17.535Z","level":"info","message":"Preparing to execute purchase for pair 0x782f47fEb9010C865843A1Bb78DFA4b06144D708.","data":{}}
+{"timestamp":"2024-12-26T01:51:17.535Z","level":"info","message":"New Token Address: 0x53E4DAFF2073f848DC3F7a8D7CC95b3607212A73","data":{}}
+{"timestamp":"2024-12-26T01:51:17.535Z","level":"info","message":"Evaluating pair 0x782f47fEb9010C865843A1Bb78DFA4b06144D708 for viability.","data":{}}
+{"timestamp":"2024-12-26T01:51:17.572Z","level":"info","message":"Pair token0: 0x53E4DAFF2073f848DC3F7a8D7CC95b3607212A73, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-26T01:51:17.688Z","level":"info","message":"Pair Reserves: reserve0 = 0.0 ETH, reserve1 = 0.0 ETH","data":{}}
+{"timestamp":"2024-12-26T01:51:17.690Z","level":"info","message":"Base Token (token1) Reserve: 0.0 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-26T01:51:17.691Z","level":"error","message":"Base token reserve too low. reserve: 0.0 ETH, minimum required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-26T01:51:17.691Z","level":"info","message":"Pair evaluation failed. Ignoring.","data":{}}
+{"timestamp":"2024-12-26T02:29:54.880Z","level":"info","message":"Wallet initialized: 0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199","data":{}}
+{"timestamp":"2024-12-26T02:29:54.917Z","level":"info","message":"Backend server is running on port 3001","data":{}}
+{"timestamp":"2024-12-26T02:29:54.951Z","level":"info","message":"Wallet Balance: 10000.0 ETH","data":{}}
+{"timestamp":"2024-12-26T02:30:06.123Z","level":"info","message":"Initializing contracts...","data":{}}
+{"timestamp":"2024-12-26T02:30:06.133Z","level":"info","message":"Connected to network: unknown (chainId: 31337)","data":{}}
+{"timestamp":"2024-12-26T02:30:06.141Z","level":"info","message":"FlashbotsBundleProvider initialized.","data":{}}
+{"timestamp":"2024-12-26T02:30:06.148Z","level":"info","message":"Factory and Router contracts initialized.","data":{}}
+{"timestamp":"2024-12-26T02:30:06.159Z","level":"info","message":"Connected to the blockchain. Current block number: 21483468","data":{}}
+{"timestamp":"2024-12-26T02:30:06.160Z","level":"info","message":"Database initialized.","data":{}}
+{"timestamp":"2024-12-26T02:30:06.160Z","level":"info","message":"Bot started.","data":{}}
+{"timestamp":"2024-12-26T02:30:06.162Z","level":"info","message":"Listener for PairCreated events has been set up successfully.","data":{}}
+{"timestamp":"2024-12-26T02:30:06.178Z","level":"info","message":"Connected to the trades database.","data":{}}
+{"timestamp":"2024-12-26T02:30:06.189Z","level":"info","message":"Trades table is ready.","data":{}}
+{"timestamp":"2024-12-26T09:27:49.725Z","level":"info","message":"Wallet initialized: 0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199","data":{}}
+{"timestamp":"2024-12-26T09:27:49.765Z","level":"info","message":"Backend server is running on port 3001","data":{}}
+{"timestamp":"2024-12-26T09:27:49.820Z","level":"info","message":"Wallet Balance: 10000.0 ETH","data":{}}
+{"timestamp":"2024-12-26T09:28:14.876Z","level":"info","message":"Initializing contracts...","data":{}}
+{"timestamp":"2024-12-26T09:28:14.887Z","level":"info","message":"Connected to network: unknown (chainId: 31337)","data":{}}
+{"timestamp":"2024-12-26T09:28:14.898Z","level":"info","message":"FlashbotsBundleProvider initialized.","data":{}}
+{"timestamp":"2024-12-26T09:28:14.914Z","level":"info","message":"Factory and Router contracts initialized.","data":{}}
+{"timestamp":"2024-12-26T09:28:14.935Z","level":"info","message":"Connected to the blockchain. Current block number: 21485703","data":{}}
+{"timestamp":"2024-12-26T09:28:14.936Z","level":"info","message":"Database initialized.","data":{}}
+{"timestamp":"2024-12-26T09:28:14.937Z","level":"info","message":"Bot started.","data":{}}
+{"timestamp":"2024-12-26T09:28:14.945Z","level":"info","message":"Listener for PairCreated events has been set up successfully.","data":{}}
+{"timestamp":"2024-12-26T09:28:14.948Z","level":"info","message":"Connected to the trades database.","data":{}}
+{"timestamp":"2024-12-26T09:28:14.954Z","level":"info","message":"Trades table is ready.","data":{}}
+{"timestamp":"2024-12-26T09:28:57.658Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x53E4DAFF2073f848DC3F7a8D7CC95b3607212A73","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0x782f47fEb9010C865843A1Bb78DFA4b06144D708"}}
+{"timestamp":"2024-12-26T09:28:57.659Z","level":"info","message":"New Token Address: 0x53E4DAFF2073f848DC3F7a8D7CC95b3607212A73","data":{}}
+{"timestamp":"2024-12-26T09:28:57.659Z","level":"info","message":"Preparing to execute purchase for pair 0x782f47fEb9010C865843A1Bb78DFA4b06144D708.","data":{}}
+{"timestamp":"2024-12-26T09:28:57.660Z","level":"info","message":"New Token Address: 0x53E4DAFF2073f848DC3F7a8D7CC95b3607212A73","data":{}}
+{"timestamp":"2024-12-26T09:28:57.661Z","level":"info","message":"Evaluating pair 0x782f47fEb9010C865843A1Bb78DFA4b06144D708 for viability.","data":{}}
+{"timestamp":"2024-12-26T09:28:57.725Z","level":"info","message":"Pair token0: 0x53E4DAFF2073f848DC3F7a8D7CC95b3607212A73, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-26T09:28:57.856Z","level":"info","message":"Pair Reserves: reserve0 = 0.0 ETH, reserve1 = 0.0 ETH","data":{}}
+{"timestamp":"2024-12-26T09:28:57.858Z","level":"info","message":"Base Token (token1) Reserve: 0.0 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-26T09:28:57.859Z","level":"error","message":"Base token reserve too low. reserve: 0.0 ETH, minimum required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-26T09:28:57.860Z","level":"info","message":"Pair evaluation failed. Ignoring.","data":{}}
+{"timestamp":"2024-12-26T09:37:40.314Z","level":"info","message":"Wallet initialized: 0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199","data":{}}
+{"timestamp":"2024-12-26T09:37:40.350Z","level":"info","message":"Backend server is running on port 3001","data":{}}
+{"timestamp":"2024-12-26T09:37:40.395Z","level":"info","message":"Wallet Balance: 10000.0 ETH","data":{}}
+{"timestamp":"2024-12-26T09:38:00.782Z","level":"info","message":"Initializing contracts...","data":{}}
+{"timestamp":"2024-12-26T09:38:00.791Z","level":"info","message":"Connected to network: unknown (chainId: 31337)","data":{}}
+{"timestamp":"2024-12-26T09:38:00.805Z","level":"info","message":"FlashbotsBundleProvider initialized.","data":{}}
+{"timestamp":"2024-12-26T09:38:00.834Z","level":"info","message":"Factory and Router contracts initialized.","data":{}}
+{"timestamp":"2024-12-26T09:38:00.857Z","level":"info","message":"Connected to the blockchain. Current block number: 21485751","data":{}}
+{"timestamp":"2024-12-26T09:38:00.857Z","level":"info","message":"Database initialized.","data":{}}
+{"timestamp":"2024-12-26T09:38:00.858Z","level":"info","message":"Bot started.","data":{}}
+{"timestamp":"2024-12-26T09:38:00.868Z","level":"info","message":"Listener for PairCreated events has been set up successfully.","data":{}}
+{"timestamp":"2024-12-26T09:38:00.872Z","level":"info","message":"Connected to the trades database.","data":{}}
+{"timestamp":"2024-12-26T09:38:00.888Z","level":"info","message":"Trades table is ready.","data":{}}
+{"timestamp":"2024-12-26T09:39:20.848Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x53E4DAFF2073f848DC3F7a8D7CC95b3607212A73","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0x782f47fEb9010C865843A1Bb78DFA4b06144D708"}}
+{"timestamp":"2024-12-26T09:39:20.848Z","level":"info","message":"New Token Address: 0x53E4DAFF2073f848DC3F7a8D7CC95b3607212A73","data":{}}
+{"timestamp":"2024-12-26T09:39:20.849Z","level":"info","message":"Preparing to execute purchase for pair 0x782f47fEb9010C865843A1Bb78DFA4b06144D708.","data":{}}
+{"timestamp":"2024-12-26T09:39:20.849Z","level":"info","message":"New Token Address: 0x53E4DAFF2073f848DC3F7a8D7CC95b3607212A73","data":{}}
+{"timestamp":"2024-12-26T09:39:20.850Z","level":"info","message":"Evaluating pair 0x782f47fEb9010C865843A1Bb78DFA4b06144D708 for viability.","data":{}}
+{"timestamp":"2024-12-26T09:39:20.903Z","level":"info","message":"Pair token0: 0x53E4DAFF2073f848DC3F7a8D7CC95b3607212A73, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-26T09:39:21.022Z","level":"info","message":"Pair Reserves: reserve0 = 0.0 ETH, reserve1 = 0.0 ETH","data":{}}
+{"timestamp":"2024-12-26T09:39:21.024Z","level":"info","message":"Base Token (token1) Reserve: 0.0 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-26T09:39:21.026Z","level":"error","message":"Base token reserve too low. reserve: 0.0 ETH, minimum required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-26T09:39:21.027Z","level":"info","message":"Pair evaluation failed. Ignoring.","data":{}}
+{"timestamp":"2024-12-26T10:01:44.431Z","level":"error","message":"Error in testTransaction: Cannot read properties of undefined (reading 'getBalance')","data":{}}
+{"timestamp":"2024-12-26T10:27:46.477Z","level":"info","message":"Wallet initialized: 0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199","data":{}}
+{"timestamp":"2024-12-26T10:27:46.500Z","level":"info","message":"Backend server is running on port 3001","data":{}}
+{"timestamp":"2024-12-26T10:27:46.564Z","level":"info","message":"Wallet Balance: 10000.0 ETH","data":{}}
+{"timestamp":"2024-12-26T10:28:33.692Z","level":"info","message":"Initializing contracts...","data":{}}
+{"timestamp":"2024-12-26T10:28:33.751Z","level":"info","message":"Wallet initialized: 0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199","data":{}}
+{"timestamp":"2024-12-26T10:28:34.272Z","level":"info","message":"FlashbotsBundleProvider initialized.","data":{}}
+{"timestamp":"2024-12-26T10:28:34.281Z","level":"info","message":"Factory and Router contracts initialized.","data":{}}
+{"timestamp":"2024-12-26T10:28:34.393Z","level":"info","message":"Connected to the blockchain. Current block number: 21486041","data":{}}
+{"timestamp":"2024-12-26T10:28:34.394Z","level":"info","message":"Database initialized.","data":{}}
+{"timestamp":"2024-12-26T10:28:34.395Z","level":"info","message":"Bot started.","data":{}}
+{"timestamp":"2024-12-26T10:28:34.412Z","level":"info","message":"Listener for PairCreated events has been set up successfully.","data":{}}
+{"timestamp":"2024-12-26T10:28:34.423Z","level":"info","message":"Connected to the trades database.","data":{}}
+{"timestamp":"2024-12-26T10:28:34.445Z","level":"info","message":"Trades table is ready.","data":{}}
+{"timestamp":"2024-12-26T10:35:40.084Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0xBABE111ae121D6ecd73fC3018B7E58B99cc4591E","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0xeFb9B9208A91D89656A372ECC7ef21893c817fee"}}
+{"timestamp":"2024-12-26T10:35:40.092Z","level":"info","message":"New Token Address: 0xBABE111ae121D6ecd73fC3018B7E58B99cc4591E","data":{}}
+{"timestamp":"2024-12-26T10:35:40.093Z","level":"info","message":"Preparing to execute purchase for pair 0xeFb9B9208A91D89656A372ECC7ef21893c817fee.","data":{}}
+{"timestamp":"2024-12-26T10:35:40.093Z","level":"info","message":"New Token Address: 0xBABE111ae121D6ecd73fC3018B7E58B99cc4591E","data":{}}
+{"timestamp":"2024-12-26T10:35:40.094Z","level":"info","message":"Evaluating pair 0xeFb9B9208A91D89656A372ECC7ef21893c817fee for viability.","data":{}}
+{"timestamp":"2024-12-26T10:35:40.579Z","level":"info","message":"Pair token0: 0xBABE111ae121D6ecd73fC3018B7E58B99cc4591E, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-26T10:35:40.686Z","level":"info","message":"Pair Reserves: reserve0 = 198.777726716300897129 ETH, reserve1 = 0.718136218460555732 ETH","data":{}}
+{"timestamp":"2024-12-26T10:35:40.687Z","level":"info","message":"Base Token (token1) Reserve: 0.718136218460555732 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-26T10:35:40.688Z","level":"info","message":"Pair 0xeFb9B9208A91D89656A372ECC7ef21893c817fee passed evaluation.","data":{}}
+{"timestamp":"2024-12-26T10:35:41.121Z","level":"info","message":"Token Details - Name: BabyMoodeng, Symbol: BABYMOODENG, Decimals: 9, Total Supply: 420690000000.0","data":{}}
+{"timestamp":"2024-12-26T10:35:41.224Z","level":"info","message":"Transfer function is callable for token 0xBABE111ae121D6ecd73fC3018B7E58B99cc4591E.","data":{}}
+{"timestamp":"2024-12-26T10:35:41.326Z","level":"info","message":"Approve function is callable for token 0xBABE111ae121D6ecd73fC3018B7E58B99cc4591E.","data":{}}
+{"timestamp":"2024-12-26T10:35:41.326Z","level":"info","message":"Token 0xBABE111ae121D6ecd73fC3018B7E58B99cc4591E passed honeypot checks.","data":{}}
+{"timestamp":"2024-12-26T10:35:41.327Z","level":"info","message":"Executing purchase on pair 0xeFb9B9208A91D89656A372ECC7ef21893c817fee...","data":{}}
+{"timestamp":"2024-12-26T10:35:41.451Z","level":"info","message":"Adjusted Gas Prices: maxFeePerGas = 16.380651813 gwei, maxPriorityFeePerGas = 1.8 gwei","data":{}}
+{"timestamp":"2024-12-26T10:35:41.879Z","level":"error","message":"Error executing purchase on pair 0xeFb9B9208A91D89656A372ECC7ef21893c817fee: insufficient funds for intrinsic transaction cost","data":{}}
+{"timestamp":"2024-12-26T10:51:24.830Z","level":"info","message":"Wallet initialized: 0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199","data":{}}
+{"timestamp":"2024-12-26T10:51:24.860Z","level":"info","message":"Backend server is running on port 3001","data":{}}
+{"timestamp":"2024-12-26T10:51:24.900Z","level":"info","message":"Wallet Balance: 10000.0 ETH","data":{}}
+{"timestamp":"2024-12-26T10:51:40.173Z","level":"info","message":"Initializing contracts...","data":{}}
+{"timestamp":"2024-12-26T10:51:40.235Z","level":"info","message":"Wallet initialized: 0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199","data":{}}
+{"timestamp":"2024-12-26T10:51:40.762Z","level":"info","message":"FlashbotsBundleProvider initialized.","data":{}}
+{"timestamp":"2024-12-26T10:51:40.775Z","level":"info","message":"Factory and Router contracts initialized.","data":{}}
+{"timestamp":"2024-12-26T10:51:40.882Z","level":"info","message":"Connected to the blockchain. Current block number: 21486157","data":{}}
+{"timestamp":"2024-12-26T10:51:40.883Z","level":"info","message":"Database initialized.","data":{}}
+{"timestamp":"2024-12-26T10:51:40.884Z","level":"info","message":"Bot started.","data":{}}
+{"timestamp":"2024-12-26T10:51:40.888Z","level":"info","message":"Listener for PairCreated events has been set up successfully.","data":{}}
+{"timestamp":"2024-12-26T10:51:40.904Z","level":"info","message":"Connected to the trades database.","data":{}}
+{"timestamp":"2024-12-26T10:51:40.908Z","level":"info","message":"Trades table is ready.","data":{}}
+{"timestamp":"2024-12-26T11:00:07.051Z","level":"info","message":"Wallet initialized: 0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199","data":{}}
+{"timestamp":"2024-12-26T11:00:07.100Z","level":"info","message":"Initial Wallet Balance: 10000.0 ETH","data":{}}
+{"timestamp":"2024-12-26T11:00:07.227Z","level":"info","message":"Test Transaction Sent: 0x5bbdf158976cdd9b65022549c4e3d8000b18f40b3457dec661d8c3fafca011f2","data":{}}
+{"timestamp":"2024-12-26T11:00:07.240Z","level":"info","message":"Test Transaction Confirmed in Block 21486142","data":{}}
+{"timestamp":"2024-12-26T11:00:07.254Z","level":"info","message":"Final Wallet Balance: 9999.999872769588454 ETH","data":{}}
+{"timestamp":"2024-12-26T11:05:23.559Z","level":"info","message":"Wallet initialized: 0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199","data":{}}
+{"timestamp":"2024-12-26T11:05:23.620Z","level":"info","message":"Initial Wallet Balance: 9999.999872769588454 ETH","data":{}}
+{"timestamp":"2024-12-26T11:05:23.739Z","level":"info","message":"Test Transaction Sent: 0xa91138ed3f8a2683a19bad3d5f130fc3615ec5254028113fd945919f6d799375","data":{}}
+{"timestamp":"2024-12-26T11:05:23.749Z","level":"info","message":"Test Transaction Confirmed in Block 21486143","data":{}}
+{"timestamp":"2024-12-26T11:05:23.760Z","level":"info","message":"Final Wallet Balance: 9999.999757488725512 ETH","data":{}}
+{"timestamp":"2024-12-26T11:05:55.875Z","level":"info","message":"Wallet initialized: 0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199","data":{}}
+{"timestamp":"2024-12-26T11:05:55.897Z","level":"info","message":"Backend server is running on port 3001","data":{}}
+{"timestamp":"2024-12-26T11:05:55.939Z","level":"info","message":"Wallet Balance: 9999.999757488725512 ETH","data":{}}
+{"timestamp":"2024-12-26T11:07:34.520Z","level":"info","message":"Initializing contracts...","data":{}}
+{"timestamp":"2024-12-26T11:07:34.634Z","level":"info","message":"Wallet initialized: 0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199","data":{}}
+{"timestamp":"2024-12-26T11:07:35.227Z","level":"info","message":"FlashbotsBundleProvider initialized.","data":{}}
+{"timestamp":"2024-12-26T11:07:35.235Z","level":"info","message":"Factory and Router contracts initialized.","data":{}}
+{"timestamp":"2024-12-26T11:07:35.356Z","level":"info","message":"Connected to the blockchain. Current block number: 21486236","data":{}}
+{"timestamp":"2024-12-26T11:07:35.357Z","level":"info","message":"Database initialized.","data":{}}
+{"timestamp":"2024-12-26T11:07:35.357Z","level":"info","message":"Bot started.","data":{}}
+{"timestamp":"2024-12-26T11:07:35.360Z","level":"info","message":"Listener for PairCreated events has been set up successfully.","data":{}}
+{"timestamp":"2024-12-26T11:07:35.364Z","level":"info","message":"Connected to the trades database.","data":{}}
+{"timestamp":"2024-12-26T11:07:35.378Z","level":"info","message":"Trades table is ready.","data":{}}
+{"timestamp":"2024-12-26T11:17:18.017Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","token1":"0xE94F1A3eb6E94eDa89D58Fa87aC42941d94C6d43","pairAddress":"0xc56d38F2B5a161FF184f0f1AE62135203FC66840"}}
+{"timestamp":"2024-12-26T11:17:18.019Z","level":"info","message":"New Token Address: 0xE94F1A3eb6E94eDa89D58Fa87aC42941d94C6d43","data":{}}
+{"timestamp":"2024-12-26T11:17:18.020Z","level":"info","message":"Preparing to execute purchase for pair 0xc56d38F2B5a161FF184f0f1AE62135203FC66840.","data":{}}
+{"timestamp":"2024-12-26T11:17:18.020Z","level":"info","message":"New Token Address: 0xE94F1A3eb6E94eDa89D58Fa87aC42941d94C6d43","data":{}}
+{"timestamp":"2024-12-26T11:17:18.021Z","level":"info","message":"Evaluating pair 0xc56d38F2B5a161FF184f0f1AE62135203FC66840 for viability.","data":{}}
+{"timestamp":"2024-12-26T11:17:18.535Z","level":"info","message":"Pair token0: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2, token1: 0xE94F1A3eb6E94eDa89D58Fa87aC42941d94C6d43","data":{}}
+{"timestamp":"2024-12-26T11:17:18.657Z","level":"info","message":"Pair Reserves: reserve0 = 1.0 ETH, reserve1 = 0.5 ETH","data":{}}
+{"timestamp":"2024-12-26T11:17:18.659Z","level":"info","message":"Base Token (token0) Reserve: 1.0 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-26T11:17:18.660Z","level":"info","message":"Pair 0xc56d38F2B5a161FF184f0f1AE62135203FC66840 passed evaluation.","data":{}}
+{"timestamp":"2024-12-26T11:17:19.118Z","level":"info","message":"Token Details - Name: Eclipse, Symbol: ECLIPSE, Decimals: 9, Total Supply: 1000000000.0","data":{}}
+{"timestamp":"2024-12-26T11:17:19.235Z","level":"info","message":"Transfer function is callable for token 0xE94F1A3eb6E94eDa89D58Fa87aC42941d94C6d43.","data":{}}
+{"timestamp":"2024-12-26T11:17:19.349Z","level":"info","message":"Approve function is callable for token 0xE94F1A3eb6E94eDa89D58Fa87aC42941d94C6d43.","data":{}}
+{"timestamp":"2024-12-26T11:17:19.350Z","level":"info","message":"Token 0xE94F1A3eb6E94eDa89D58Fa87aC42941d94C6d43 passed honeypot checks.","data":{}}
+{"timestamp":"2024-12-26T11:17:19.350Z","level":"info","message":"Executing purchase on pair 0xc56d38F2B5a161FF184f0f1AE62135203FC66840...","data":{}}
+{"timestamp":"2024-12-26T11:17:19.486Z","level":"info","message":"Adjusted Gas Prices: maxFeePerGas = 14.026410348 gwei, maxPriorityFeePerGas = 1.8 gwei","data":{}}
+{"timestamp":"2024-12-26T11:17:19.490Z","level":"error","message":"Error executing purchase on pair 0xc56d38F2B5a161FF184f0f1AE62135203FC66840: cannot override \"chainId\"","data":{}}
+{"timestamp":"2024-12-26T11:18:28.292Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","token1":"0xFd9F85EFB478d8e47Ec9F55F46cdBbf9CFAcCf97","pairAddress":"0x474D56B72046ff9e92AD8b8503c9bC8745543e46"}}
+{"timestamp":"2024-12-26T11:18:28.292Z","level":"info","message":"New Token Address: 0xFd9F85EFB478d8e47Ec9F55F46cdBbf9CFAcCf97","data":{}}
+{"timestamp":"2024-12-26T11:18:28.293Z","level":"info","message":"Preparing to execute purchase for pair 0x474D56B72046ff9e92AD8b8503c9bC8745543e46.","data":{}}
+{"timestamp":"2024-12-26T11:18:28.293Z","level":"info","message":"New Token Address: 0xFd9F85EFB478d8e47Ec9F55F46cdBbf9CFAcCf97","data":{}}
+{"timestamp":"2024-12-26T11:18:28.293Z","level":"info","message":"Evaluating pair 0x474D56B72046ff9e92AD8b8503c9bC8745543e46 for viability.","data":{}}
+{"timestamp":"2024-12-26T11:18:28.879Z","level":"info","message":"Pair token0: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2, token1: 0xFd9F85EFB478d8e47Ec9F55F46cdBbf9CFAcCf97","data":{}}
+{"timestamp":"2024-12-26T11:18:28.996Z","level":"info","message":"Pair Reserves: reserve0 = 6.571428571428571428 ETH, reserve1 = 23000000000.0 ETH","data":{}}
+{"timestamp":"2024-12-26T11:18:28.997Z","level":"info","message":"Base Token (token0) Reserve: 6.571428571428571428 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-26T11:18:28.997Z","level":"info","message":"Pair 0x474D56B72046ff9e92AD8b8503c9bC8745543e46 passed evaluation.","data":{}}
+{"timestamp":"2024-12-26T11:18:29.456Z","level":"info","message":"Token Details - Name: 🦑Squid Game 2.0, Symbol: 🦑SQUIDGAME2, Decimals: 18, Total Supply: 23000000000.0","data":{}}
+{"timestamp":"2024-12-26T11:18:29.572Z","level":"info","message":"Transfer function is callable for token 0xFd9F85EFB478d8e47Ec9F55F46cdBbf9CFAcCf97.","data":{}}
+{"timestamp":"2024-12-26T11:18:29.685Z","level":"info","message":"Approve function is callable for token 0xFd9F85EFB478d8e47Ec9F55F46cdBbf9CFAcCf97.","data":{}}
+{"timestamp":"2024-12-26T11:18:29.686Z","level":"info","message":"Token 0xFd9F85EFB478d8e47Ec9F55F46cdBbf9CFAcCf97 passed honeypot checks.","data":{}}
+{"timestamp":"2024-12-26T11:18:29.686Z","level":"info","message":"Executing purchase on pair 0x474D56B72046ff9e92AD8b8503c9bC8745543e46...","data":{}}
+{"timestamp":"2024-12-26T11:18:29.829Z","level":"info","message":"Adjusted Gas Prices: maxFeePerGas = 14.525221747 gwei, maxPriorityFeePerGas = 1.8 gwei","data":{}}
+{"timestamp":"2024-12-26T11:18:29.832Z","level":"error","message":"Error executing purchase on pair 0x474D56B72046ff9e92AD8b8503c9bC8745543e46: cannot override \"chainId\"","data":{}}
+{"timestamp":"2024-12-26T11:20:41.430Z","level":"info","message":"Detected PairCreated Event:","data":{"token0":"0x852bF20656831c5A9dc885E1B6a9b0d28DadA560","token1":"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","pairAddress":"0xf59CbE8C2a959e84643a73c6a90a6809935c9c4B"}}
+{"timestamp":"2024-12-26T11:20:41.431Z","level":"info","message":"New Token Address: 0x852bF20656831c5A9dc885E1B6a9b0d28DadA560","data":{}}
+{"timestamp":"2024-12-26T11:20:41.431Z","level":"info","message":"Preparing to execute purchase for pair 0xf59CbE8C2a959e84643a73c6a90a6809935c9c4B.","data":{}}
+{"timestamp":"2024-12-26T11:20:41.431Z","level":"info","message":"New Token Address: 0x852bF20656831c5A9dc885E1B6a9b0d28DadA560","data":{}}
+{"timestamp":"2024-12-26T11:20:41.432Z","level":"info","message":"Evaluating pair 0xf59CbE8C2a959e84643a73c6a90a6809935c9c4B for viability.","data":{}}
+{"timestamp":"2024-12-26T11:20:42.351Z","level":"info","message":"Pair token0: 0x852bF20656831c5A9dc885E1B6a9b0d28DadA560, token1: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","data":{}}
+{"timestamp":"2024-12-26T11:20:42.472Z","level":"info","message":"Pair Reserves: reserve0 = 0.198 ETH, reserve1 = 3.0 ETH","data":{}}
+{"timestamp":"2024-12-26T11:20:42.473Z","level":"info","message":"Base Token (token1) Reserve: 3.0 ETH, Minimum Required: 0.08 ETH","data":{}}
+{"timestamp":"2024-12-26T11:20:42.474Z","level":"info","message":"Pair 0xf59CbE8C2a959e84643a73c6a90a6809935c9c4B passed evaluation.","data":{}}
+{"timestamp":"2024-12-26T11:20:42.969Z","level":"info","message":"Token Details - Name: 🐸PEPEWIF, Symbol: 🐸PEPEWIF, Decimals: 9, Total Supply: 200000000.0","data":{}}
+{"timestamp":"2024-12-26T11:20:43.086Z","level":"info","message":"Transfer function is callable for token 0x852bF20656831c5A9dc885E1B6a9b0d28DadA560.","data":{}}
+{"timestamp":"2024-12-26T11:20:43.199Z","level":"info","message":"Approve function is callable for token 0x852bF20656831c5A9dc885E1B6a9b0d28DadA560.","data":{}}
+{"timestamp":"2024-12-26T11:20:43.199Z","level":"info","message":"Token 0x852bF20656831c5A9dc885E1B6a9b0d28DadA560 passed honeypot checks.","data":{}}
+{"timestamp":"2024-12-26T11:20:43.199Z","level":"info","message":"Executing purchase on pair 0xf59CbE8C2a959e84643a73c6a90a6809935c9c4B...","data":{}}
+{"timestamp":"2024-12-26T11:20:43.333Z","level":"info","message":"Adjusted Gas Prices: maxFeePerGas = 14.066389768 gwei, maxPriorityFeePerGas = 1.8 gwei","data":{}}
+{"timestamp":"2024-12-26T11:20:43.341Z","level":"error","message":"Error executing purchase on pair 0xf59CbE8C2a959e84643a73c6a90a6809935c9c4B: cannot override \"chainId\"","data":{}}

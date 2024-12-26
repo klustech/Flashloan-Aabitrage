@@ -2,20 +2,21 @@
 
 const { ethers } = require("hardhat");
 
-(async () => {
+async function main() {
     const [deployer] = await ethers.getSigners();
-    console.log(`Deploying contracts with the account: ${deployer.address}`);
+    console.log("Deploying contracts with the account:", deployer.address);
+    console.log("Account balance:", ethers.utils.formatEther(await deployer.getBalance()), "ETH");
 
     const MockToken = await ethers.getContractFactory("MockToken");
-    const initialSupply = 1000000; // 1,000,000 tokens
-    const mockToken = await MockToken.deploy("Mock Token", "MTK", initialSupply, {
-        maxFeePerGas: ethers.utils.parseUnits('100', 'gwei'), // Example: 100 gwei
-        maxPriorityFeePerGas: ethers.utils.parseUnits('2', 'gwei') // Example: 2 gwei
-    });
+    const mockToken = await MockToken.deploy(deployer.address); // Pass deployer as initialOwner
     await mockToken.deployed();
 
-    console.log(`MockToken deployed at: ${mockToken.address}`);
-})().catch((error) => {
-    console.error("Error deploying MockToken:", error);
-    process.exit(1);
-});
+    console.log("MockToken deployed at:", mockToken.address);
+}
+
+main()
+    .then(() => process.exit(0))
+    .catch((error) => {
+        console.error("Error in deployMockToken script:", error);
+        process.exit(1);
+    });

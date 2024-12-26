@@ -73,7 +73,6 @@ async function evaluatePair(pairAddress, token0, token1) {
 
         // Get reserves
         const reserves = await pairContract.getReserves();
-
         if (!reserves) {
             logMessage(`Failed to fetch reserves for pair ${pairAddress}`, {}, 'error');
             return false;
@@ -120,7 +119,6 @@ async function evaluatePair(pairAddress, token0, token1) {
         // Additional criteria can be added here (e.g., slippage, token properties)
 
         logMessage(`Pair ${pairAddress} passed evaluation.`, {}, 'info');
-
         return true;
     } catch (error) {
         logMessage(`Error evaluating pair ${pairAddress}: ${error.message}`, {}, 'error');
@@ -143,12 +141,17 @@ async function getAdjustedGasPrice() {
 
         if (getSettings().GAS_PRICE_MULTIPLIER) {
             // GAS_PRICE_MULTIPLIER is expected to be a percentage (e.g., 120 for 120%)
-            const multiplier = ethers.BigNumber.from(Math.round(getSettings().GAS_PRICE_MULTIPLIER * 100)); // e.g., 120 * 100 = 12000
-            maxFeePerGas = maxFeePerGas.mul(multiplier).div(10000); // 12000 / 10000 = 1.2
+            const multiplier = ethers.BigNumber.from(Math.round(getSettings().GAS_PRICE_MULTIPLIER * 100));
+            maxFeePerGas = maxFeePerGas.mul(multiplier).div(10000);      // e.g. 120 => 1.2x
             maxPriorityFeePerGas = maxPriorityFeePerGas.mul(multiplier).div(10000);
         }
 
-        logMessage(`Adjusted Gas Prices: maxFeePerGas = ${ethers.utils.formatUnits(maxFeePerGas, 'gwei')} gwei, maxPriorityFeePerGas = ${ethers.utils.formatUnits(maxPriorityFeePerGas, 'gwei')} gwei`, {}, 'info');
+        logMessage(
+            `Adjusted Gas Prices: maxFeePerGas = ${ethers.utils.formatUnits(maxFeePerGas, 'gwei')} gwei, ` +
+            `maxPriorityFeePerGas = ${ethers.utils.formatUnits(maxPriorityFeePerGas, 'gwei')} gwei`,
+            {},
+            'info'
+        );
 
         return {
             maxFeePerGas,
@@ -161,52 +164,6 @@ async function getAdjustedGasPrice() {
             maxFeePerGas: ethers.utils.parseUnits('100', 'gwei'),
             maxPriorityFeePerGas: ethers.utils.parseUnits('2', 'gwei'),
         };
-    }
-}
-
-/**
- * Monitors the price of a token and executes a sell if conditions are met.
- * @param {string} tokenAddress - The address of the token to monitor.
- */
-async function monitorTokenPrice(tokenAddress) {
-    try {
-        logMessage(`Starting price monitoring for token ${tokenAddress}.`, {}, 'info');
-
-        const targetProfitPercentage = getSettings().PROFIT_THRESHOLD; // e.g., 8 for 8%
-        const checkPriceInterval = (getSettings().CHECK_INTERVAL || 60) * 1000; // Default to 60 seconds if not set
-
-        const initialPrice = await getTokenPrice(tokenAddress);
-        if (initialPrice === 0) {
-            logMessage(`Initial price of token ${tokenAddress} could not be fetched. Skipping monitoring.`, {}, 'error');
-            return;
-        }
-        logMessage(`Initial price of token ${tokenAddress}: ${initialPrice} ETH`, {}, 'info');
-
-        const interval = setInterval(async () => {
-            try {
-                const currentPrice = await getTokenPrice(tokenAddress);
-                if (currentPrice === 0) {
-                    logMessage(`Current price of token ${tokenAddress} could not be fetched. Continuing monitoring.`, {}, 'error');
-                    return;
-                }
-                logMessage(`Current price of token ${tokenAddress}: ${currentPrice} ETH`, {}, 'info');
-
-                const priceChange = ((currentPrice - initialPrice) / initialPrice) * 100;
-                logMessage(`Price change: ${priceChange.toFixed(2)}%`, {}, 'info');
-
-                if (priceChange >= targetProfitPercentage) {
-                    logMessage(`Target profit of ${targetProfitPercentage}% reached. Initiating sell.`, {}, 'info');
-                    clearInterval(interval);
-                    const { executeSell } = require('./tradingOperations'); // Ensure this module exists
-                    await executeSell(tokenAddress);
-                }
-            } catch (error) {
-                logMessage(`Error during price monitoring: ${error.message}`, {}, 'error');
-            }
-        }, checkPriceInterval);
-
-    } catch (error) {
-        logMessage(`Error in monitorTokenPrice for ${tokenAddress}: ${error.message}`, {}, 'error');
     }
 }
 
@@ -224,7 +181,6 @@ async function getTokenPrice(tokenAddress) {
 
         const amounts = await routerContract.getAmountsOut(amountIn, path);
         const price = parseFloat(ethers.utils.formatEther(amounts[1]));
-
         return price;
     } catch (error) {
         logMessage(`Error fetching price for token ${tokenAddress}: ${error.message}`, {}, 'error');
@@ -235,6 +191,5 @@ async function getTokenPrice(tokenAddress) {
 module.exports = {
     evaluatePair,
     getAdjustedGasPrice,
-    monitorTokenPrice,
     getTokenPrice,
 };

@@ -2,9 +2,9 @@
 
 const { getProvider, getRouterContract, getWallet } = require('./contracts'); // Import getter functions
 const { logMessage } = require('./logging');
-const settings = require('./settings');
+const { getSettings } = require('./settings');
 const { getAdjustedGasPrice, monitorTokenPrice } = require('./utils');
-const { ethers } = require('ethers');
+const { ethers } = require('ethers'); // Correctly import ethers
 const { successfulTrades } = require('./state'); // Ensure this module exists and is correctly implemented
 const { insertTrade } = require('./database'); // Ensure this module exists and is correctly implemented
 
@@ -16,45 +16,49 @@ const { insertTrade } = require('./database'); // Ensure this module exists and 
  */
 async function executePurchase(pairAddress, token0, token1) {
     try {
-        logMessage(`Executing purchase on pair ${pairAddress}...`, {});
+        logMessage(`Executing purchase on pair ${pairAddress}...`, {}, 'info');
 
-        const baseTokenAddress = settings.BASE_TOKEN_ADDRESS.toLowerCase();
+        const baseTokenAddress = getSettings().BASE_TOKEN_ADDRESS.toLowerCase();
         const tokenToBuy = token1.toLowerCase() === baseTokenAddress ? token0 : token1;
 
         const path = [baseTokenAddress, tokenToBuy];
-        const deadline = Math.floor(Date.now() / 1000) + settings.MONITOR_DURATION;
+        const deadline = Math.floor(Date.now() / 1000) + getSettings().DEADLINE_BUFFER;
 
         const gasPrices = await getAdjustedGasPrice();
 
-        const amountOutMin = 0; // For safety, consider setting a realistic minimum to prevent front-running
+        const amountIn = ethers.utils.parseEther(getSettings().ETH_AMOUNT_TO_SWAP.toString());
 
         const routerContract = getRouterContract();
         const wallet = getWallet();
 
+        // Execute Swap
         const tx = await routerContract.swapExactETHForTokens(
-            amountOutMin,
+            0, // amountOutMin
             path,
             wallet.address,
             deadline,
             {
-                value: ethers.utils.parseEther(settings.ETH_AMOUNT_TO_SWAP),
+                gasLimit: 200000,
+                // Force chainId to 31337:
+                chainId: 31337,
                 maxFeePerGas: gasPrices.maxFeePerGas,
                 maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas,
-                gasLimit: 300000, // Adjust based on estimated gas
+                value: amountIn,
             }
         );
 
-        logMessage(`Purchase transaction submitted. Tx Hash: ${tx.hash}`, {});
+        logMessage(`Purchase transaction submitted. Tx Hash: ${tx.hash}`, {}, 'info');
 
         const receipt = await tx.wait();
 
-        logMessage(`Purchase executed on pair ${pairAddress}. Tx Hash: ${tx.hash}`, {});
+        logMessage(`Purchase executed on pair ${pairAddress}. Tx Hash: ${tx.hash}`, {}, 'info');
 
         // Record successful trade
         const tradeDetails = {
             timestamp: new Date().toISOString(),
             tokenAddress: tokenToBuy,
-            amountIn: settings.ETH_AMOUNT_TO_SWAP,
+            pairAddress,
+            amountIn: getSettings().ETH_AMOUNT_TO_SWAP.toString(),
             txHash: tx.hash,
             type: 'buy',
         };
@@ -76,7 +80,7 @@ async function executePurchase(pairAddress, token0, token1) {
  */
 async function executeSell(tokenAddress) {
     try {
-        logMessage(`Executing sell for token ${tokenAddress}...`, {});
+        logMessage(`Executing sell for token ${tokenAddress}...`, {}, 'info');
 
         const routerContract = getRouterContract();
         const wallet = getWallet();
@@ -100,12 +104,12 @@ async function executeSell(tokenAddress) {
                 maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas,
             });
             await approveTx.wait();
-            logMessage('Token allowance set for router.', {});
+            logMessage('Token allowance set for router.', {}, 'info');
         }
 
-        const path = [tokenAddress, settings.BASE_TOKEN_ADDRESS];
+        const path = [tokenAddress, getSettings().BASE_TOKEN_ADDRESS];
         const amountIn = balance; // Sell entire balance
-        const deadline = Math.floor(Date.now() / 1000) + settings.MONITOR_DURATION;
+        const deadline = Math.floor(Date.now() / 1000) + getSettings().DEADLINE_BUFFER;
 
         const gasPrices = await getAdjustedGasPrice();
 
@@ -122,11 +126,11 @@ async function executeSell(tokenAddress) {
             }
         );
 
-        logMessage(`Sell transaction submitted. Tx Hash: ${tx.hash}`, {});
+        logMessage(`Sell transaction submitted. Tx Hash: ${tx.hash}`, {}, 'info');
 
         const receipt = await tx.wait();
 
-        logMessage(`Sell executed for token ${tokenAddress}. Tx Hash: ${tx.hash}`, {});
+        logMessage(`Sell executed for token ${tokenAddress}. Tx Hash: ${tx.hash}`, {}, 'info');
 
         // Record successful trade
         const tradeDetails = {

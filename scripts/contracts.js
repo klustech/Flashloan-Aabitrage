@@ -30,9 +30,9 @@ async function initContracts() {
         }
 
         // Validate RPC_URL
-        const RPC_URL = getSettings().RPC_URL_MAINNET;
+        const RPC_URL = getSettings().RPC_URL_WSS; // Use the WebSocket URL
         if (!RPC_URL) {
-            throw new Error('RPC_URL_MAINNET must be defined in .env file.');
+            throw new Error('RPC_URL_WSS must be defined in .env file.');
         }
 
         // Initialize WebSocketProvider with reconnection logic

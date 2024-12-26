@@ -8,10 +8,24 @@ async function main() {
     console.log("Adding liquidity with the account:", deployer.address);
     console.log("Account balance:", ethers.utils.formatEther(await deployer.getBalance()), "ETH");
 
-    const routerAddress = ethers.utils.getAddress(process.env.ROUTER_ADDRESS); // Uniswap V2 Router
-    const factoryAddress = ethers.utils.getAddress(process.env.FACTORY_ADDRESS); // Uniswap V2 Factory
-    const baseTokenAddress = ethers.utils.getAddress(process.env.BASE_TOKEN_ADDRESS); // WETH
-    const mockTokenAddress = ethers.utils.getAddress(process.env.MOCK_TOKEN_ADDRESS); // MockToken
+    // Fetch and validate addresses from environment variables
+    const routerAddress = process.env.ROUTER_ADDRESS
+        ? ethers.utils.getAddress(process.env.ROUTER_ADDRESS)
+        : null; // Uniswap V2 Router
+    const factoryAddress = process.env.FACTORY_ADDRESS
+        ? ethers.utils.getAddress(process.env.FACTORY_ADDRESS)
+        : null; // Uniswap V2 Factory
+    const baseTokenAddress = process.env.BASE_TOKEN_ADDRESS
+        ? ethers.utils.getAddress(process.env.BASE_TOKEN_ADDRESS)
+        : null; // WETH
+    const mockTokenAddress = process.env.MOCK_TOKEN_ADDRESS
+        ? ethers.utils.getAddress(process.env.MOCK_TOKEN_ADDRESS)
+        : null; // MockToken
+
+    // Validate that all necessary addresses are provided
+    if (!routerAddress || !factoryAddress || !baseTokenAddress || !mockTokenAddress) {
+        throw new Error("One or more required contract addresses are missing in the .env file.");
+    }
 
     // ABIs
     const routerABI = [
@@ -24,10 +38,10 @@ async function main() {
         "function balanceOf(address account) external view returns (uint256)"
     ];
 
-    // Create contract instances with fully qualified names
-    const router = await ethers.getContractAt("UniswapV2Router02", routerAddress, deployer);
-    const mockToken = await ethers.getContractAt("contracts/interfaces/IERC20.sol:IERC20", mockTokenAddress, deployer);
-    const baseToken = await ethers.getContractAt("contracts/interfaces/IERC20.sol:IERC20", baseTokenAddress, deployer);
+    // Instantiate contract instances using their ABIs
+    const router = new ethers.Contract(routerAddress, routerABI, deployer);
+    const mockToken = new ethers.Contract(mockTokenAddress, erc20ABI, deployer);
+    const baseToken = new ethers.Contract(baseTokenAddress, erc20ABI, deployer);
 
     // Approve router to spend MockToken
     const amountTokenDesired = ethers.utils.parseUnits("1000", 18); // 1000 MockTokens

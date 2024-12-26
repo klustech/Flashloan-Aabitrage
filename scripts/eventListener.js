@@ -15,9 +15,10 @@ const {
 } = require('./contracts');
 const { logMessage, getLogs } = require('./logging');
 const { monitorTokenPrice, evaluatePair, getAdjustedGasPrice } = require('./utils');
-const { isHoneypot } = require('./tokenAnalysis'); // Ensure this module exists
+const { isHoneypot } = require('./honeypotCheck'); // Updated import path
 const { initDatabase, insertTrade, getAllTrades, closeDatabase } = require('./database');
-const { getSettings, updateSettings } = require('./settings');
+const { getSettings } = require('./settings');
+const { executePurchaseLogic } = require('./tradingLogic'); // Import executePurchaseLogic
 
 let botRunning = false;
 
@@ -151,82 +152,10 @@ async function handlePairCreated(token0, token1, pairAddress) {
 
         logMessage(`New Token Address: ${newTokenAddress}`, {}, 'info');
 
-        // Evaluate Pair
-        const isViable = await evaluatePair(pairAddress, token0, token1);
-        if (!isViable) {
-            logMessage(`Pair ${pairAddress} did not pass evaluation. Ignoring.`, {}, 'info');
-            return;
-        }
-
-        // Check if Honeypot
-        const honeypot = await isHoneypot(newTokenAddress);
-        if (honeypot) {
-            logMessage(`Token ${newTokenAddress} is identified as a honeypot. Skipping purchase.`, {}, 'info');
-            return;
-        }
-
-        // Execute Purchase
-        await executePurchase(newTokenAddress, pairAddress);
+        // Evaluate and possibly purchase
+        await executePurchaseLogic(pairAddress, token0, token1);
     } catch (error) {
         logMessage(`Error handling PairCreated event for ${pairAddress}: ${error.message}`, {}, 'error');
-    }
-}
-
-/**
- * Executes a purchase of the specified token.
- * @param {string} tokenAddress - Address of the token to purchase
- * @param {string} pairAddress - Address of the liquidity pair
- */
-async function executePurchase(tokenAddress, pairAddress) {
-    try {
-        const routerContract = getRouterContract();
-        const wallet = getWallet();
-
-        const settings = getSettings();
-        const ethAmountToSwap = settings.ETH_AMOUNT_TO_SWAP;
-        const amountIn = ethers.utils.parseEther(ethAmountToSwap.toString());
-        const path = [settings.BASE_TOKEN_ADDRESS, tokenAddress];
-        const deadline = Math.floor(Date.now() / 1000) + settings.DEADLINE_BUFFER;
-
-        // Get Adjusted Gas Prices
-        const { maxFeePerGas, maxPriorityFeePerGas } = await getAdjustedGasPrice();
-
-        // Execute Swap
-        const tx = await routerContract.swapExactETHForTokens(
-            0,
-            path,
-            wallet.address,
-            deadline,
-            {
-                gasLimit: 200000,
-                maxFeePerGas,
-                maxPriorityFeePerGas,
-                value: amountIn,
-            }
-        );
-
-        logMessage(`Purchase transaction submitted. Tx Hash: ${tx.hash}`, {}, 'info');
-
-        const receipt = await tx.wait();
-
-        logMessage(`Purchase executed for token ${tokenAddress}. Tx Hash: ${tx.hash}`, {}, 'info');
-
-        // Record Trade
-        const trade = {
-            timestamp: new Date().toISOString(),
-            tokenAddress,
-            pairAddress,
-            amountIn: ethAmountToSwap.toString(),
-            txHash: tx.hash,
-            type: 'buy',
-        };
-
-        await insertTrade(trade);
-
-        // Start Monitoring Price for Selling
-        monitorTokenPrice(tokenAddress);
-    } catch (error) {
-        logMessage(`Error executing purchase for token ${tokenAddress}: ${error.message}`, {}, 'error');
     }
 }
 
@@ -238,6 +167,4 @@ module.exports = {
     getSuccessfulTrades,
     getInitializationLogs,
     getGeneralLogs,
-    getSettings,
-    updateSettings,
 };
