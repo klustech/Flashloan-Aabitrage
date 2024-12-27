@@ -23,8 +23,8 @@ let settings = {
 
     // RPC URLs
     RPC_URL_MAINNET: process.env.RPC_URL_MAINNET,
-    RPC_URL_WSS: process.env.RPC_URL_WSS, // Added RPC_URL_WSS
-    RPC_URL_LOCAL: process.env.RPC_URL_LOCAL,
+    RPC_URL_WSS: process.env.RPC_URL_WSS, // Updated to match settings.json
+    RPC_URL_LOCAL: process.env.RPC_URL_LOCAL, // Updated to match settings.json
 
     // Trading Settings
     ETH_AMOUNT_TO_SWAP: parseFloat(process.env.ETH_AMOUNT_TO_SWAP) || 0.1,
@@ -86,6 +86,7 @@ function saveSettings() {
             TOKEN_WHITELIST: settings.TOKEN_WHITELIST,
             TOKEN_BLACKLIST: settings.TOKEN_BLACKLIST,
             RPC_URL_WSS: settings.RPC_URL_WSS, // Ensure RPC_URL_WSS is saved
+            RPC_URL_LOCAL: settings.RPC_URL_LOCAL, // Ensure RPC_URL_LOCAL is saved
         };
 
         fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settingsToSave, null, 2));
@@ -136,4 +137,3 @@ function getSettings() {
 loadSettings();
 
 module.exports = { getSettings, updateSettings };
-

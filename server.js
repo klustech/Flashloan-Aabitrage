@@ -23,12 +23,22 @@ const { logMessage } = require('./scripts/logging');
 const { getLogs } = require('./scripts/logging');
 const { ethers } = require('ethers');
 const { provider, wallet } = require('./scripts/provider');
+const { getSettings, updateSettings } = require('./scripts/settings');
+
+const rateLimit = require('express-rate-limit'); // To prevent abuse
 
 const app = express();
 const PORT = 3001;
 
 app.use(cors());
 app.use(express.json());
+
+// Rate limiter for settings updates
+const settingsUpdateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 20, // limit each IP to 20 requests per windowMs
+    message: 'Too many settings update attempts from this IP, please try again after 15 minutes.',
+});
 
 // Function to check wallet balance
 async function checkWalletBalance() {
@@ -82,6 +92,36 @@ app.get('/api/logs', async (req, res) => {
     } catch (error) {
         logMessage(`Error fetching logs: ${error.message}`, {}, 'error');
         res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * Get Current Settings
+ */
+app.get('/api/settings', (req, res) => {
+    res.json(getSettings());
+});
+
+/**
+ * Update Settings
+ */
+app.post('/api/settings', settingsUpdateLimiter, (req, res) => {
+    try {
+        const newSettings = req.body;
+
+        // Validate that newSettings is an object
+        if (typeof newSettings !== 'object' || Array.isArray(newSettings)) {
+            return res.status(400).json({ error: 'Invalid settings format. Expected a JSON object.' });
+        }
+
+        // Update settings
+        updateSettings(newSettings);
+        logMessage('Settings updated successfully.', {}, 'info');
+
+        res.json({ status: 'Settings updated successfully.', settings: getSettings() });
+    } catch (error) {
+        logMessage(`Error updating settings: ${error.message}`, {}, 'error');
+        res.status(400).json({ error: error.message });
     }
 });
 

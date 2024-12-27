@@ -39,8 +39,6 @@ async function executePurchase(pairAddress, token0, token1) {
             deadline,
             {
                 gasLimit: 200000,
-                // Force chainId to 31337:
-                chainId: 31337,
                 maxFeePerGas: gasPrices.maxFeePerGas,
                 maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas,
                 value: amountIn,

@@ -20,6 +20,7 @@
     "ethereum-waffle": "^4.0.10",
     "ethers": "^5.7.2",
     "express": "^4.21.1",
+    "express-rate-limit": "^7.5.0",
     "hardhat": "^2.22.16",
     "sentiment": "^5.0.2",
     "sqlite3": "^5.1.7",
