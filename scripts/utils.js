@@ -1,195 +1,154 @@
 // scripts/utils.js
 
-/**
- * utils.js
- *
- * Contains utility functions for the bot.
- */
-
-const { ethers } = require('ethers');
 const { logMessage } = require('./logging');
-const { getSettings } = require('./settings'); // Import settings directly
-const { getProvider, getRouterContract } = require('./contracts'); // Import getter functions
+const { getSettings } = require('./settings');
+const { ethers } = require('ethers');
+const { executeWithRetry } = require('./retry');
+const { getRouterContract, getProvider } = require('./contracts');
 
 /**
- * Validates that the provider is initialized.
- * @returns {ethers.providers.Provider} The provider instance.
- * @throws Will throw an error if the provider is not initialized.
+ * Sleep helper.
  */
-function validateProvider() {
-    const provider = getProvider(); // Use getter to get provider
-    if (!provider) {
-        throw new Error('Provider is not initialized. Ensure RPC configuration is correct.');
+const sleep = (ms) => new Promise(res => setTimeout(res, ms));
+
+/**
+ * Checks if a token is a honeypot by simulating multiple function calls.
+ */
+async function isHoneypot(tokenAddress) {
+    const settings = getSettings();
+    const provider = getProvider(); // Must be called after initContracts()
+    const wallet = ethers.Wallet.createRandom().connect(provider);
+
+    const tokenAbi = [
+        'function transfer(address to, uint256 amount) external returns (bool)',
+        'function approve(address spender, uint256 amount) external returns (bool)',
+        'function transferFrom(address from, address to, uint256 amount) external returns (bool)',
+    ];
+
+    const tokenContract = new ethers.Contract(tokenAddress, tokenAbi, wallet);
+
+    try {
+        await executeWithRetry(() => tokenContract.callStatic.transfer(
+            ethers.constants.AddressZero,
+            ethers.utils.parseUnits('1', 18)
+        ));
+        await executeWithRetry(() => tokenContract.callStatic.approve(
+            wallet.address,
+            ethers.utils.parseUnits('1', 18)
+        ));
+        await executeWithRetry(() => tokenContract.callStatic.transferFrom(
+            wallet.address,
+            wallet.address,
+            ethers.utils.parseUnits('1', 18)
+        ));
+        // If all pass, not a honeypot
+        return false;
+    } catch (err) {
+        logMessage(`Honeypot check fail for ${tokenAddress}: ${err.message}`, {}, 'error');
+        return true;
     }
-    return provider;
 }
 
 /**
- * Evaluates whether a pair is worth purchasing based on predefined criteria.
- * @param {string} pairAddress - The address of the pair contract.
- * @param {string} token0 - Address of token0.
- * @param {string} token1 - Address of token1.
- * @returns {Promise<boolean>} - True if pair meets criteria, else false.
+ * Evaluates pair liquidity, etc.
  */
 async function evaluatePair(pairAddress, token0, token1) {
+    const settings = getSettings();
+    const provider = getProvider();
+
     try {
-        logMessage(`Evaluating pair ${pairAddress} for viability.`, {}, 'info');
-
-        // Validate provider initialization
-        const provider = validateProvider();
-
-        // Check if the pair contract exists by getting its code
-        const code = await provider.getCode(pairAddress);
-        if (!code || code === '0x') {
-            logMessage(`No contract found at address ${pairAddress}`, {}, 'error');
-            return false;
-        }
-
-        // Create a contract instance for the pair
-        const pairABI = [
-            'function getReserves() view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast)',
-            'function token0() view returns (address)',
-            'function token1() view returns (address)',
+        const pairAbi = [
+            'function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast)'
         ];
-        const pairContract = new ethers.Contract(pairAddress, pairABI, provider);
+        const pairContract = new ethers.Contract(pairAddress, pairAbi, provider);
 
-        // Verify token0 and token1 from the contract match event data
-        const pairToken0 = await pairContract.token0();
-        const pairToken1 = await pairContract.token1();
+        const reserves = await executeWithRetry(() => pairContract.getReserves());
+        const reserve0 = parseFloat(ethers.utils.formatUnits(reserves.reserve0, settings.BASE_TOKEN_DECIMALS || 18));
+        const reserve1 = parseFloat(ethers.utils.formatUnits(reserves.reserve1, settings.TOKEN_DECIMALS || 18));
 
-        logMessage(`Pair token0: ${pairToken0}, token1: ${pairToken1}`, {}, 'info');
+        logMessage(`Reserves => 0: ${reserve0}, 1: ${reserve1}`, {}, 'info');
 
-        if (
-            pairToken0.toLowerCase() !== token0.toLowerCase() ||
-            pairToken1.toLowerCase() !== token1.toLowerCase()
-        ) {
-            logMessage(
-                `Pair tokens do not match event data. Expected token0: ${token0}, token1: ${token1}. Found token0: ${pairToken0}, token1: ${pairToken1}`,
-                {},
-                'error'
-            );
+        if (reserve0 < (settings.MIN_BASE_TOKEN_RESERVE || 1)) {
+            logMessage(`Base token reserve too low: ${reserve0} < ${settings.MIN_BASE_TOKEN_RESERVE}`, {}, 'error');
             return false;
         }
 
-        // Get reserves
-        const reserves = await pairContract.getReserves();
-        if (!reserves) {
-            logMessage(`Failed to fetch reserves for pair ${pairAddress}`, {}, 'error');
-            return false;
-        }
-
-        const reserve0 = ethers.BigNumber.from(reserves.reserve0);
-        const reserve1 = ethers.BigNumber.from(reserves.reserve1);
-
-        logMessage(
-            `Pair Reserves: reserve0 = ${ethers.utils.formatEther(reserve0)} ETH, reserve1 = ${ethers.utils.formatEther(reserve1)} ETH`,
-            {},
-            'info'
-        );
-
-        // Ensure reserves meet minimum threshold for the base token only
-        const minReserveEth = getSettings().MINIMUM_LOCKED_ETH; // Corrected key
-        if (!minReserveEth) {
-            logMessage(`MINIMUM_LOCKED_ETH is not defined in settings.`, {}, 'error');
-            return false;
-        }
-
-        const minReserve = ethers.utils.parseEther(minReserveEth.toString());
-
-        // Determine which reserve corresponds to the base token
-        const baseTokenAddress = getSettings().BASE_TOKEN_ADDRESS.toLowerCase();
-        const isToken0Base = pairToken0.toLowerCase() === baseTokenAddress;
-        const baseTokenReserve = isToken0Base ? reserve0 : reserve1;
-
-        logMessage(
-            `Base Token (${isToken0Base ? 'token0' : 'token1'}) Reserve: ${ethers.utils.formatEther(baseTokenReserve)} ETH, Minimum Required: ${ethers.utils.formatEther(minReserve)} ETH`,
-            {},
-            'info'
-        );
-
-        if (baseTokenReserve.lt(minReserve)) {
-            logMessage(
-                `Base token reserve too low. reserve: ${ethers.utils.formatEther(baseTokenReserve)} ETH, minimum required: ${ethers.utils.formatEther(minReserve)} ETH`,
-                {},
-                'error'
-            );
-            return false;
-        }
-
-        // Additional criteria can be added here (e.g., slippage, token properties)
-
-        logMessage(`Pair ${pairAddress} passed evaluation.`, {}, 'info');
         return true;
-    } catch (error) {
-        logMessage(`Error evaluating pair ${pairAddress}: ${error.message}`, {}, 'error');
-        console.error(`Error in evaluatePair for pair ${pairAddress}:`, error);
+    } catch (err) {
+        logMessage(`evaluatePair error: ${err.message}`, {}, 'error');
         return false;
     }
 }
 
 /**
- * Fetches and adjusts gas prices based on current network conditions and settings.
- * @returns {Promise<Object>} - An object containing maxFeePerGas and maxPriorityFeePerGas.
+ * Retrieves current token price in ETH.
  */
-async function getAdjustedGasPrice() {
+async function getCurrentTokenPrice(tokenAddress) {
+    const settings = getSettings();
+    const router = getRouterContract();
+
     try {
-        const provider = validateProvider();
-
-        const gasPriceData = await provider.getFeeData();
-        let maxFeePerGas = gasPriceData.maxFeePerGas;
-        let maxPriorityFeePerGas = gasPriceData.maxPriorityFeePerGas;
-
-        if (getSettings().GAS_PRICE_MULTIPLIER) {
-            // GAS_PRICE_MULTIPLIER is expected to be a percentage (e.g., 120 for 120%)
-            const multiplier = ethers.BigNumber.from(Math.round(getSettings().GAS_PRICE_MULTIPLIER * 100));
-            maxFeePerGas = maxFeePerGas.mul(multiplier).div(10000);      // e.g. 120 => 1.2x
-            maxPriorityFeePerGas = maxPriorityFeePerGas.mul(multiplier).div(10000);
-        }
-
-        logMessage(
-            `Adjusted Gas Prices: maxFeePerGas = ${ethers.utils.formatUnits(maxFeePerGas, 'gwei')} gwei, ` +
-            `maxPriorityFeePerGas = ${ethers.utils.formatUnits(maxPriorityFeePerGas, 'gwei')} gwei`,
-            {},
-            'info'
-        );
-
-        return {
-            maxFeePerGas,
-            maxPriorityFeePerGas,
-        };
-    } catch (error) {
-        logMessage(`Error fetching gas prices: ${error.message}`, {}, 'error');
-        // Return default gas prices if there's an error
-        return {
-            maxFeePerGas: ethers.utils.parseUnits('100', 'gwei'),
-            maxPriorityFeePerGas: ethers.utils.parseUnits('2', 'gwei'),
-        };
+        const amountIn = ethers.utils.parseUnits('1', settings.BASE_TOKEN_DECIMALS || 18);
+        const path = [tokenAddress, settings.BASE_TOKEN_ADDRESS];
+        const amountsOut = await executeWithRetry(() => router.getAmountsOut(amountIn, path));
+        const priceInETH = parseFloat(ethers.utils.formatEther(amountsOut[amountsOut.length - 1]));
+        return priceInETH;
+    } catch (err) {
+        logMessage(`getCurrentTokenPrice error for ${tokenAddress}: ${err.message}`, {}, 'error');
+        throw err;
     }
 }
 
 /**
- * Fetches the current price of a token in ETH.
- * @param {string} tokenAddress - The address of the token.
- * @returns {Promise<number>} - The current price in ETH.
+ * Retrieves/adjusts gas prices for EIP-1559 transactions.
  */
-async function getTokenPrice(tokenAddress) {
-    try {
-        const routerContract = getRouterContract(); // Use getter to get routerContract
-        const settings = getSettings();
-        const path = [settings.BASE_TOKEN_ADDRESS, tokenAddress];
-        const amountIn = ethers.utils.parseEther('1'); // 1 WETH
+async function getAdjustedGasPrice() {
+    const settings = getSettings();
+    const provider = getProvider();
 
-        const amounts = await routerContract.getAmountsOut(amountIn, path);
-        const price = parseFloat(ethers.utils.formatEther(amounts[1]));
-        return price;
-    } catch (error) {
-        logMessage(`Error fetching price for token ${tokenAddress}: ${error.message}`, {}, 'error');
-        return 0;
+    try {
+        const feeData = await executeWithRetry(() => provider.getFeeData());
+        if (!feeData.maxFeePerGas || !feeData.maxPriorityFeePerGas) {
+            throw new Error('Missing fee data.');
+        }
+        const multiplier = ethers.BigNumber.from(settings.GAS_PRICE_MULTIPLIER || 2);
+        const maxFeePerGas = feeData.maxFeePerGas.mul(multiplier);
+        const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas.mul(multiplier);
+
+        return { maxFeePerGas, maxPriorityFeePerGas };
+    } catch (err) {
+        logMessage(`getAdjustedGasPrice error: ${err.message}`, {}, 'error');
+        throw err;
     }
 }
 
+/**
+ * Monitors token price post-purchase for potential selling.
+ */
+async function monitorTokenPrice(tokenAddress, buyPriceInETH) {
+    const settings = getSettings();
+    logMessage(`Monitoring price for ${tokenAddress} at buy price ${buyPriceInETH} ETH...`, {}, 'info');
+
+    setTimeout(async () => {
+        try {
+            const currentPrice = await getCurrentTokenPrice(tokenAddress);
+            logMessage(`Current price for ${tokenAddress}: ${currentPrice} ETH.`, {}, 'info');
+
+            if (currentPrice >= buyPriceInETH * (settings.PROFIT_THRESHOLD_FACTOR || 1.05)) {
+                logMessage(`Price threshold reached for ${tokenAddress}! Consider selling.`, {}, 'info');
+                // call your sell logic here if needed
+            }
+        } catch (error) {
+            logMessage(`monitorTokenPrice error: ${error.message}`, {}, 'error');
+        }
+    }, settings.MONITOR_DELAY_MS || 60000);
+}
+
 module.exports = {
+    isHoneypot,
     evaluatePair,
+    getCurrentTokenPrice,
     getAdjustedGasPrice,
-    getTokenPrice,
+    monitorTokenPrice,
+    sleep,
 };

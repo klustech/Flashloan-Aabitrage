@@ -6,6 +6,7 @@ import axios from 'axios';
 import './Settings.css'; // Ensure you have the corresponding CSS
 
 const Settings = () => {
+  // Include FLASHBOTS_ENABLED in your default state
   const [settings, setSettings] = useState({
     ETH_AMOUNT_TO_SWAP: '0.05',
     SLIPPAGE_TOLERANCE: 5,
@@ -16,6 +17,7 @@ const Settings = () => {
     MAX_GAS_PRICE: '200',
     TOKEN_WHITELIST: '',
     TOKEN_BLACKLIST: '',
+    FLASHBOTS_ENABLED: false, // <-- NEW
   });
 
   const [loading, setLoading] = useState(false);
@@ -30,7 +32,9 @@ const Settings = () => {
     try {
       const response = await axios.get('http://localhost:3001/api/settings');
       const fetchedSettings = response.data;
+
       setSettings({
+        // Preserve existing fields exactly as they were
         ETH_AMOUNT_TO_SWAP: fetchedSettings.ETH_AMOUNT_TO_SWAP || '0.05',
         SLIPPAGE_TOLERANCE: fetchedSettings.SLIPPAGE_TOLERANCE || 5,
         GAS_PRICE_MULTIPLIER: fetchedSettings.GAS_PRICE_MULTIPLIER || 1.2,
@@ -44,6 +48,8 @@ const Settings = () => {
         TOKEN_BLACKLIST: Array.isArray(fetchedSettings.TOKEN_BLACKLIST)
           ? fetchedSettings.TOKEN_BLACKLIST.join(', ')
           : '',
+        // Fetch the new FLASHBOTS_ENABLED field (boolean)
+        FLASHBOTS_ENABLED: fetchedSettings.FLASHBOTS_ENABLED === true,
       });
     } catch (error) {
       console.error('Error fetching settings:', error);
@@ -60,6 +66,7 @@ const Settings = () => {
     setError(null);
     try {
       const updatedSettings = {
+        // Keep the original fields, converting strings to numbers as before
         ETH_AMOUNT_TO_SWAP: settings.ETH_AMOUNT_TO_SWAP,
         SLIPPAGE_TOLERANCE: parseFloat(settings.SLIPPAGE_TOLERANCE),
         GAS_PRICE_MULTIPLIER: parseFloat(settings.GAS_PRICE_MULTIPLIER),
@@ -73,11 +80,14 @@ const Settings = () => {
         TOKEN_BLACKLIST: settings.TOKEN_BLACKLIST
           ? settings.TOKEN_BLACKLIST.split(',').map(addr => addr.trim())
           : [],
+        // Include the new FLASHBOTS_ENABLED
+        FLASHBOTS_ENABLED: settings.FLASHBOTS_ENABLED,
       };
 
       await axios.post('http://localhost:3001/api/settings', updatedSettings);
       alert('Settings updated successfully!');
-      fetchSettings(); // Refresh settings after update
+      // Refresh settings after update
+      fetchSettings();
     } catch (error) {
       console.error('Error updating settings:', error);
       setError('Failed to update settings.');
@@ -86,6 +96,7 @@ const Settings = () => {
     setLoading(false);
   };
 
+  // Fetch current settings when component loads
   useEffect(() => {
     fetchSettings();
   }, []);
@@ -98,8 +109,10 @@ const Settings = () => {
         <Link to="/settings">Settings</Link>
       </div>
       <h2>Settings</h2>
+
       {loading && <p>Loading...</p>}
       {error && <p className="error">{error}</p>}
+
       <form className="settings-form" onSubmit={e => e.preventDefault()}>
         <label className="label">
           ETH Amount to Swap:
@@ -111,6 +124,7 @@ const Settings = () => {
             className="input"
           />
         </label>
+
         <label className="label">
           Slippage Tolerance (%):
           <input
@@ -120,6 +134,7 @@ const Settings = () => {
             className="input"
           />
         </label>
+
         <label className="label">
           Gas Price Multiplier:
           <input
@@ -130,6 +145,7 @@ const Settings = () => {
             className="input"
           />
         </label>
+
         <label className="label">
           Profit Threshold (%):
           <input
@@ -139,6 +155,7 @@ const Settings = () => {
             className="input"
           />
         </label>
+
         <label className="label">
           Deadline Buffer (seconds):
           <input
@@ -148,6 +165,7 @@ const Settings = () => {
             className="input"
           />
         </label>
+
         <label className="label">
           Minimum Liquidity (ETH):
           <input
@@ -158,6 +176,7 @@ const Settings = () => {
             className="input"
           />
         </label>
+
         <label className="label">
           Max Gas Price (Gwei):
           <input
@@ -167,6 +186,7 @@ const Settings = () => {
             className="input"
           />
         </label>
+
         <label className="label">
           Token Whitelist (comma-separated addresses):
           <input
@@ -176,6 +196,7 @@ const Settings = () => {
             className="input"
           />
         </label>
+
         <label className="label">
           Token Blacklist (comma-separated addresses):
           <input
@@ -185,6 +206,18 @@ const Settings = () => {
             className="input"
           />
         </label>
+
+        {/* NEW checkbox for enabling/disabling Flashbots */}
+        <label className="label">
+          Flashbots Enabled:
+          <input
+            type="checkbox"
+            checked={settings.FLASHBOTS_ENABLED}
+            onChange={e => setSettings({ ...settings, FLASHBOTS_ENABLED: e.target.checked })}
+            className="input"
+          />
+        </label>
+
         <button className="button" onClick={updateSettingsHandler} disabled={loading}>
           {loading ? 'Updating...' : 'Update Settings'}
         </button>

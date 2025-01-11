@@ -4,187 +4,181 @@ const { ethers } = require('ethers');
 const { FlashbotsBundleProvider } = require('@flashbots/ethers-provider-bundle');
 const { logMessage } = require('./logging');
 const { getSettings } = require('./settings');
-const WebSocket = require('ws'); // Import the WebSocket library
+const WebSocket = require('ws');
+const Bottleneck = require('bottleneck');
+const { executeWithRetry } = require('./retry');
 
 let provider, wallet, factoryContract, routerContract, flashbotsProvider;
 
 /**
- * Initializes the blockchain contracts and related providers.
- * @returns {Object} An object containing the initialized provider, wallet, contracts, and flashbotsProvider.
+ * Initializes Bottleneck for rate limiting.
+ */
+const limiter = new Bottleneck({
+    minTime: getSettings().BOTTLE_LIMIT_MIN_TIME, // Minimum ms between requests
+    maxConcurrent: getSettings().BOTTLE_LIMIT_MAX_CONCURRENT, // Max concurrent requests
+});
+
+/**
+ * Wrap Ethers.js provider's .send method with Bottleneck + retry logic.
+ */
+function wrapProviderWithLimiter(originalProvider) {
+    const originalSend = originalProvider.send.bind(originalProvider);
+    originalProvider.send = limiter.wrap(async (method, params) => {
+        return executeWithRetry(() => originalSend(method, params));
+    });
+    return originalProvider;
+}
+
+/**
+ * Initializes the EVM provider, wallet, and optional Flashbots provider,
+ * as well as the factory & router contracts.
  */
 async function initContracts() {
     try {
         logMessage('Initializing contracts...', {}, 'info');
 
-        // Validate and format PRIVATE_KEY
-        let privateKey = getSettings().PRIVATE_KEY;
+        const settings = getSettings();
+        let privateKey = settings.PRIVATE_KEY;
         if (!privateKey) {
-            throw new Error('PRIVATE_KEY is missing in .env file.');
+            throw new Error('PRIVATE_KEY not set.');
         }
+
+        // Validate private key format
         if (!/^0x[a-fA-F0-9]{64}$/.test(privateKey)) {
             if (/^[a-fA-F0-9]{64}$/.test(privateKey)) {
-                privateKey = '0x' + privateKey; // Add '0x' prefix if missing
+                privateKey = '0x' + privateKey;
             } else {
-                throw new Error('Invalid PRIVATE_KEY format in .env file.');
+                throw new Error('Invalid PRIVATE_KEY format.');
             }
         }
 
-        // Validate RPC_URL
-        const RPC_URL = getSettings().RPC_URL_WSS; // Use the WebSocket URL
+        // Validate WebSocket URL
+        const RPC_URL = settings.RPC_URL_WSS;
         if (!RPC_URL) {
-            throw new Error('RPC_URL_WSS must be defined in .env file.');
+            throw new Error('RPC_URL_WSS is required in settings.');
         }
 
-        // Initialize WebSocketProvider with reconnection logic
+        // Initialize WS provider with reconnection logic
         const initializeProvider = () => {
             try {
                 provider = new ethers.providers.WebSocketProvider(RPC_URL);
-
-                // WebSocket error handling
-                provider._websocket.on('error', (error) => {
-                    logMessage(`WebSocket error: ${error.message}`, {}, 'error');
+                provider._websocket.on('error', (err) => {
+                    logMessage(`WebSocket error: ${err.message}`, {}, 'error');
                 });
-
                 provider._websocket.on('close', (code, reason) => {
-                    logMessage(`WebSocket closed: ${code} - ${reason || 'No reason provided'}`, {}, 'error');
-                    logMessage('Attempting to reconnect in 5 seconds...', {}, 'info');
-                    setTimeout(() => initializeProvider(), 5000); // Reconnect
+                    logMessage(`WebSocket closed: ${code} - ${reason || 'No reason'}`, {}, 'error');
+                    logMessage('Attempting to reconnect in 5s...', {}, 'info');
+                    setTimeout(initializeProvider, 5000);
                 });
-
                 provider._websocket.on('open', () => {
                     logMessage('WebSocket connection established.', {}, 'info');
-
-                    // Heartbeat to prevent disconnection
-                    const heartbeat = setInterval(() => {
+                    const pingInterval = setInterval(() => {
                         if (provider._websocket.readyState === WebSocket.OPEN) {
                             provider._websocket.ping();
                         } else {
-                            clearInterval(heartbeat);
+                            clearInterval(pingInterval);
                         }
-                    }, 30000); // Ping every 30 seconds
+                    }, 30000);
                 });
-
-                logMessage('WebSocketProvider initialized.', {}, 'info');
+                logMessage('WS Provider initialized.', {}, 'info');
             } catch (error) {
-                logMessage(`Error initializing WebSocketProvider: ${error.message}`, {}, 'error');
-                throw new Error('Failed to initialize WebSocketProvider. Check RPC URL.');
+                logMessage(`Failed to initialize WebSocketProvider: ${error.message}`, {}, 'error');
+                throw error;
             }
         };
 
         initializeProvider();
 
-        // Initialize Wallet
+        // Wrap the WS provider with Bottleneck + retry
+        provider = wrapProviderWithLimiter(provider);
+
+        // Create wallet
         wallet = new ethers.Wallet(privateKey, provider);
-        logMessage(`Wallet initialized: ${wallet.address}`, {}, 'info');
+        logMessage(`Wallet: ${wallet.address}`, {}, 'info');
 
-        // Initialize Flashbots Provider
-        flashbotsProvider = await FlashbotsBundleProvider.create(
-            provider,
-            wallet,
-            'https://relay.flashbots.net/' // Ensure this URL is correct or replace with your relay URL
+        // Optionally create Flashbots provider
+        if (settings.FLASHBOTS_ENABLED) {
+            flashbotsProvider = await FlashbotsBundleProvider.create(
+                provider,
+                wallet,
+                'https://relay.flashbots.net/'
+            );
+            logMessage('FlashbotsBundleProvider initialized.', {}, 'info');
+        }
+
+        // Initialize contracts
+        const FACTORY_ADDRESS = ethers.utils.getAddress(settings.FACTORY_ADDRESS);
+        const ROUTER_ADDRESS = ethers.utils.getAddress(settings.ROUTER_ADDRESS);
+
+        factoryContract = new ethers.Contract(
+            FACTORY_ADDRESS,
+            ['event PairCreated(address indexed token0, address indexed token1, address pair, uint)'],
+            provider
         );
-        logMessage('FlashbotsBundleProvider initialized.', {}, 'info');
 
-        // Initialize Contracts
-        const FACTORY_ADDRESS = ethers.utils.getAddress(getSettings().FACTORY_ADDRESS);
-        const ROUTER_ADDRESS = ethers.utils.getAddress(getSettings().ROUTER_ADDRESS);
+        routerContract = new ethers.Contract(
+            ROUTER_ADDRESS,
+            [
+                'function swapExactETHForTokens(uint amountOutMin, address[] calldata path, address to, uint deadline) external payable',
+                'function getAmountsOut(uint amountIn, address[] memory path) view returns (uint[] memory amounts)',
+                'function swapExactTokensForETHSupportingFeeOnTransferTokens(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) external',
+            ],
+            wallet
+        );
 
-        const factoryABI = [
-            'event PairCreated(address indexed token0, address indexed token1, address pair, uint)',
-        ];
-        const routerABI = [
-            'function swapExactETHForTokens(uint amountOutMin, address[] calldata path, address to, uint deadline) external payable',
-            'function getAmountsOut(uint amountIn, address[] memory path) view returns (uint[] memory)',
-            'function swapExactTokensForETHSupportingFeeOnTransferTokens(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) external',
-        ];
-
-        factoryContract = new ethers.Contract(FACTORY_ADDRESS, factoryABI, provider);
-        routerContract = new ethers.Contract(ROUTER_ADDRESS, routerABI, wallet);
-        logMessage('Factory and Router contracts initialized.', {}, 'info');
-
-        // Validate connection
-        const blockNumber = await provider.getBlockNumber();
-        logMessage(`Connected to the blockchain. Current block number: ${blockNumber}`, {}, 'info');
+        // Test provider connectivity
+        const blockNumber = await executeWithRetry(() => provider.getBlockNumber());
+        logMessage(`Connected to chain. Current block: ${blockNumber}`, {}, 'info');
 
         return { provider, wallet, factoryContract, routerContract, flashbotsProvider };
-    } catch (error) {
-        logMessage(`Error initializing contracts: ${error.message}`, {}, 'error');
-        throw error; // Exit if contracts fail to initialize
+    } catch (err) {
+        logMessage(`Error in initContracts(): ${err.message}`, {}, 'error');
+        throw err;
     }
 }
 
-/**
- * Getter for the factory contract.
- * @returns {ethers.Contract} The factory contract instance.
- */
-function getFactoryContractInstance() {
+/** Return the factory contract */
+function getFactoryContract() {
     if (!factoryContract) {
-        throw new Error('Factory contract is not initialized. Call initContracts() first.');
+        throw new Error('Factory not initialized.');
     }
     return factoryContract;
 }
 
-/**
- * Getter for the router contract.
- * @returns {ethers.Contract} The router contract instance.
- */
-function getRouterContractInstance() {
+/** Return the router contract */
+function getRouterContract() {
     if (!routerContract) {
-        throw new Error('Router contract is not initialized. Call initContracts() first.');
+        throw new Error('Router not initialized.');
     }
     return routerContract;
 }
 
-/**
- * Getter for the provider.
- * @returns {ethers.providers.WebSocketProvider} The provider instance.
- */
-function getProviderInstance() {
+/** Return the provider */
+function getProvider() {
     if (!provider) {
-        throw new Error('Provider is not initialized.');
+        throw new Error('Provider not initialized.');
     }
     return provider;
 }
 
-/**
- * Getter for the wallet.
- * @returns {ethers.Wallet} The wallet instance.
- */
-function getWalletInstance() {
+/** Return the wallet */
+function getWallet() {
     if (!wallet) {
-        throw new Error('Wallet is not initialized.');
+        throw new Error('Wallet not initialized.');
     }
     return wallet;
 }
 
-/**
- * Format reserves to ETH.
- * @param {BigNumber} reserve0 - The first reserve in wei.
- * @param {BigNumber} reserve1 - The second reserve in wei.
- * @returns {Object} Reserves in ETH.
- */
-function formatReserves(reserve0, reserve1) {
-    return {
-        reserve0: ethers.utils.formatEther(reserve0),
-        reserve1: ethers.utils.formatEther(reserve1),
-    };
-}
-
-/**
- * Log PairCreated event with reserves in ETH.
- * @param {Object} pairData - Pair data including reserves.
- */
-function logPairCreatedEvent(pairData) {
-    const formattedReserves = formatReserves(pairData.reserve0, pairData.reserve1);
-    logMessage('Pair Reserves (ETH):', formattedReserves, 'info');
+/** Return the flashbots provider, if enabled */
+function getFlashbotsProvider() {
+    return flashbotsProvider;
 }
 
 module.exports = {
     initContracts,
-    getFactoryContract: getFactoryContractInstance,
-    getRouterContract: getRouterContractInstance,
-    getProvider: getProviderInstance,
-    getWallet: getWalletInstance,
-    formatReserves,
-    logPairCreatedEvent,
+    getFactoryContract,
+    getRouterContract,
+    getProvider,
+    getWallet,
+    getFlashbotsProvider,
 };

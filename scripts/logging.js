@@ -1,12 +1,5 @@
 // scripts/logging.js
 
-/**
- * logging.js
- *
- * Handles logging to both the console and a log file.
- * Prevents circular dependencies by lazy-loading settings.
- */
-
 const fs = require('fs');
 const path = require('path');
 
@@ -15,14 +8,11 @@ const excludedMessages = [
     'WebSocket ping sent',
     'Attempting to reconnect',
     'WebSocket connection established',
-    'WebSocketProvider initialized',
-]; // Define messages to exclude from logs
+    'WS Provider initialized',
+];
 
 /**
- * Logs a message to the console and appends it to a log file.
- * @param {string} message - The message to log.
- * @param {Object} [data={}] - Additional data to include.
- * @param {string} [level='info'] - The log level ('info', 'error', 'warn', etc.).
+ * Logs to console and a file.
  */
 function logMessage(message, data = {}, level = 'info') {
     try {
@@ -30,7 +20,6 @@ function logMessage(message, data = {}, level = 'info') {
             settings = require('./settings').getSettings();
         }
 
-        // Skip logging for excluded messages
         if (excludedMessages.some((excluded) => message.includes(excluded))) {
             return;
         }
@@ -38,7 +27,7 @@ function logMessage(message, data = {}, level = 'info') {
         const timestamp = new Date().toISOString();
         const logEntry = { timestamp, level, message, data };
 
-        // Console Logging
+        // Console
         switch (level) {
             case 'info':
                 console.log(JSON.stringify(logEntry, null, 2));
@@ -53,99 +42,84 @@ function logMessage(message, data = {}, level = 'info') {
                 console.log(JSON.stringify(logEntry, null, 2));
         }
 
-        // File Logging
+        // File
         const logFilePath = typeof settings.LOG_FILE === 'string'
             ? path.resolve(settings.LOG_FILE)
-            : path.resolve('./logs/default.log'); // Fallback to a default log file
+            : path.resolve('./logs/default.log');
 
-        // Ensure log file directory exists
         const logDir = path.dirname(logFilePath);
         if (!fs.existsSync(logDir)) {
             fs.mkdirSync(logDir, { recursive: true });
         }
 
-        // Append log entry to file
         fs.appendFile(logFilePath, JSON.stringify(logEntry) + '\n', (err) => {
             if (err) {
-                console.error(`Failed to write to log file: ${err.message}`);
+                console.error(`Failed writing log: ${err.message}`);
             }
         });
     } catch (err) {
-        // Fallback logging for critical errors
-        console.error('Critical error in logMessage:', err.message, { message, data, level });
+        console.error('Critical log error:', err.message, { message, data, level });
     }
 }
 
-/**
- * Retrieves the most recent logs.
- * @param {number} [limit=100] - The number of logs to retrieve.
- * @returns {Array} An array of log entries.
- */
 function getLogs(limit = 100) {
     try {
         if (!settings) {
             settings = require('./settings').getSettings();
         }
-
         if (typeof settings.LOG_FILE !== 'string') {
-            throw new Error('LOG_FILE is not defined correctly in settings.');
+            throw new Error('LOG_FILE not configured.');
         }
 
         const logFilePath = path.resolve(settings.LOG_FILE);
-
         if (!fs.existsSync(logFilePath)) {
             return [];
         }
 
         const logData = fs.readFileSync(logFilePath, 'utf-8');
-        const logs = logData
-            .split('\n')
-            .filter((line) => line.trim() !== '') // Remove empty lines
+        const logs = logData.split('\n')
+            .filter((line) => line.trim() !== '')
             .map((line) => JSON.parse(line));
 
-        return logs.slice(-limit).reverse(); // Most recent logs first
+        return logs.slice(-limit).reverse();
     } catch (err) {
-        console.error(`Error reading logs: ${err.message}`);
+        console.error(`getLogs error: ${err.message}`);
         return [];
     }
 }
 
-/**
- * Clears the log file.
- */
 function clearLogs() {
     try {
         if (!settings) {
             settings = require('./settings').getSettings();
         }
-
         if (typeof settings.LOG_FILE !== 'string') {
-            throw new Error('LOG_FILE is not defined correctly in settings.');
+            throw new Error('LOG_FILE not configured.');
         }
 
         const logFilePath = path.resolve(settings.LOG_FILE);
-
         if (fs.existsSync(logFilePath)) {
-            fs.truncateSync(logFilePath, 0); // Clear the log file
+            fs.truncateSync(logFilePath, 0);
             console.log('Log file cleared.');
         } else {
-            console.warn('Log file does not exist. Nothing to clear.');
+            console.warn('Log file not found.');
         }
     } catch (err) {
-        console.error(`Error clearing logs: ${err.message}`);
+        console.error(`clearLogs error: ${err.message}`);
     }
 }
 
-/**
- * Configures the excluded messages for logs.
- * @param {Array<string>} newExclusions - Array of strings to exclude from logging.
- */
 function configureExclusions(newExclusions) {
     if (Array.isArray(newExclusions)) {
         excludedMessages.splice(0, excludedMessages.length, ...newExclusions);
     } else {
-        console.warn('Invalid exclusions configuration. Expected an array.');
+        console.warn('Invalid exclusions array.');
     }
 }
 
-module.exports = { logMessage, getLogs, clearLogs, configureExclusions };
+module.exports = {
+    logMessage,
+    getLogs,
+    clearLogs,
+    configureExclusions,
+};
