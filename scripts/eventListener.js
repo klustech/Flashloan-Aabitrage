@@ -1,8 +1,6 @@
 // scripts/eventListener.js
 
 /**
- * eventListener.js
- *
  * Manages the bot's lifecycle, handles blockchain events, and interacts with the database.
  */
 
@@ -14,8 +12,8 @@ const {
     getWallet,
 } = require('./contracts');
 const { logMessage, getLogs } = require('./logging');
-const { monitorTokenPrice, evaluatePair, getAdjustedGasPrice } = require('./utils');
-const { isHoneypot } = require('./honeypotCheck'); // Updated import path
+const { monitorTokenPrice, getAdjustedGasPrice } = require('./utils'); // Keep using monitorTokenPrice and getAdjustedGasPrice from utils
+const { evaluatePair, isHoneypot } = require('./evaluation'); // Corrected import to avoid duplicates
 const { initDatabase, insertTrade, getAllTrades, closeDatabase } = require('./database');
 const { getSettings } = require('./settings');
 const { executePurchaseLogic } = require('./tradingLogic'); // Import executePurchaseLogic

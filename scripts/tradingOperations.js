@@ -1,20 +1,26 @@
 // scripts/tradingOperations.js
 
+const { evaluatePair, isHoneypot } = require('./evaluation'); // Updated import
+const { getAdjustedGasPrice, getCurrentTokenPrice } = require('./utils'); // Removed monitorTokenPrice
 const { getRouterContract, getWallet, getFlashbotsProvider, getProvider } = require('./contracts');
 const { logMessage } = require('./logging');
 const { getSettings } = require('./settings');
-const {
-    getAdjustedGasPrice,
-    monitorTokenPrice,
-    evaluatePair,
-    isHoneypot
-} = require('./utils');
 const { ethers } = require('ethers');
+const { executeWithRetry } = require('./retry');
 const { successfulTrades } = require('./state');
 const { insertTrade } = require('./database');
 
+// ─────────────────────────────────────────────────────────
+// 1) Debug logs to confirm if evaluatePair & isHoneypot load
+// ─────────────────────────────────────────────────────────
+logMessage(`evaluatePair is a ${typeof evaluatePair}`, {}, 'info');
+logMessage(`isHoneypot is a ${typeof isHoneypot}`, {}, 'info');
+
 /**
- * Execute a purchase using Flashbots if enabled, else normal mempool.
+ * Executes a purchase using Flashbots if enabled, else falls back to the public mempool.
+ * @param {string} pairAddress - Address of the liquidity pair.
+ * @param {string} token0 - Address of token0.
+ * @param {string} token1 - Address of token1.
  */
 async function executePurchase(pairAddress, token0, token1) {
     const settings = getSettings();
@@ -23,6 +29,13 @@ async function executePurchase(pairAddress, token0, token1) {
 
         const baseTokenAddress = settings.BASE_TOKEN_ADDRESS.toLowerCase();
         const tokenToBuy = token1.toLowerCase() === baseTokenAddress ? token0 : token1;
+
+        // ─────────────────────────────────────────────────────────────
+        // 2) Defensive check for evaluatePair before calling it
+        // ─────────────────────────────────────────────────────────────
+        if (typeof evaluatePair !== 'function') {
+            throw new Error('evaluatePair is not a function');
+        }
 
         // Evaluate pair
         const pairOk = await evaluatePair(pairAddress, token0, token1);
@@ -112,6 +125,11 @@ async function executePurchase(pairAddress, token0, token1) {
 
 /**
  * If Flashbots fails or is disabled, perform a normal mempool transaction.
+ * @param {string[]} path - The swap path.
+ * @param {number} deadline - Transaction deadline.
+ * @param {ethers.BigNumber} amountIn - Amount of ETH to swap.
+ * @param {ethers.BigNumber} maxFeePerGas - Max fee per gas.
+ * @param {ethers.BigNumber} maxPriorityFeePerGas - Max priority fee per gas.
  */
 async function fallbackMempoolPurchase(path, deadline, amountIn, maxFeePerGas, maxPriorityFeePerGas) {
     const router = getRouterContract();
@@ -142,6 +160,9 @@ async function fallbackMempoolPurchase(path, deadline, amountIn, maxFeePerGas, m
 
 /**
  * Record buy trade, store buy price, and auto-monitor price for potential sell.
+ * @param {string} pairAddress - Address of the liquidity pair.
+ * @param {string} tokenToBuy - Address of the token bought.
+ * @param {string} txHash - Transaction hash of the buy.
  */
 async function recordBuyTrade(pairAddress, tokenToBuy, txHash) {
     const settings = getSettings();
@@ -152,7 +173,7 @@ async function recordBuyTrade(pairAddress, tokenToBuy, txHash) {
         ethers.utils.parseEther(settings.ETH_AMOUNT_TO_SWAP.toString())
     );
 
-    // 2) Store the trade with buyPriceInETH if you want
+    // 2) Store the trade with buyPriceInETH
     const tradeDetails = {
         timestamp: new Date().toISOString(),
         tokenAddress: tokenToBuy,
@@ -172,7 +193,10 @@ async function recordBuyTrade(pairAddress, tokenToBuy, txHash) {
 }
 
 /**
- * Approximate buy price in ETH by using router.getAmountsOut(1 token).
+ * Approximates buy price in ETH by using router.getAmountsOut(1 token).
+ * @param {string} tokenAddress - The address of the token.
+ * @param {ethers.BigNumber} spentEthBN - Amount of ETH spent.
+ * @returns {Promise<number>} - Approximate buy price in ETH.
  */
 async function getTokenBuyPriceEstimate(tokenAddress, spentEthBN) {
     try {
@@ -188,7 +212,8 @@ async function getTokenBuyPriceEstimate(tokenAddress, spentEthBN) {
 }
 
 /**
- * Execute a sell. Tries Flashbots first, fallback if needed.
+ * Executes a sell transaction, attempting Flashbots first, then fallback to mempool.
+ * @param {string} tokenAddress - Address of the token to sell.
  */
 async function executeSell(tokenAddress) {
     try {
@@ -242,7 +267,7 @@ async function executeSell(tokenAddress) {
 
         const txRequest = {
             chainId: (await getProvider().getNetwork()).chainId,
-            type: 2,
+            type: 2, // EIP-1559
             to: router.address,
             data: swapData,
             maxFeePerGas,
@@ -288,6 +313,8 @@ async function executeSell(tokenAddress) {
 
 /**
  * Fallback to normal mempool for sell.
+ * @param {string} tokenAddress - Address of the token to sell.
+ * @param {ethers.BigNumber} balance - Amount of tokens to sell.
  */
 async function fallbackMempoolSell(tokenAddress, balance) {
     const router = getRouterContract();
@@ -322,7 +349,10 @@ async function fallbackMempoolSell(tokenAddress, balance) {
 }
 
 /**
- * Record a sell in DB
+ * Records a sell trade in the database.
+ * @param {string} tokenAddress - Address of the token sold.
+ * @param {ethers.BigNumber} amountInBN - Amount of tokens sold.
+ * @param {string} txHash - Transaction hash of the sell.
  */
 async function recordSellTrade(tokenAddress, amountInBN, txHash) {
     const tradeDetails = {

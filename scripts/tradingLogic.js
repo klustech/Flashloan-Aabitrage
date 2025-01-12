@@ -3,8 +3,7 @@
 const { executePurchase } = require('./tradingOperations');
 const { logMessage } = require('./logging');
 const { getSettings } = require('./settings'); // Updated import to use getSettings directly
-const { evaluatePair } = require('./utils');
-const { isHoneypot } = require('./honeypotCheck'); // Updated import path
+const { evaluatePair, isHoneypot } = require('./evaluation'); // Corrected import path
 
 /**
  * Executes the purchase logic for a detected pair.
