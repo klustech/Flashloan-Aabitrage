@@ -1,6 +1,6 @@
 // scripts/tradingOperations.js
 
-const { getRouterContract, getWallet, getFlashbotsProvider } = require('./contracts');
+const { getRouterContract, getWallet, getFlashbotsProvider, getProvider } = require('./contracts');
 const { logMessage } = require('./logging');
 const { getSettings } = require('./settings');
 const {
@@ -87,7 +87,7 @@ async function executePurchase(pairAddress, token0, token1) {
 
             const bundleResolution = await bundleResponse.wait();
             if (bundleResolution === 0) {
-                // 0 => included, 1 => dropped, 2 => replaced
+                // 0 => included
                 logMessage('Flashbots bundle included in block!', {}, 'info');
 
                 // Wait for transaction confirmation using the correct txHash
@@ -96,16 +96,15 @@ async function executePurchase(pairAddress, token0, token1) {
 
                 await recordBuyTrade(pairAddress, tokenToBuy, txHash);
             } else {
-                // If the bundle was not included, fallback to mempool purchase
-                logMessage(`Flashbots bundle not included! Resolution code: ${bundleResolution}`, {}, 'error');
+                // If the bundle was not included, fallback
+                logMessage(`Flashbots bundle not included! Code: ${bundleResolution}`, {}, 'error');
                 await fallbackMempoolPurchase(path, deadline, amountIn, maxFeePerGas, maxPriorityFeePerGas);
             }
         } else {
-            // Flashbots is disabled; proceed with mempool purchase
+            // Flashbots is disabled; proceed with mempool
             logMessage('Flashbots disabled. Using public mempool.', {}, 'warn');
             await fallbackMempoolPurchase(path, deadline, amountIn, maxFeePerGas, maxPriorityFeePerGas);
         }
-
     } catch (error) {
         logMessage(`executePurchase error: ${error.reason || error.message}`, {}, 'error');
     }
@@ -120,7 +119,7 @@ async function fallbackMempoolPurchase(path, deadline, amountIn, maxFeePerGas, m
 
     try {
         const tx = await router.swapExactETHForTokens(
-            0, // amountOutMin
+            0,
             path,
             wallet.address,
             deadline,
@@ -135,18 +134,25 @@ async function fallbackMempoolPurchase(path, deadline, amountIn, maxFeePerGas, m
         const receipt = await tx.wait();
         logMessage(`Purchase confirmed: ${receipt.transactionHash}`, {}, 'info');
 
-        await recordBuyTrade(path[1], path[1], tx.hash); // path[1] is tokenToBuy
+        await recordBuyTrade(path[1], path[1], tx.hash);
     } catch (error) {
         logMessage(`Fallback purchase error: ${error.reason || error.message}`, {}, 'error');
     }
 }
 
 /**
- * Record buy trade, estimate price, and monitor.
+ * Record buy trade, store buy price, and auto-monitor price for potential sell.
  */
 async function recordBuyTrade(pairAddress, tokenToBuy, txHash) {
     const settings = getSettings();
 
+    // 1) Calculate approximate buy price in ETH
+    const buyPriceInETH = await getTokenBuyPriceEstimate(
+        tokenToBuy,
+        ethers.utils.parseEther(settings.ETH_AMOUNT_TO_SWAP.toString())
+    );
+
+    // 2) Store the trade with buyPriceInETH if you want
     const tradeDetails = {
         timestamp: new Date().toISOString(),
         tokenAddress: tokenToBuy,
@@ -154,17 +160,19 @@ async function recordBuyTrade(pairAddress, tokenToBuy, txHash) {
         amountIn: settings.ETH_AMOUNT_TO_SWAP.toString(),
         txHash,
         type: 'buy',
+
+        // Store your approximate buy price
+        buyPriceInETH: buyPriceInETH.toString(),
     };
     successfulTrades.push(tradeDetails);
     await insertTrade(tradeDetails);
 
-    // Estimate price
-    const buyPriceInETH = await getTokenBuyPriceEstimate(tokenToBuy, ethers.utils.parseEther(settings.ETH_AMOUNT_TO_SWAP.toString()));
+    // 3) Start monitoring the token for an auto-sell
     await monitorTokenPrice(tokenToBuy, buyPriceInETH);
 }
 
 /**
- * Approximate buy price in ETH by using router getAmountsOut(1 token).
+ * Approximate buy price in ETH by using router.getAmountsOut(1 token).
  */
 async function getTokenBuyPriceEstimate(tokenAddress, spentEthBN) {
     try {
@@ -180,7 +188,7 @@ async function getTokenBuyPriceEstimate(tokenAddress, spentEthBN) {
 }
 
 /**
- * Execute a sell. Also tries Flashbots first, fallback if fails.
+ * Execute a sell. Tries Flashbots first, fallback if needed.
  */
 async function executeSell(tokenAddress) {
     try {
@@ -206,7 +214,7 @@ async function executeSell(tokenAddress) {
         }
 
         if (allowance.lt(balance)) {
-            // Approve via normal mempool
+            // Approve
             const approveTx = await tokenContract.approve(
                 router.address,
                 ethers.constants.MaxUint256,
@@ -220,13 +228,13 @@ async function executeSell(tokenAddress) {
             logMessage('Router approved for token spend.', {}, 'info');
         }
 
-        // Build the swapExactTokensForETHSupportingFeeOnTransferTokens tx data
+        // Build the swap data
         const deadline = Math.floor(Date.now() / 1000) + getSettings().DEADLINE_BUFFER;
         const path = [tokenAddress, getSettings().BASE_TOKEN_ADDRESS];
 
         const swapData = router.interface.encodeFunctionData('swapExactTokensForETHSupportingFeeOnTransferTokens', [
             balance.toString(),
-            0, // amountOutMin
+            0,
             path,
             wallet.address,
             deadline
@@ -234,7 +242,7 @@ async function executeSell(tokenAddress) {
 
         const txRequest = {
             chainId: (await getProvider().getNetwork()).chainId,
-            type: 2, // EIP-1559
+            type: 2,
             to: router.address,
             data: swapData,
             maxFeePerGas,
@@ -248,12 +256,9 @@ async function executeSell(tokenAddress) {
         if (flashbotsProvider) {
             logMessage('Sending sell via Flashbots bundle...', {}, 'info');
             const signedTx = await wallet.signTransaction(txRequest);
-
-            // Parse the signed transaction to obtain the correct transaction hash
             const parsedTx = ethers.utils.parseTransaction(signedTx);
-            const txHash = parsedTx.hash; // Correct transaction hash retrieval
+            const txHash = parsedTx.hash;
 
-            // Send bundle to the next block
             const blockNumber = await getProvider().getBlockNumber();
             const bundleResponse = await flashbotsProvider.sendBundle(
                 [{ signedTransaction: signedTx }],
@@ -262,17 +267,14 @@ async function executeSell(tokenAddress) {
 
             const bundleResolution = await bundleResponse.wait();
             if (bundleResolution === 0) {
-                // Included
                 logMessage('Flashbots sell bundle included!', {}, 'info');
 
-                // Wait for transaction confirmation using the correct txHash
                 const receipt = await getProvider().waitForTransaction(txHash);
                 logMessage(`Sell confirmed: ${receipt.transactionHash}`, {}, 'info');
 
                 await recordSellTrade(tokenAddress, balance, txHash);
             } else {
                 logMessage(`Flashbots sell bundle not included. Code: ${bundleResolution}`, {}, 'error');
-                // Fallback to mempool sell
                 await fallbackMempoolSell(tokenAddress, balance);
             }
         } else {

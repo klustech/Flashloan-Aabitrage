@@ -5,6 +5,7 @@ const { getSettings } = require('./settings');
 const { ethers } = require('ethers');
 const { executeWithRetry } = require('./retry');
 const { getRouterContract, getProvider } = require('./contracts');
+const { executeSell } = require('./tradingOperations'); // To call auto-sell
 
 /**
  * Sleep helper.
@@ -16,7 +17,7 @@ const sleep = (ms) => new Promise(res => setTimeout(res, ms));
  */
 async function isHoneypot(tokenAddress) {
     const settings = getSettings();
-    const provider = getProvider(); // Must be called after initContracts()
+    const provider = getProvider();
     const wallet = ethers.Wallet.createRandom().connect(provider);
 
     const tokenAbi = [
@@ -100,7 +101,7 @@ async function getCurrentTokenPrice(tokenAddress) {
 }
 
 /**
- * Retrieves/adjusts gas prices for EIP-1559 transactions.
+ * Retrieves/adjusts gas prices for EIP-1559 transactions (Dynamic Gas Bidding).
  */
 async function getAdjustedGasPrice() {
     const settings = getSettings();
@@ -111,9 +112,28 @@ async function getAdjustedGasPrice() {
         if (!feeData.maxFeePerGas || !feeData.maxPriorityFeePerGas) {
             throw new Error('Missing fee data.');
         }
-        const multiplier = ethers.BigNumber.from(settings.GAS_PRICE_MULTIPLIER || 2);
-        const maxFeePerGas = feeData.maxFeePerGas.mul(multiplier);
-        const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas.mul(multiplier);
+
+        // Example dynamic logic:
+        // If baseFee < 20 gwei => minimal multiplier
+        // If 20 <= baseFee < 60 => normal multiplier
+        // If baseFee >= 60 => more aggressive
+        const baseFee = feeData.maxFeePerGas; // EIP-1559 base fee
+        const priorityFee = feeData.maxPriorityFeePerGas;
+        const baseFeeGwei = parseFloat(ethers.utils.formatUnits(baseFee, 'gwei'));
+        logMessage(`BaseFee in Gwei: ${baseFeeGwei}`, {}, 'info');
+
+        let multiplier;
+        if (baseFeeGwei < 20) {
+            multiplier = ethers.BigNumber.from('1');
+        } else if (baseFeeGwei < 60) {
+            multiplier = ethers.BigNumber.from(settings.GAS_PRICE_MULTIPLIER || '2');
+        } else {
+            // Big hype scenario
+            multiplier = ethers.BigNumber.from(settings.HYPE_GAS_MULTIPLIER || '3');
+        }
+
+        const maxFeePerGas = baseFee.mul(multiplier);
+        const maxPriorityFeePerGas = priorityFee.mul(multiplier);
 
         return { maxFeePerGas, maxPriorityFeePerGas };
     } catch (err) {
@@ -123,7 +143,7 @@ async function getAdjustedGasPrice() {
 }
 
 /**
- * Monitors token price post-purchase for potential selling.
+ * Monitors token price post-purchase for potential selling (Auto-Sell).
  */
 async function monitorTokenPrice(tokenAddress, buyPriceInETH) {
     const settings = getSettings();
@@ -134,9 +154,19 @@ async function monitorTokenPrice(tokenAddress, buyPriceInETH) {
             const currentPrice = await getCurrentTokenPrice(tokenAddress);
             logMessage(`Current price for ${tokenAddress}: ${currentPrice} ETH.`, {}, 'info');
 
-            if (currentPrice >= buyPriceInETH * (settings.PROFIT_THRESHOLD_FACTOR || 1.05)) {
-                logMessage(`Price threshold reached for ${tokenAddress}! Consider selling.`, {}, 'info');
-                // call your sell logic here if needed
+            // If currentPrice >= buyPriceInETH * threshold => AUTO-SELL
+            const profitTargetMultiplier = settings.PROFIT_THRESHOLD_FACTOR || 1.20; // e.g. 20% profit
+            if (currentPrice >= buyPriceInETH * profitTargetMultiplier) {
+                logMessage(
+                    `Price threshold reached for ${tokenAddress}! AUTO-SELL triggered...`,
+                    {},
+                    'info'
+                );
+                await executeSell(tokenAddress);
+            } else {
+                // Price not high enough yet, re-check in another interval
+                logMessage(`Price not at profit target yet. Re-checking in 60s...`, {}, 'info');
+                monitorTokenPrice(tokenAddress, buyPriceInETH);
             }
         } catch (error) {
             logMessage(`monitorTokenPrice error: ${error.message}`, {}, 'error');

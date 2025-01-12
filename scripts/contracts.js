@@ -58,28 +58,35 @@ async function initContracts() {
             throw new Error('RPC_URL_WSS is required in settings.');
         }
 
-        // Initialize WS provider with reconnection logic
+        // Function to initialize the WebSocketProvider with keep-alive pings
         const initializeProvider = () => {
             try {
                 provider = new ethers.providers.WebSocketProvider(RPC_URL);
-                provider._websocket.on('error', (err) => {
-                    logMessage(`WebSocket error: ${err.message}`, {}, 'error');
+
+                // Handle WS errors
+                provider._websocket.on('error', (error) => {
+                    logMessage(`WebSocket error: ${error.message}`, {}, 'error');
                 });
+
                 provider._websocket.on('close', (code, reason) => {
                     logMessage(`WebSocket closed: ${code} - ${reason || 'No reason'}`, {}, 'error');
                     logMessage('Attempting to reconnect in 5s...', {}, 'info');
                     setTimeout(initializeProvider, 5000);
                 });
+
                 provider._websocket.on('open', () => {
                     logMessage('WebSocket connection established.', {}, 'info');
+
+                    // Send a ping every 30s to keep the connection alive
                     const pingInterval = setInterval(() => {
-                        if (provider._websocket.readyState === WebSocket.OPEN) {
+                        if (provider?._websocket?.readyState === WebSocket.OPEN) {
                             provider._websocket.ping();
                         } else {
                             clearInterval(pingInterval);
                         }
                     }, 30000);
                 });
+
                 logMessage('WS Provider initialized.', {}, 'info');
             } catch (error) {
                 logMessage(`Failed to initialize WebSocketProvider: ${error.message}`, {}, 'error');
@@ -87,9 +94,10 @@ async function initContracts() {
             }
         };
 
+        // Initialize the provider with keep-alive logic
         initializeProvider();
 
-        // Wrap the WS provider with Bottleneck + retry
+        // Wrap provider with Bottleneck + retry
         provider = wrapProviderWithLimiter(provider);
 
         // Create wallet
