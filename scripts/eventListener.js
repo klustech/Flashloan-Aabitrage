@@ -1,22 +1,17 @@
 // scripts/eventListener.js
 
-/**
- * Manages the bot's lifecycle, handles blockchain events, and interacts with the database.
- */
-
 const {
     initContracts,
     getFactoryContract,
-    getRouterContract,
-    getProvider,
-    getWallet,
+    eventEmitter,
 } = require('./contracts');
-const { logMessage, getLogs } = require('./logging');
-const { monitorTokenPrice, getAdjustedGasPrice } = require('./utils'); // Keep using monitorTokenPrice and getAdjustedGasPrice from utils
-const { evaluatePair, isHoneypot } = require('./evaluation'); // Corrected import to avoid duplicates
-const { initDatabase, insertTrade, getAllTrades, closeDatabase } = require('./database');
+const { logMessage } = require('./logging');
+const { executePurchase } = require('./tradingOperations');
+const { initDatabase, getAllTrades, closeDatabase } = require('./database');
 const { getSettings } = require('./settings');
-const { executePurchaseLogic } = require('./tradingLogic'); // Import executePurchaseLogic
+
+// Import evaluatePair from evaluation.js
+const { evaluatePair } = require('./evaluation');
 
 let botRunning = false;
 
@@ -25,11 +20,33 @@ let botRunning = false;
  */
 function initializeDatabase() {
     try {
-        initDatabase(); // Correctly initialize the database
+        initDatabase();
         logMessage('Database initialized.', {}, 'info');
     } catch (error) {
         logMessage(`Error initializing database: ${error.message}`, {}, 'error');
         throw new Error('Failed to initialize database.');
+    }
+}
+
+/**
+ * Sets up the PairCreated event listener.
+ */
+function setupPairCreatedListener() {
+    try {
+        const factoryContract = getFactoryContract();
+
+        // Remove existing listeners to prevent duplicates
+        factoryContract.removeAllListeners('PairCreated');
+
+        // Subscribe to PairCreated events
+        factoryContract.on('PairCreated', async (token0, token1, pairAddress) => {
+            logMessage('Detected PairCreated Event:', { token0, token1, pairAddress }, 'info');
+            await handlePairCreated(token0, token1, pairAddress);
+        });
+
+        logMessage('Listener for PairCreated events has been set up successfully.', {}, 'info');
+    } catch (error) {
+        logMessage(`Failed to set up PairCreated listener: ${error.message}`, {}, 'error');
     }
 }
 
@@ -44,19 +61,17 @@ async function startBot() {
 
     try {
         await initContracts();
-        initializeDatabase(); // Ensure the database is initialized before proceeding
+        initializeDatabase();
         botRunning = true;
         logMessage('Bot started.', {}, 'info');
 
-        const factoryContract = getFactoryContract();
+        setupPairCreatedListener();
 
-        // Listen for PairCreated Events
-        factoryContract.on('PairCreated', async (token0, token1, pairAddress) => {
-            logMessage('Detected PairCreated Event:', { token0, token1, pairAddress }, 'info');
-            await handlePairCreated(token0, token1, pairAddress);
+        // Listen for 'connected' events to re-setup PairCreated listener upon reconnection
+        eventEmitter.on('connected', () => {
+            logMessage('Reconnected to provider. Re-setting up PairCreated listener.', {}, 'info');
+            setupPairCreatedListener();
         });
-
-        logMessage('Listener for PairCreated events has been set up successfully.', {}, 'info');
     } catch (error) {
         logMessage(`Failed to start bot: ${error.message}`, {}, 'error');
         botRunning = false;
@@ -75,7 +90,7 @@ function stopBot() {
     try {
         const factoryContract = getFactoryContract();
         factoryContract.removeAllListeners('PairCreated');
-        closeDatabase(); // Properly closes the database connection
+        closeDatabase();
         botRunning = false;
         logMessage('Bot stopped.', {}, 'info');
     } catch (error) {
@@ -96,8 +111,8 @@ function getStatus() {
  * @returns {Array} Array of detected pairs
  */
 function getDetectedPairs() {
-    // Implement logic to fetch detected pairs if stored
-    return []; // Placeholder
+    // Placeholder implementation
+    return [];
 }
 
 /**
@@ -106,8 +121,8 @@ function getDetectedPairs() {
  */
 async function getSuccessfulTrades() {
     try {
-        const trades = await getAllTrades(100); // Fetch the last 100 trades
-        return trades.filter(trade => trade.type === 'sell'); // Filter for 'sell' trades
+        const trades = await getAllTrades(100);
+        return trades.filter(trade => trade.type === 'sell');
     } catch (error) {
         logMessage(`Error fetching trades: ${error.message}`, {}, 'error');
         return [];
@@ -115,26 +130,12 @@ async function getSuccessfulTrades() {
 }
 
 /**
- * Retrieves recent initialization logs.
- * @returns {Array} Array of log entries
- */
-function getInitializationLogs() {
-    // Implement logic to fetch initialization logs if available
-    return []; // Placeholder
-}
-
-/**
  * Retrieves general logs.
  * @returns {Promise<Array>} Array of log entries
  */
 async function getGeneralLogs() {
-    try {
-        const logs = await getLogs(100); // Fetch the last 100 logs
-        return logs;
-    } catch (error) {
-        logMessage(`Error fetching logs: ${error.message}`, {}, 'error');
-        return [];
-    }
+    // Placeholder implementation
+    return [];
 }
 
 /**
@@ -150,11 +151,31 @@ async function handlePairCreated(token0, token1, pairAddress) {
 
         logMessage(`New Token Address: ${newTokenAddress}`, {}, 'info');
 
+        // Wait for a short duration to allow liquidity to be added
+        const WAIT_TIME_MS = 5000; // 5 seconds
+        logMessage(`Waiting for ${WAIT_TIME_MS / 1000} seconds to allow liquidity addition...`, {}, 'info');
+        await delay(WAIT_TIME_MS);
+
         // Evaluate and possibly purchase
-        await executePurchaseLogic(pairAddress, token0, token1);
+        const isViable = await evaluatePair(pairAddress, token0, token1);
+        if (isViable) {
+            logMessage(`Pair ${pairAddress} is viable. Proceeding to execute purchase.`, {}, 'info');
+            await executePurchase(pairAddress, token0, token1);
+        } else {
+            logMessage(`Pair ${pairAddress} is not viable for purchase.`, {}, 'info');
+        }
     } catch (error) {
         logMessage(`Error handling PairCreated event for ${pairAddress}: ${error.message}`, {}, 'error');
     }
+}
+
+/**
+ * Delays execution for a specified duration.
+ * @param {number} ms - Milliseconds to delay.
+ * @returns {Promise<void>}
+ */
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 module.exports = {
@@ -163,6 +184,5 @@ module.exports = {
     getStatus,
     getDetectedPairs,
     getSuccessfulTrades,
-    getInitializationLogs,
     getGeneralLogs,
 };

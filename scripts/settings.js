@@ -23,27 +23,27 @@ let settings = {
     // Trading Settings
     ETH_AMOUNT_TO_SWAP: parseFloat(process.env.ETH_AMOUNT_TO_SWAP) || 0.1,
     SLIPPAGE_TOLERANCE: parseFloat(process.env.SLIPPAGE_TOLERANCE) || 5,
-    GAS_PRICE_MULTIPLIER: parseFloat(process.env.GAS_PRICE_MULTIPLIER) || 2, // Updated from 1.2 to 2
-    PROFIT_THRESHOLD: parseFloat(process.env.PROFIT_THRESHOLD) || 5, // % profit
-    STOP_LOSS_THRESHOLD: parseFloat(process.env.STOP_LOSS_THRESHOLD) || 20, // % drop
+    GAS_PRICE_MULTIPLIER: parseFloat(process.env.GAS_PRICE_MULTIPLIER) || 2,
+    PROFIT_THRESHOLD: parseFloat(process.env.PROFIT_THRESHOLD) || 5,
+    STOP_LOSS_THRESHOLD: parseFloat(process.env.STOP_LOSS_THRESHOLD) || 20,
     DEADLINE_BUFFER: parseInt(process.env.DEADLINE_BUFFER, 10) || 60,
     MINIMUM_LOCKED_ETH: parseFloat(process.env.MINIMUM_LOCKED_ETH) || 1000,
     MAX_GAS_PRICE: parseInt(process.env.MAX_GAS_PRICE, 10) || 200,
 
     // Rate Limiting Settings
-    BOTTLE_LIMIT_MIN_TIME: parseInt(process.env.BOTTLE_LIMIT_MIN_TIME, 10) || 200, // Minimum time between requests in ms
-    BOTTLE_LIMIT_MAX_CONCURRENT: parseInt(process.env.BOTTLE_LIMIT_MAX_CONCURRENT, 10) || 5, // Maximum number of concurrent requests
+    BOTTLE_LIMIT_MIN_TIME: parseInt(process.env.BOTTLE_LIMIT_MIN_TIME, 10) || 200,
+    BOTTLE_LIMIT_MAX_CONCURRENT: parseInt(process.env.BOTTLE_LIMIT_MAX_CONCURRENT, 10) || 5,
 
     // Retry Settings
-    MAX_RETRY_ATTEMPTS: parseInt(process.env.MAX_RETRY_ATTEMPTS, 10) || 5, // Increased from 3 to 5 for better resilience
-    INITIAL_RETRY_DELAY: parseInt(process.env.INITIAL_RETRY_DELAY, 10) || 1000, // Initial delay in ms for retries
+    MAX_RETRY_ATTEMPTS: parseInt(process.env.MAX_RETRY_ATTEMPTS, 10) || 5,
+    INITIAL_RETRY_DELAY: parseInt(process.env.INITIAL_RETRY_DELAY, 10) || 1000,
 
     // Flashbots Settings
     FLASHBOTS_ENABLED: process.env.FLASHBOTS_ENABLED === 'true' || false,
 
     // Monitoring Settings
-    PROFIT_THRESHOLD_FACTOR: parseFloat(process.env.PROFIT_THRESHOLD_FACTOR) || 1.05, // 5% profit
-    MONITOR_DELAY_MS: parseInt(process.env.MONITOR_DELAY_MS, 10) || 60000, // 60 seconds
+    PROFIT_THRESHOLD_FACTOR: parseFloat(process.env.PROFIT_THRESHOLD_FACTOR) || 1.05,
+    MONITOR_DELAY_MS: parseInt(process.env.MONITOR_DELAY_MS, 10) || 60000,
 
     // Database
     DATABASE_PATH: process.env.DATABASE_PATH || './database/trades.db',
@@ -56,7 +56,7 @@ let settings = {
     TOKEN_BLACKLIST: process.env.TOKEN_BLACKLIST ? process.env.TOKEN_BLACKLIST.split(',') : [],
 
     // Additional Settings
-    MIN_BASE_TOKEN_RESERVE: parseFloat(process.env.MIN_BASE_TOKEN_RESERVE) || 1, // Minimum reserve of base token to consider a pair viable
+    MIN_BASE_TOKEN_RESERVE: parseFloat(process.env.MIN_BASE_TOKEN_RESERVE) || 1
 };
 
 /**
@@ -104,6 +104,9 @@ function saveSettings() {
             MIN_BASE_TOKEN_RESERVE: settings.MIN_BASE_TOKEN_RESERVE,
             RPC_URL_WSS: settings.RPC_URL_WSS,
             RPC_URL_LOCAL: settings.RPC_URL_LOCAL,
+            BASE_TOKEN_ADDRESS: settings.BASE_TOKEN_ADDRESS,
+            FACTORY_ADDRESS: settings.FACTORY_ADDRESS,
+            ROUTER_ADDRESS: settings.ROUTER_ADDRESS
         };
 
         fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settingsToSave, null, 2));
@@ -152,7 +155,7 @@ function getSettings() {
     return settings;
 }
 
-// Initialize settings on module load
+// Initialize on module load
 loadSettings();
 
 module.exports = { getSettings, updateSettings };

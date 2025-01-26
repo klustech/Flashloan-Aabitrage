@@ -7,15 +7,18 @@ const { getSettings } = require('./settings');
 const WebSocket = require('ws');
 const Bottleneck = require('bottleneck');
 const { executeWithRetry } = require('./retry');
+const EventEmitter = require('events');
+
+const eventEmitter = new EventEmitter();
 
 let provider, wallet, factoryContract, routerContract, flashbotsProvider;
 
 /**
- * Initializes Bottleneck for rate limiting.
+ * Bottleneck for rate limiting.
  */
 const limiter = new Bottleneck({
-    minTime: getSettings().BOTTLE_LIMIT_MIN_TIME, // Minimum ms between requests
-    maxConcurrent: getSettings().BOTTLE_LIMIT_MAX_CONCURRENT, // Max concurrent requests
+    minTime: getSettings().BOTTLE_LIMIT_MIN_TIME, 
+    maxConcurrent: getSettings().BOTTLE_LIMIT_MAX_CONCURRENT,
 });
 
 /**
@@ -30,8 +33,43 @@ function wrapProviderWithLimiter(originalProvider) {
 }
 
 /**
- * Initializes the EVM provider, wallet, and optional Flashbots provider,
- * as well as the factory & router contracts.
+ * Top-level function to initialize the WebSocket provider.
+ * 
+ * Called inside initContracts() and from on('close') to reconnect.
+ */
+function initializeProvider() {
+    const settings = getSettings();
+    const RPC_URL = settings.RPC_URL_WSS;
+
+    if (!RPC_URL) {
+        throw new Error('RPC_URL_WSS is required in settings.');
+    }
+
+    provider = new ethers.providers.WebSocketProvider(RPC_URL);
+
+    // Handle WS errors
+    provider._websocket.on('error', (error) => {
+        logMessage(`WebSocket error: ${error.message}`, {}, 'error');
+    });
+
+    // Handle WS closure + re-init
+    provider._websocket.on('close', (code, reason) => {
+        logMessage(`WebSocket closed: ${code} - ${reason || 'No reason'}`, {}, 'error');
+        logMessage('Attempting to reconnect in 5 seconds...', {}, 'info');
+        setTimeout(() => {
+            initializeProvider(); // Recurse to re-init
+        }, 5000);
+    });
+
+    // On open (no keep-alive pings)
+    provider._websocket.on('open', () => {
+        logMessage('WebSocket connection established.', {}, 'info');
+    });
+}
+
+/**
+ * Initializes the EVM provider, wallet, optional Flashbots provider,
+ * and the factory/router contracts.
  */
 async function initContracts() {
     try {
@@ -52,52 +90,10 @@ async function initContracts() {
             }
         }
 
-        // Validate WebSocket URL
-        const RPC_URL = settings.RPC_URL_WSS;
-        if (!RPC_URL) {
-            throw new Error('RPC_URL_WSS is required in settings.');
-        }
-
-        // Function to initialize the WebSocketProvider with keep-alive pings
-        const initializeProvider = () => {
-            try {
-                provider = new ethers.providers.WebSocketProvider(RPC_URL);
-
-                // Handle WS errors
-                provider._websocket.on('error', (error) => {
-                    logMessage(`WebSocket error: ${error.message}`, {}, 'error');
-                });
-
-                provider._websocket.on('close', (code, reason) => {
-                    logMessage(`WebSocket closed: ${code} - ${reason || 'No reason'}`, {}, 'error');
-                    logMessage('Attempting to reconnect in 5s...', {}, 'info');
-                    setTimeout(initializeProvider, 5000);
-                });
-
-                provider._websocket.on('open', () => {
-                    logMessage('WebSocket connection established.', {}, 'info');
-
-                    // Send a ping every 30s to keep the connection alive
-                    const pingInterval = setInterval(() => {
-                        if (provider?._websocket?.readyState === WebSocket.OPEN) {
-                            provider._websocket.ping();
-                        } else {
-                            clearInterval(pingInterval);
-                        }
-                    }, 30000);
-                });
-
-                logMessage('WS Provider initialized.', {}, 'info');
-            } catch (error) {
-                logMessage(`Failed to initialize WebSocketProvider: ${error.message}`, {}, 'error');
-                throw error;
-            }
-        };
-
-        // Initialize the provider with keep-alive logic
+        // Set up provider (includes reconnection logic)
         initializeProvider();
 
-        // Wrap provider with Bottleneck + retry
+        // Wrap with Bottleneck + retry
         provider = wrapProviderWithLimiter(provider);
 
         // Create wallet
@@ -138,7 +134,8 @@ async function initContracts() {
         const blockNumber = await executeWithRetry(() => provider.getBlockNumber());
         logMessage(`Connected to chain. Current block: ${blockNumber}`, {}, 'info');
 
-        return { provider, wallet, factoryContract, routerContract, flashbotsProvider };
+        // Emit 'connected' for any listeners that want to re-set event watchers
+        eventEmitter.emit('connected');
     } catch (err) {
         logMessage(`Error in initContracts(): ${err.message}`, {}, 'error');
         throw err;
@@ -189,4 +186,5 @@ module.exports = {
     getProvider,
     getWallet,
     getFlashbotsProvider,
+    eventEmitter
 };
