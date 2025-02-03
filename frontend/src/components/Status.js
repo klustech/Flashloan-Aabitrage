@@ -1,26 +1,12 @@
-// frontend/src/components/Status.js
+// src/components/Status.js
 
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import React from 'react';
+import './Status.css';
 
-const Status = () => {
-  const [status, setStatus] = useState('Unknown');
-
-  useEffect(() => {
-    const fetchStatus = async () => {
-      try {
-        const response = await axios.get('http://localhost:3001/api/status');
-        setStatus(response.data.status);
-      } catch (error) {
-        console.error('Error fetching status:', error);
-      }
-    };
-    fetchStatus();
-  }, []);
-
+const Status = ({ status }) => {
   return (
     <div className="status">
-      <h3>Status: {status}</h3>
+      <h3>Bot Status: {status}</h3>
     </div>
   );
 };

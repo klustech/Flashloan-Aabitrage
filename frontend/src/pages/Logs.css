@@ -1,0 +1,11 @@
+/* src/pages/Logs.css */
+
+.logs-page {
+  padding: 20px;
+  background-color: #000;
+  color: #fff;
+}
+
+.logs-page h2 {
+  margin-bottom: 20px;
+}

@@ -1,14 +1,15 @@
-// frontend/src/pages/Logs.js
+// src/pages/Logs.js
 
 import React from 'react';
-import { Container } from '@mui/material';
 import LogsViewer from '../components/LogsViewer';
+import './Logs.css';
 
 const Logs = () => {
   return (
-    <Container>
+    <div className="logs-page">
+      <h2>General Logs</h2>
       <LogsViewer />
-    </Container>
+    </div>
   );
 };
 

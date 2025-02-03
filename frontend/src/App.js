@@ -1,16 +1,18 @@
-// frontend/src/App.js
+// src/App.js
 
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
-import Trades from './components/Trades';
+import Trades from './pages/Trades'; // Using the pages version below
 import Settings from './pages/Settings';
 import Logs from './pages/Logs';
+import Navbar from './components/Navbar';
 import './App.css';
 
 function App() {
   return (
     <div className="App">
+      <Navbar />
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/trades" element={<Trades />} />
@@ -22,4 +24,3 @@ function App() {
 }
 
 export default App;
-

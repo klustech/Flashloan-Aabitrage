@@ -25,6 +25,7 @@ function initDatabase() {
         }
         logMessage('Connected to trades DB.', {}, 'info');
 
+        // Create trades table with additional columns for dynamic TP/SL adjustments.
         db.run(`
             CREATE TABLE IF NOT EXISTS trades (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,7 +34,9 @@ function initDatabase() {
                 pairAddress TEXT,
                 amountIn TEXT NOT NULL,
                 txHash TEXT NOT NULL,
-                type TEXT NOT NULL
+                type TEXT NOT NULL,
+                profitThreshold REAL,
+                stopLossThreshold REAL
             )
         `, (err2) => {
             if (err2) {
@@ -49,16 +52,16 @@ function initDatabase() {
 
 function insertTrade(trade) {
     return new Promise((resolve, reject) => {
-        const { timestamp, tokenAddress, pairAddress, amountIn, txHash, type } = trade;
+        const { timestamp, tokenAddress, pairAddress, amountIn, txHash, type, profitThreshold, stopLossThreshold } = trade;
         if (!db) {
             logMessage('DB not initialized.', {}, 'error');
             return reject(new Error('DB not ready.'));
         }
 
         db.run(`
-            INSERT INTO trades (timestamp, tokenAddress, pairAddress, amountIn, txHash, type)
-            VALUES (?, ?, ?, ?, ?, ?)
-        `, [timestamp, tokenAddress, pairAddress || '', amountIn, txHash, type], function (err) {
+            INSERT INTO trades (timestamp, tokenAddress, pairAddress, amountIn, txHash, type, profitThreshold, stopLossThreshold)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `, [timestamp, tokenAddress, pairAddress || '', amountIn, txHash, type, profitThreshold || null, stopLossThreshold || null], function (err) {
             if (err) {
                 logMessage(`Insert trade fail: ${err.message}`, {}, 'error');
                 return reject(err);
@@ -90,6 +93,35 @@ function getAllTrades(limit = 100) {
     });
 }
 
+/**
+ * Updates an existing trade with new dynamic TP/SL values.
+ * @param {number} tradeId - The ID of the trade to update.
+ * @param {Object} updates - Object with keys: profitThreshold, stopLossThreshold.
+ */
+function updateTrade(tradeId, updates) {
+    return new Promise((resolve, reject) => {
+        if (!db) {
+            logMessage('DB not initialized.', {}, 'error');
+            return reject(new Error('DB not ready.'));
+        }
+
+        const { profitThreshold, stopLossThreshold } = updates;
+        db.run(`
+            UPDATE trades
+            SET profitThreshold = ?,
+                stopLossThreshold = ?
+            WHERE id = ?
+        `, [profitThreshold, stopLossThreshold, tradeId], function (err) {
+            if (err) {
+                logMessage(`Update trade fail: ${err.message}`, {}, 'error');
+                return reject(err);
+            }
+            logMessage(`Trade ${tradeId} updated (Rows affected: ${this.changes}).`, {}, 'info');
+            resolve();
+        });
+    });
+}
+
 function closeDatabase() {
     if (db) {
         db.close((err) => {
@@ -109,5 +141,6 @@ module.exports = {
     initDatabase,
     insertTrade,
     getAllTrades,
+    updateTrade,
     closeDatabase,
 };

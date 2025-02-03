@@ -1,0 +1,11 @@
+/* src/pages/Dashboard.css */
+
+.dashboard {
+  padding: 20px;
+  background-color: #000;
+  color: #fff;
+}
+
+.dashboard h2 {
+  margin-bottom: 20px;
+}

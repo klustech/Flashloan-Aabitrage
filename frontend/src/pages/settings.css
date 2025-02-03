@@ -1,0 +1,49 @@
+/* src/pages/Settings.css */
+
+.settings-page {
+  padding: 20px;
+  background-color: #000;
+  color: #fff;
+}
+
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.settings-form label {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.settings-form input {
+  margin-top: 5px;
+  padding: 8px;
+  width: 100%;
+  max-width: 400px;
+  border-radius: 5px;
+  border: 1px solid #555;
+  background-color: #333;
+  color: #fff;
+}
+
+button {
+  background-color: #444;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  padding: 10px 20px;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #555;
+}
+
+.error {
+  color: red;
+}

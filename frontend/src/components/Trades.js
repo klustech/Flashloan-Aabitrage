@@ -1,23 +1,21 @@
-// frontend/src/components/Trades.js
+// src/components/Trades.js
 
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { Link } from 'react-router-dom';
-import './Trades.css'; // Ensure you have the corresponding CSS
+import axios from '../axiosConfig';
+import './Trades.css';
 
 const Trades = () => {
   const [trades, setTrades] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
 
   const fetchTrades = async () => {
     try {
-      const response = await axios.get('http://localhost:3001/api/trades');
+      const response = await axios.get('/trades');
       setTrades(response.data);
-      setIsLoading(false);
     } catch (error) {
       console.error('Error fetching trades:', error);
-      setIsLoading(false);
     }
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -27,43 +25,50 @@ const Trades = () => {
   }, []);
 
   return (
-    <div className="trades-viewer">
-      <div className="navbar">
-        <Link to="/">Dashboard</Link>
-        <Link to="/trades">Trades</Link>
-        <Link to="/settings">Settings</Link>
-      </div>
-      <h2>Successful Trades</h2>
-      {isLoading ? (
+    <div className="trades-component">
+      {loading ? (
         <p>Loading trades...</p>
+      ) : trades.length > 0 ? (
+        <table className="trades-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Type</th>
+              <th>Amount (ETH)</th>
+              <th>Token</th>
+              <th>Tx Hash</th>
+            </tr>
+          </thead>
+          <tbody>
+            {trades.map((trade, index) => (
+              <tr key={index}>
+                <td>{new Date(trade.timestamp).toLocaleString()}</td>
+                <td>{trade.type.toUpperCase()}</td>
+                <td>{trade.amountIn}</td>
+                <td>
+                  <a
+                    href={`https://etherscan.io/address/${trade.tokenAddress}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {trade.tokenAddress.slice(0, 6)}...{trade.tokenAddress.slice(-4)}
+                  </a>
+                </td>
+                <td>
+                  <a
+                    href={`https://etherscan.io/tx/${trade.txHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {trade.txHash.slice(0, 10)}...
+                  </a>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       ) : (
-        trades.length > 0 ? (
-          <div className="trades">
-            <ul>
-              {trades.map((trade) => (
-                <li key={trade.id}>
-                  <span className="timestamp">
-                    {new Date(trade.timestamp).toLocaleString()}:
-                  </span>{' '}
-                  <span className="message">
-                    {trade.type === 'buy' ? 'Bought' : 'Sold'} {trade.amountIn} ETH{' '}
-                    {trade.type === 'buy' ? 'worth of token' : 'of token'}{' '}
-                    <a
-                      href={`https://etherscan.io/address/${trade.tokenAddress}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {trade.tokenAddress.substring(0, 10)}...
-                    </a>{' '}
-                    (Tx: <a href={`https://etherscan.io/tx/${trade.txHash}`} target="_blank" rel="noopener noreferrer">{trade.txHash.substring(0, 10)}...</a>)
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : (
-          <p>No trades executed yet.</p>
-        )
+        <p>No trades executed yet.</p>
       )}
     </div>
   );

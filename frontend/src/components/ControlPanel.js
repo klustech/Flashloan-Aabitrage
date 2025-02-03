@@ -1,38 +1,40 @@
-// frontend/src/components/ControlPanel.js
+// src/components/ControlPanel.js
 
 import React from 'react';
-import axios from 'axios';
-import { Link } from 'react-router-dom';
+import axios from '../axiosConfig';
+import './ControlPanel.css';
 
-const ControlPanel = () => {
+const ControlPanel = ({ onStatusChange }) => {
   const handleStart = async () => {
     try {
-      const response = await axios.post('/api/start');
+      const response = await axios.post('/start');
       alert(response.data.status);
+      if (onStatusChange) onStatusChange();
     } catch (error) {
       console.error('Error starting bot:', error);
+      alert('Error starting bot.');
     }
   };
 
   const handleStop = async () => {
     try {
-      const response = await axios.post('/api/stop');
+      const response = await axios.post('/stop');
       alert(response.data.status);
+      if (onStatusChange) onStatusChange();
     } catch (error) {
       console.error('Error stopping bot:', error);
+      alert('Error stopping bot.');
     }
   };
 
   return (
     <div className="control-panel">
-      <div className="navbar">
-        <Link to="/">Control Panel</Link>
-        <Link to="/logs">Logs</Link>
-        <Link to="/settings">Settings</Link>
-      </div>
-      <h2>Control Panel</h2>
-      <button className="button" onClick={handleStart}>Start Bot</button>
-      <button className="button" onClick={handleStop}>Stop Bot</button>
+      <button className="button" onClick={handleStart}>
+        Start Bot
+      </button>
+      <button className="button" onClick={handleStop}>
+        Stop Bot
+      </button>
     </div>
   );
 };

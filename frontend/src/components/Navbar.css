@@ -1,4 +1,4 @@
-/* frontend/src/components/Navbar.css */
+/* src/components/Navbar.css */
 
 .navbar {
   display: flex;
@@ -8,13 +8,14 @@
 }
 
 .navbar a {
-  color: #ffffff;
+  color: #fff;
   padding: 14px 20px;
   text-decoration: none;
   font-size: 1em;
 }
 
+.navbar a.active,
 .navbar a:hover {
-  background-color: #333333;
+  background-color: #333;
   border-radius: 5px;
 }

@@ -1,20 +1,21 @@
-// frontend/src/components/DetectedPairs.js
+// src/components/DetectedPairs.js
 
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
-import { Link } from 'react-router-dom';
-import './DetectedPairs.css'; // Ensure you have the corresponding CSS
+import axios from '../axiosConfig';
+import './DetectedPairs.css';
 
 const DetectedPairs = () => {
   const [pairs, setPairs] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const fetchPairs = async () => {
     try {
-      const response = await axios.get('http://localhost:3001/api/detected-pairs');
+      const response = await axios.get('/detected-pairs');
       setPairs(response.data);
     } catch (error) {
       console.error('Error fetching detected pairs:', error);
     }
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -25,14 +26,11 @@ const DetectedPairs = () => {
 
   return (
     <div className="detected-pairs">
-      <div className="navbar">
-        <Link to="/">Dashboard</Link>
-        <Link to="/trades">Trades</Link>
-        <Link to="/settings">Settings</Link>
-      </div>
-      <h2>Detected Pairs</h2>
-      {pairs.length > 0 ? (
-        <table>
+      <h3>Detected Pairs</h3>
+      {loading ? (
+        <p>Loading pairs...</p>
+      ) : pairs.length > 0 ? (
+        <table className="pairs-table">
           <thead>
             <tr>
               <th>Time</th>
@@ -51,7 +49,7 @@ const DetectedPairs = () => {
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    {pair.tokenAddress.substring(0, 10)}...
+                    {pair.tokenAddress.slice(0, 6)}...{pair.tokenAddress.slice(-4)}
                   </a>
                 </td>
                 <td>
@@ -60,16 +58,16 @@ const DetectedPairs = () => {
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    {pair.pairAddress.substring(0, 10)}...
+                    {pair.pairAddress.slice(0, 6)}...{pair.pairAddress.slice(-4)}
                   </a>
                 </td>
-                <td>{pair.liquidity}</td>
+                <td>{pair.liquidity ? `${pair.liquidity} ETH` : 'N/A'}</td>
               </tr>
             ))}
           </tbody>
         </table>
       ) : (
-        <p>No pairs detected yet.</p>
+        <p>No detected pairs found.</p>
       )}
     </div>
   );

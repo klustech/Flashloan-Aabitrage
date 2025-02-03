@@ -27,6 +27,10 @@ const { logMessage, getLogs } = require('./scripts/logging');
 const { initContracts, getProvider, getWallet } = require('./scripts/contracts');
 const { getSettings, updateSettings } = require('./scripts/settings');
 
+// NEW: Import executeSell from tradingOperations and updateTrade, getAllTrades from database
+const { executeSell } = require('./scripts/tradingOperations');
+const { getAllTrades, updateTrade } = require('./scripts/database');
+
 // Create Express app
 const app = express();
 const PORT = 3001;
@@ -43,7 +47,7 @@ const settingsUpdateLimiter = rateLimit({
 });
 
 /**
- * Initializes contracts *once* before all other server logic. 
+ * Initializes contracts *once* before all other server logic.
  * This ensures provider/wallet are ready for use in other modules.
  */
 (async () => {
@@ -89,7 +93,7 @@ app.get('/api/detected-pairs', (req, res) => {
 });
 
 /**
- * Successful Trades
+ * Successful Trades (sell trades)
  */
 app.get('/api/trades', async (req, res) => {
   try {
@@ -97,6 +101,19 @@ app.get('/api/trades', async (req, res) => {
     res.json(trades);
   } catch (error) {
     logMessage(`Error fetching trades: ${error.message}`, {}, 'error');
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * All Trades - NEW endpoint to support open trades display
+ */
+app.get('/api/all-trades', async (req, res) => {
+  try {
+    const trades = await getAllTrades(); // Returns all trades (both buy and sell)
+    res.json(trades);
+  } catch (error) {
+    logMessage(`Error fetching all trades: ${error.message}`, {}, 'error');
     res.status(500).json({ error: error.message });
   }
 });
@@ -132,7 +149,7 @@ app.post('/api/settings', settingsUpdateLimiter, (req, res) => {
       return res.status(400).json({ error: 'Invalid settings format. Expected a JSON object.' });
     }
 
-    // Update
+    // Update settings
     updateSettings(newSettings);
     logMessage('Settings updated successfully.', {}, 'info');
 
@@ -169,6 +186,41 @@ app.post('/api/stop', (req, res) => {
   }
 });
 
+/**
+ * Update Trade (for dynamic TP/SL adjustments) - NEW
+ */
+app.post('/api/update-trade', async (req, res) => {
+  try {
+    const { tradeId, profitThreshold, stopLossThreshold } = req.body;
+    if (!tradeId || profitThreshold === undefined || stopLossThreshold === undefined) {
+      return res.status(400).json({ error: 'Missing required fields: tradeId, profitThreshold, stopLossThreshold.' });
+    }
+    await updateTrade(tradeId, { profitThreshold, stopLossThreshold });
+    logMessage(`Trade ${tradeId} updated successfully.`, {}, 'info');
+    res.json({ status: 'Trade updated successfully.' });
+  } catch (error) {
+    logMessage(`Error updating trade: ${error.message}`, {}, 'error');
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Manual Sell (trigger manual sell for a token) - NEW
+ */
+app.post('/api/manual-sell', async (req, res) => {
+  try {
+    const { tokenAddress } = req.body;
+    if (!tokenAddress) {
+      return res.status(400).json({ error: 'Missing tokenAddress.' });
+    }
+    await executeSell(tokenAddress);
+    logMessage(`Manual sell triggered for token ${tokenAddress}.`, {}, 'info');
+    res.json({ status: 'Sell order placed successfully.' });
+  } catch (error) {
+    logMessage(`Error executing manual sell: ${error.message}`, {}, 'error');
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ===== Start Server =====
 app.listen(PORT, () => logMessage(`Backend server is running on port ${PORT}`, {}, 'info'));
-
