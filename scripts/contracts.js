@@ -47,16 +47,13 @@ function initializeProvider() {
 
   provider = new ethers.providers.WebSocketProvider(RPC_URL);
 
-  let keepAliveInterval; // Will hold the interval for sending keepalive pings
+  let keepAliveInterval;
 
-  // Handle WS open event and start keepalive pings
   provider._websocket.on('open', () => {
     logMessage('WebSocket connection established.', {}, 'info');
-    // Set a keepalive ping every 30 seconds to prevent inactivity disconnects.
     keepAliveInterval = setInterval(async () => {
       if (provider && provider._websocket.readyState === provider._websocket.OPEN) {
         try {
-          // Send a dummy request to keep the connection alive.
           await provider.getBlockNumber();
         } catch (err) {
           logMessage(`Keepalive error: ${err.message}`, {}, 'error');
@@ -65,20 +62,16 @@ function initializeProvider() {
     }, 30000);
   });
 
-  // Handle WS errors
   provider._websocket.on('error', (error) => {
     logMessage(`WebSocket error: ${error.message}`, {}, 'error');
   });
 
-  // Handle WS closure and attempt reconnection
   provider._websocket.on('close', (code, reason) => {
     logMessage(`WebSocket closed: ${code} - ${reason || 'No reason'}`, {}, 'error');
-    if (keepAliveInterval) {
-      clearInterval(keepAliveInterval);
-    }
+    if (keepAliveInterval) clearInterval(keepAliveInterval);
     logMessage('Attempting to reconnect in 5 seconds...', {}, 'info');
     setTimeout(() => {
-      initializeProvider(); // Recurse to re-init the provider
+      initializeProvider();
     }, 5000);
   });
 }
@@ -96,8 +89,6 @@ async function initContracts() {
     if (!privateKey) {
       throw new Error('PRIVATE_KEY not set.');
     }
-
-    // Validate private key format
     if (!/^0x[a-fA-F0-9]{64}$/.test(privateKey)) {
       if (/^[a-fA-F0-9]{64}$/.test(privateKey)) {
         privateKey = '0x' + privateKey;
@@ -106,17 +97,11 @@ async function initContracts() {
       }
     }
 
-    // Set up provider (includes reconnection and keepalive logic)
     initializeProvider();
-
-    // Wrap with Bottleneck + retry
     provider = wrapProviderWithLimiter(provider);
-
-    // Create wallet
     wallet = new ethers.Wallet(privateKey, provider);
     logMessage(`Wallet: ${wallet.address}`, {}, 'info');
 
-    // Optionally create Flashbots provider
     if (settings.FLASHBOTS_ENABLED) {
       flashbotsProvider = await FlashbotsBundleProvider.create(
         provider,
@@ -126,7 +111,6 @@ async function initContracts() {
       logMessage('FlashbotsBundleProvider initialized.', {}, 'info');
     }
 
-    // Initialize contracts
     const FACTORY_ADDRESS = ethers.utils.getAddress(settings.FACTORY_ADDRESS);
     const ROUTER_ADDRESS = ethers.utils.getAddress(settings.ROUTER_ADDRESS);
 
@@ -146,11 +130,8 @@ async function initContracts() {
       wallet
     );
 
-    // Test provider connectivity
     const blockNumber = await executeWithRetry(() => provider.getBlockNumber());
     logMessage(`Connected to chain. Current block: ${blockNumber}`, {}, 'info');
-
-    // Emit 'connected' for any listeners that want to re-set event watchers
     eventEmitter.emit('connected');
   } catch (err) {
     logMessage(`Error in initContracts(): ${err.message}`, {}, 'error');
@@ -158,39 +139,26 @@ async function initContracts() {
   }
 }
 
-/** Return the factory contract */
 function getFactoryContract() {
-  if (!factoryContract) {
-    throw new Error('Factory not initialized.');
-  }
+  if (!factoryContract) throw new Error('Factory not initialized.');
   return factoryContract;
 }
 
-/** Return the router contract */
 function getRouterContract() {
-  if (!routerContract) {
-    throw new Error('Router not initialized.');
-  }
+  if (!routerContract) throw new Error('Router not initialized.');
   return routerContract;
 }
 
-/** Return the provider */
 function getProvider() {
-  if (!provider) {
-    throw new Error('Provider not initialized.');
-  }
+  if (!provider) throw new Error('Provider not initialized.');
   return provider;
 }
 
-/** Return the wallet */
 function getWallet() {
-  if (!wallet) {
-    throw new Error('Wallet not initialized.');
-  }
+  if (!wallet) throw new Error('Wallet not initialized.');
   return wallet;
 }
 
-/** Return the flashbots provider, if enabled */
 function getFlashbotsProvider() {
   return flashbotsProvider;
 }

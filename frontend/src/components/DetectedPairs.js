@@ -1,4 +1,4 @@
-// src/components/DetectedPairs.js
+// frontend/src/components/DetectedPairs.js
 
 import React, { useEffect, useState } from 'react';
 import axios from '../axiosConfig';

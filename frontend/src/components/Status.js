@@ -1,4 +1,4 @@
-// src/components/Status.js
+// frontend/src/components/Status.js
 
 import React from 'react';
 import './Status.css';

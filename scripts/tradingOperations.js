@@ -1,6 +1,6 @@
 // scripts/tradingOperations.js
 
-const { evaluatePair, isHoneypot } = require('./evaluation'); // Updated import
+const { evaluatePair, isHoneypot } = require('./evaluation');
 const { getAdjustedGasPrice, getCurrentTokenPrice } = require('./utils');
 const { getRouterContract, getWallet, getFlashbotsProvider, getProvider } = require('./contracts');
 const { logMessage } = require('./logging');
@@ -10,17 +10,28 @@ const { executeWithRetry } = require('./retry');
 const { successfulTrades } = require('./state');
 const { insertTrade } = require('./database');
 
-// ─────────────────────────────────────────────────────────
-// 1) Debug logs to confirm if evaluatePair & isHoneypot load
-// ─────────────────────────────────────────────────────────
 logMessage(`evaluatePair is a ${typeof evaluatePair}`, {}, 'info');
 logMessage(`isHoneypot is a ${typeof isHoneypot}`, {}, 'info');
 
+const MAX_FLASHBOTS_RETRIES = 3;
+
 /**
- * Executes a purchase using Flashbots if enabled, else falls back to the public mempool.
- * @param {string} pairAddress - Address of the liquidity pair.
- * @param {string} token0 - Address of token0.
- * @param {string} token1 - Address of token1.
+ * Checks that the wallet has sufficient funds for the transaction.
+ * @param {ethers.BigNumber} requiredAmount
+ */
+async function checkSufficientBalance(requiredAmount) {
+  const wallet = getWallet();
+  const balance = await wallet.getBalance();
+  if (balance.lt(requiredAmount)) {
+    throw new Error('Insufficient funds for transaction and gas');
+  }
+}
+
+/**
+ * Executes a purchase using Flashbots if enabled; otherwise, falls back to the public mempool.
+ * @param {string} pairAddress
+ * @param {string} token0
+ * @param {string} token1
  */
 async function executePurchase(pairAddress, token0, token1) {
   const settings = getSettings();
@@ -30,12 +41,7 @@ async function executePurchase(pairAddress, token0, token1) {
     const baseTokenAddress = settings.BASE_TOKEN_ADDRESS.toLowerCase();
     const tokenToBuy = token1.toLowerCase() === baseTokenAddress ? token0 : token1;
 
-    // Defensive check
-    if (typeof evaluatePair !== 'function') {
-      throw new Error('evaluatePair is not a function');
-    }
-
-    // Evaluate pair
+    // Evaluate pair viability (now including token risk)
     const pairOk = await evaluatePair(pairAddress, token0, token1);
     if (!pairOk) {
       logMessage(`Pair ${pairAddress} did not pass checks.`, {}, 'warn');
@@ -50,65 +56,74 @@ async function executePurchase(pairAddress, token0, token1) {
 
     const path = [baseTokenAddress, tokenToBuy];
     const deadline = Math.floor(Date.now() / 1000) + settings.DEADLINE_BUFFER;
-    const { maxFeePerGas, maxPriorityFeePerGas } = await getAdjustedGasPrice();
+    let { maxFeePerGas, maxPriorityFeePerGas } = await getAdjustedGasPrice();
     const amountIn = ethers.utils.parseEther(settings.ETH_AMOUNT_TO_SWAP.toString());
+    const gasLimit = ethers.BigNumber.from(200000);
+    const estimatedCost = amountIn.add(gasLimit.mul(maxFeePerGas));
+    await checkSufficientBalance(estimatedCost);
 
-    // Build transaction data for the swap
     const router = getRouterContract();
     const wallet = getWallet();
     const swapData = router.interface.encodeFunctionData('swapExactETHForTokens', [
-      0, // amountOutMin
+      0,
       path,
-      wallet.address, // Ensure 'to' is not the zero address
+      wallet.address,
       deadline
     ]);
 
     const txRequest = {
       chainId: (await getProvider().getNetwork()).chainId,
-      type: 2, // EIP-1559
+      type: 2,
       value: amountIn,
       data: swapData,
       to: router.address,
       maxFeePerGas,
       maxPriorityFeePerGas,
-      gasLimit: 200000,
+      gasLimit,
       nonce: await getProvider().getTransactionCount(wallet.address, 'latest'),
     };
 
-    // Attempt Flashbots
+    // Attempt Flashbots if enabled
     const flashbotsProvider = await getFlashbotsProvider();
     if (flashbotsProvider) {
-      logMessage('Sending purchase via Flashbots bundle...', {}, 'info');
-      const signedTx = await wallet.signTransaction(txRequest);
-
-      // Parse the signed transaction to obtain the correct transaction hash
-      const parsedTx = ethers.utils.parseTransaction(signedTx);
-      const txHash = parsedTx.hash;
-
-      // Send bundle to the next block
-      const blockNumber = await getProvider().getBlockNumber();
-      const bundleResponse = await flashbotsProvider.sendBundle(
-        [{ signedTransaction: signedTx }],
-        blockNumber + 1
-      );
-
-      const bundleResolution = await bundleResponse.wait();
-      if (bundleResolution === 0) {
-        // 0 => included
-        logMessage('Flashbots bundle included in block!', {}, 'info');
-
-        // Wait for transaction confirmation using the correct txHash
+      let attempt = 0;
+      let bundleIncluded = false;
+      let txHash;
+      while (attempt < MAX_FLASHBOTS_RETRIES && !bundleIncluded) {
+        logMessage(`Attempt ${attempt + 1} to send Flashbots bundle with gas parameters: maxFeePerGas=${maxFeePerGas.toString()}, maxPriorityFeePerGas=${maxPriorityFeePerGas.toString()}`, {}, 'info');
+        const signedTx = await wallet.signTransaction(txRequest);
+        const parsedTx = ethers.utils.parseTransaction(signedTx);
+        txHash = parsedTx.hash;
+        const blockNumber = await getProvider().getBlockNumber();
+        const bundleResponse = await flashbotsProvider.sendBundle(
+          [{ signedTransaction: signedTx }],
+          blockNumber + 1
+        );
+        const bundleResolution = await bundleResponse.wait();
+        if (bundleResolution === 0) {
+          logMessage('Flashbots bundle included in block!', {}, 'info');
+          bundleIncluded = true;
+          break;
+        } else {
+          logMessage(`Flashbots bundle not included on attempt ${attempt + 1}. Code: ${bundleResolution}`, {}, 'error');
+          // Increase gas parameters by 10%
+          maxFeePerGas = maxFeePerGas.mul(110).div(100);
+          maxPriorityFeePerGas = maxPriorityFeePerGas.mul(110).div(100);
+          txRequest.maxFeePerGas = maxFeePerGas;
+          txRequest.maxPriorityFeePerGas = maxPriorityFeePerGas;
+          attempt++;
+        }
+      }
+      if (bundleIncluded) {
         const receipt = await getProvider().waitForTransaction(txHash);
         logMessage(`Purchase confirmed: ${receipt.transactionHash}`, {}, 'info');
-
         await recordBuyTrade(pairAddress, tokenToBuy, txHash);
+        return;
       } else {
-        // If not included, fallback
-        logMessage(`Flashbots bundle not included! Code: ${bundleResolution}`, {}, 'error');
+        logMessage(`Flashbots bundle failed after ${MAX_FLASHBOTS_RETRIES} attempts; falling back to public mempool.`, {}, 'warn');
         await fallbackMempoolPurchase(path, deadline, amountIn, maxFeePerGas, maxPriorityFeePerGas);
       }
     } else {
-      // Flashbots is disabled; proceed with mempool
       logMessage('Flashbots disabled. Using public mempool.', {}, 'warn');
       await fallbackMempoolPurchase(path, deadline, amountIn, maxFeePerGas, maxPriorityFeePerGas);
     }
@@ -118,22 +133,16 @@ async function executePurchase(pairAddress, token0, token1) {
 }
 
 /**
- * If Flashbots fails or is disabled, perform a normal mempool transaction.
- * @param {string[]} path - The swap path.
- * @param {number} deadline - Transaction deadline.
- * @param {ethers.BigNumber} amountIn - Amount of ETH to swap.
- * @param {ethers.BigNumber} maxFeePerGas - Max fee per gas.
- * @param {ethers.BigNumber} maxPriorityFeePerGas - Max priority fee per gas.
+ * Fallback: Execute purchase via public mempool.
  */
 async function fallbackMempoolPurchase(path, deadline, amountIn, maxFeePerGas, maxPriorityFeePerGas) {
   const router = getRouterContract();
   const wallet = getWallet();
-
   try {
     const tx = await router.swapExactETHForTokens(
       0,
       path,
-      wallet.address, // Ensure 'to' is not the zero address
+      wallet.address,
       deadline,
       {
         gasLimit: 200000,
@@ -145,7 +154,6 @@ async function fallbackMempoolPurchase(path, deadline, amountIn, maxFeePerGas, m
     logMessage(`Purchase (fallback) tx sent: ${tx.hash}`, {}, 'info');
     const receipt = await tx.wait();
     logMessage(`Purchase confirmed: ${receipt.transactionHash}`, {}, 'info');
-
     await recordBuyTrade(path[1], path[1], tx.hash);
   } catch (error) {
     logMessage(`Fallback purchase error: ${error.reason || error.message}`, {}, 'error');
@@ -153,21 +161,14 @@ async function fallbackMempoolPurchase(path, deadline, amountIn, maxFeePerGas, m
 }
 
 /**
- * Record buy trade, store buy price, and auto-monitor price for potential sell.
- * @param {string} pairAddress - Address of the liquidity pair.
- * @param {string} tokenToBuy - Address of the token bought.
- * @param {string} txHash - Transaction hash of the buy.
+ * Records a buy trade and starts dynamic monitoring.
  */
 async function recordBuyTrade(pairAddress, tokenToBuy, txHash) {
   const settings = getSettings();
-
-  // 1) Calculate approximate buy price in ETH
   const buyPriceInETH = await getTokenBuyPriceEstimate(
     tokenToBuy,
     ethers.utils.parseEther(settings.ETH_AMOUNT_TO_SWAP.toString())
   );
-
-  // 2) Store the trade with buyPriceInETH
   const tradeDetails = {
     timestamp: new Date().toISOString(),
     tokenAddress: tokenToBuy,
@@ -175,26 +176,25 @@ async function recordBuyTrade(pairAddress, tokenToBuy, txHash) {
     amountIn: settings.ETH_AMOUNT_TO_SWAP.toString(),
     txHash,
     type: 'buy',
-    buyPriceInETH: buyPriceInETH.toString(),
+    state: 'Holding',
+    buyPriceInETH: buyPriceInETH.toString()
   };
   successfulTrades.push(tradeDetails);
   await insertTrade(tradeDetails);
-
-  // 3) Start monitoring the token for an auto-sell with dynamic TP/SL.
+  // Start dynamic price monitoring
   await monitorTokenPrice(tokenToBuy, buyPriceInETH);
+  // NEW: Also start monitoring for abnormal swap (sell) events on the bought token’s pair
+  await monitorBoughtTokenSwaps(tokenToBuy, pairAddress);
 }
 
 /**
- * Approximates buy price in ETH by using router.getAmountsOut(1 token).
- * @param {string} tokenAddress - The address of the token.
- * @param {ethers.BigNumber} spentEthBN - Amount of ETH spent.
- * @returns {Promise<number>} - Approximate buy price in ETH.
+ * Approximates the buy price in ETH using getAmountsOut.
  */
 async function getTokenBuyPriceEstimate(tokenAddress, spentEthBN) {
   try {
     const router = getRouterContract();
     const path = [tokenAddress, getSettings().BASE_TOKEN_ADDRESS];
-    const oneToken = ethers.utils.parseUnits('1', 18); // Adjust decimals as needed
+    const oneToken = ethers.utils.parseUnits('1', 18);
     const amountsOut = await executeWithRetry(() => router.getAmountsOut(oneToken, path));
     return parseFloat(ethers.utils.formatEther(amountsOut[1]));
   } catch (err) {
@@ -204,62 +204,49 @@ async function getTokenBuyPriceEstimate(tokenAddress, spentEthBN) {
 }
 
 /**
- * Executes a sell transaction, attempting Flashbots first, then fallback to mempool.
- * @param {string} tokenAddress - Address of the token to sell.
+ * Executes a sell transaction.
  */
 async function executeSell(tokenAddress) {
   try {
     logMessage(`Executing sell for ${tokenAddress}...`, {}, 'info');
     const { maxFeePerGas, maxPriorityFeePerGas } = await getAdjustedGasPrice();
-
-    // Approve if needed
     const router = getRouterContract();
     const wallet = getWallet();
-
     const tokenContract = new ethers.Contract(tokenAddress, [
       'function approve(address spender, uint256 amount) external returns (bool)',
       'function allowance(address owner, address spender) view returns (uint256)',
-      'function balanceOf(address owner) view returns (uint256)',
+      'function balanceOf(address owner) view returns (uint256)'
     ], wallet);
 
     const allowance = await executeWithRetry(() => tokenContract.allowance(wallet.address, router.address));
     const balance = await executeWithRetry(() => tokenContract.balanceOf(wallet.address));
-
     if (balance.eq(0)) {
       logMessage('No token balance to sell.', {}, 'warn');
       return;
     }
-
     if (allowance.lt(balance)) {
-      // Approve
       const approveTx = await tokenContract.approve(
         router.address,
         ethers.constants.MaxUint256,
-        {
-          gasLimit: 100000,
-          maxFeePerGas,
-          maxPriorityFeePerGas,
-        }
+        { gasLimit: 100000, maxFeePerGas, maxPriorityFeePerGas }
       );
       await approveTx.wait();
       logMessage('Router approved for token spend.', {}, 'info');
     }
 
-    // Build the swap data
     const deadline = Math.floor(Date.now() / 1000) + getSettings().DEADLINE_BUFFER;
     const path = [tokenAddress, getSettings().BASE_TOKEN_ADDRESS];
-
     const swapData = router.interface.encodeFunctionData('swapExactTokensForETHSupportingFeeOnTransferTokens', [
       balance.toString(),
       0,
       path,
-      wallet.address, // Ensure 'to' is not the zero address
+      wallet.address,
       deadline
     ]);
 
     const txRequest = {
       chainId: (await getProvider().getNetwork()).chainId,
-      type: 2, // EIP-1559
+      type: 2,
       to: router.address,
       data: swapData,
       maxFeePerGas,
@@ -268,27 +255,22 @@ async function executeSell(tokenAddress) {
       nonce: await getProvider().getTransactionCount(wallet.address, 'latest'),
     };
 
-    // Attempt Flashbots
     const flashbotsProvider = await getFlashbotsProvider();
     if (flashbotsProvider) {
       logMessage('Sending sell via Flashbots bundle...', {}, 'info');
       const signedTx = await wallet.signTransaction(txRequest);
       const parsedTx = ethers.utils.parseTransaction(signedTx);
       const txHash = parsedTx.hash;
-
       const blockNumber = await getProvider().getBlockNumber();
       const bundleResponse = await flashbotsProvider.sendBundle(
         [{ signedTransaction: signedTx }],
         blockNumber + 1
       );
-
       const bundleResolution = await bundleResponse.wait();
       if (bundleResolution === 0) {
         logMessage('Flashbots sell bundle included!', {}, 'info');
-
         const receipt = await getProvider().waitForTransaction(txHash);
         logMessage(`Sell confirmed: ${receipt.transactionHash}`, {}, 'info');
-
         await recordSellTrade(tokenAddress, balance, txHash);
       } else {
         logMessage(`Flashbots sell bundle not included. Code: ${bundleResolution}`, {}, 'error');
@@ -304,36 +286,26 @@ async function executeSell(tokenAddress) {
 }
 
 /**
- * Fallback to normal mempool for sell.
- * @param {string} tokenAddress - Address of the token to sell.
- * @param {ethers.BigNumber} balance - Amount of tokens to sell.
+ * Fallback: Execute sell via public mempool.
  */
 async function fallbackMempoolSell(tokenAddress, balance) {
   const router = getRouterContract();
   const wallet = getWallet();
   const { maxFeePerGas, maxPriorityFeePerGas } = await getAdjustedGasPrice();
-
   const path = [tokenAddress, getSettings().BASE_TOKEN_ADDRESS];
   const deadline = Math.floor(Date.now() / 1000) + getSettings().DEADLINE_BUFFER;
-
   try {
     const tx = await router.swapExactTokensForETHSupportingFeeOnTransferTokens(
       balance.toString(),
       0,
       path,
-      wallet.address, // Ensure 'to' is not the zero address
+      wallet.address,
       deadline,
-      {
-        maxFeePerGas,
-        maxPriorityFeePerGas,
-        gasLimit: 300000,
-      }
+      { maxFeePerGas, maxPriorityFeePerGas, gasLimit: 300000 }
     );
-
     logMessage(`Sell (fallback) tx sent: ${tx.hash}`, {}, 'info');
     const receipt = await tx.wait();
     logMessage(`Sell confirmed: ${receipt.transactionHash}`, {}, 'info');
-
     await recordSellTrade(tokenAddress, balance, tx.hash);
   } catch (error) {
     logMessage(`Fallback sell error: ${error.reason || error.message}`, {}, 'error');
@@ -341,10 +313,7 @@ async function fallbackMempoolSell(tokenAddress, balance) {
 }
 
 /**
- * Records a sell trade in the database.
- * @param {string} tokenAddress - Address of the token sold.
- * @param {ethers.BigNumber} amountInBN - Amount of tokens sold.
- * @param {string} txHash - Transaction hash of the sell.
+ * Records a sell trade.
  */
 async function recordSellTrade(tokenAddress, amountInBN, txHash) {
   const tradeDetails = {
@@ -353,103 +322,118 @@ async function recordSellTrade(tokenAddress, amountInBN, txHash) {
     amountIn: ethers.utils.formatUnits(amountInBN, 18),
     txHash,
     type: 'sell',
+    state: 'Sold'
   };
   successfulTrades.push(tradeDetails);
   await insertTrade(tradeDetails);
 }
 
-// ───────────────────────────────────────────────────────────────────
-// ADDED BELOW: minimal, self-contained "monitorTokenPrice" function with dynamic TP/SL
-// ───────────────────────────────────────────────────────────────────
-
-const monitoringIntervals = {}; // Track intervals by token to prevent duplicates
-
 /**
- * Monitors the token price periodically with dynamic (trailing) take profit and stop loss.
- * Also allows manual adjustment of thresholds via settings.
- *
- * @param {string} tokenAddress - The newly purchased token address.
- * @param {number} buyPriceInETH - Approximate buy price in ETH.
+ * Dynamic monitoring for trailing TP/SL.
  */
+const monitoringIntervals = {};
+
 async function monitorTokenPrice(tokenAddress, buyPriceInETH) {
   const settings = getSettings();
-
-  // Initialize highestPrice as the buy price.
   let highestPrice = buyPriceInETH;
-
-  // Set initial dynamic thresholds based on manual settings.
   let dynamicTPThreshold = buyPriceInETH * (1 + settings.PROFIT_THRESHOLD / 100);
   let dynamicSLThreshold = buyPriceInETH * (1 - settings.STOP_LOSS_THRESHOLD / 100);
 
-  // Clear any existing interval for this token to avoid duplicates.
   if (monitoringIntervals[tokenAddress]) {
     clearInterval(monitoringIntervals[tokenAddress]);
   }
 
-  // Periodic price check function.
   const checkPrice = async () => {
     try {
       const currentPrice = await getCurrentTokenPrice(tokenAddress);
       if (!currentPrice || currentPrice <= 0) return;
-
-      // Update highest price and adjust dynamic thresholds if the price increases.
       if (currentPrice > highestPrice) {
         highestPrice = currentPrice;
-        dynamicSLThreshold = highestPrice * (1 - settings.STOP_LOSS_THRESHOLD / 100);
         dynamicTPThreshold = highestPrice * (1 + settings.PROFIT_THRESHOLD / 100);
+        dynamicSLThreshold = highestPrice * (1 - settings.STOP_LOSS_THRESHOLD / 100);
         logMessage(
           `New highest price for ${tokenAddress}: ${highestPrice}. Updated thresholds: TP=${dynamicTPThreshold}, SL=${dynamicSLThreshold}`,
           {},
           'info'
         );
       }
-
-      // Check if current price meets the dynamic take profit condition.
       if (currentPrice >= dynamicTPThreshold) {
-        logMessage(
-          `Dynamic TP Triggered for ${tokenAddress}: currentPrice=${currentPrice}, dynamicTPThreshold=${dynamicTPThreshold}`,
-          {},
-          'info'
-        );
+        logMessage(`Dynamic TP Triggered for ${tokenAddress}: currentPrice=${currentPrice}, dynamicTPThreshold=${dynamicTPThreshold}`, {}, 'info');
         await executeSell(tokenAddress);
         clearInterval(monitoringIntervals[tokenAddress]);
         delete monitoringIntervals[tokenAddress];
-        return;
-      }
-      // Check if current price falls to the dynamic stop loss condition.
-      else if (currentPrice <= dynamicSLThreshold) {
-        logMessage(
-          `Dynamic SL Triggered for ${tokenAddress}: currentPrice=${currentPrice}, dynamicSLThreshold=${dynamicSLThreshold}`,
-          {},
-          'info'
-        );
+      } else if (currentPrice <= dynamicSLThreshold) {
+        logMessage(`Dynamic SL Triggered for ${tokenAddress}: currentPrice=${currentPrice}, dynamicSLThreshold=${dynamicSLThreshold}`, {}, 'info');
         await executeSell(tokenAddress);
         clearInterval(monitoringIntervals[tokenAddress]);
         delete monitoringIntervals[tokenAddress];
-        return;
       }
     } catch (err) {
       logMessage(`Error in monitorTokenPrice for ${tokenAddress}: ${err.message}`, {}, 'error');
     }
   };
 
-  // Set up the interval using MONITOR_DELAY_MS from settings.
   monitoringIntervals[tokenAddress] = setInterval(checkPrice, settings.MONITOR_DELAY_MS);
-
   logMessage(
-    `Started dynamic monitoring for ${tokenAddress}.
-     Initial BuyPrice=${buyPriceInETH},
-     Initial dynamicTPThreshold=${dynamicTPThreshold},
-     Initial dynamicSLThreshold=${dynamicSLThreshold}`,
+    `Started dynamic monitoring for ${tokenAddress}.\nInitial BuyPrice=${buyPriceInETH},\nInitial dynamicTPThreshold=${dynamicTPThreshold},\nInitial dynamicSLThreshold=${dynamicSLThreshold}`,
     {},
     'info'
   );
 }
 
-// ─────────────────────────────────────────────────────────
-// Export the main entry points. All else remains unchanged.
-// ─────────────────────────────────────────────────────────
+/**
+ * NEW: Monitors the pair contract for abnormal sell (swap) events.
+ * If a swap event indicates that a large amount of the bought token is sold (exceeding a threshold of the reserve),
+ * it immediately triggers a sell to frontrun the abnormal sell.
+ *
+ * @param {string} tokenAddress - The bought token's address.
+ * @param {string} pairAddress - The pair contract address.
+ */
+async function monitorBoughtTokenSwaps(tokenAddress, pairAddress) {
+  try {
+    const provider = getProvider();
+    const PAIR_SWAP_ABI = [
+      "event Swap(uint amount0In, uint amount1In, uint amount0Out, uint amount1Out, address to)",
+      "function getReserves() view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast)",
+      "function token0() view returns (address)",
+      "function token1() view returns (address)"
+    ];
+    const pairContract = new ethers.Contract(pairAddress, PAIR_SWAP_ABI, provider);
+    
+    logMessage(`Setting up swap event monitoring for token ${tokenAddress} on pair ${pairAddress}`, {}, 'info');
+    
+    // Define an abnormal threshold (e.g., if the sold amount is 10% or more of the reserve)
+    const abnormalThreshold = 0.1;
+    const listener = async (...args) => {
+      // args: [amount0In, amount1In, amount0Out, amount1Out, to, event]
+      const event = args[args.length - 1];
+      const token0 = await pairContract.token0();
+      const token1 = await pairContract.token1();
+      const reserves = await pairContract.getReserves();
+      let reserveToken, amountOut;
+      if (tokenAddress.toLowerCase() === token0.toLowerCase()) {
+        reserveToken = parseFloat(ethers.utils.formatUnits(reserves.reserve0, 18));
+        amountOut = parseFloat(ethers.utils.formatUnits(args[2], 18)); // amount0Out
+      } else if (tokenAddress.toLowerCase() === token1.toLowerCase()) {
+        reserveToken = parseFloat(ethers.utils.formatUnits(reserves.reserve1, 18));
+        amountOut = parseFloat(ethers.utils.formatUnits(args[3], 18)); // amount1Out
+      } else {
+        return; // Token not found in this pair
+      }
+      if (reserveToken > 0 && (amountOut / reserveToken) >= abnormalThreshold) {
+        logMessage(`Abnormal sell detected for token ${tokenAddress}: amountOut ${amountOut} is ${((amountOut / reserveToken) * 100).toFixed(2)}% of reserve.`, {}, 'warn');
+        await executeSell(tokenAddress);
+        pairContract.off('Swap', listener);
+      }
+    };
+    
+    pairContract.on('Swap', listener);
+  } catch (error) {
+    logMessage(`Error setting up swap monitoring for token ${tokenAddress}: ${error.message}`, {}, 'error');
+  }
+}
+
 module.exports = {
   executePurchase,
-  executeSell,
+  executeSell
 };

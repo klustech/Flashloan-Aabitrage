@@ -1,4 +1,4 @@
-// src/components/OpenTrades.js
+// frontend/src/components/OpenTrades.js
 
 import React, { useState, useEffect } from 'react';
 import axios from '../axiosConfig';
@@ -10,11 +10,12 @@ const OpenTrades = () => {
 
   const fetchTrades = async () => {
     try {
-      // Assumed endpoint that returns all trades (open and closed)
+      // Endpoint returns all trades; filter for open trades (type "buy" and state "Holding")
       const response = await axios.get('/all-trades');
-      // Filter for open trades (assumed to be trades with type "buy")
-      const openTrades = response.data.filter(trade => trade.type === 'buy');
-      setTrades(openTrades);
+      const validTrades = (response.data || []).filter(
+        (trade) => trade && trade.type && trade.type.toLowerCase() === 'buy' && (!trade.state || trade.state.toLowerCase() === 'holding')
+      );
+      setTrades(validTrades);
     } catch (error) {
       console.error('Error fetching open trades:', error);
     }
@@ -22,7 +23,7 @@ const OpenTrades = () => {
   };
 
   const handleAdjust = async (trade) => {
-    // Prompt the user for new profit and stop loss thresholds
+    if (!trade) return;
     const newProfit = prompt("Enter new profit threshold (%)", trade.profitThreshold || "");
     const newStopLoss = prompt("Enter new stop loss threshold (%)", trade.stopLossThreshold || "");
     if (newProfit && newStopLoss) {
@@ -42,6 +43,7 @@ const OpenTrades = () => {
   };
 
   const handleSell = async (trade) => {
+    if (!trade) return;
     if (window.confirm("Are you sure you want to sell this token?")) {
       try {
         await axios.post('/manual-sell', {
@@ -74,20 +76,24 @@ const OpenTrades = () => {
               <th>Time</th>
               <th>Token</th>
               <th>Amount (ETH)</th>
-              <th>Current State</th>
+              <th>Status</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {trades.map((trade, index) => (
               <tr key={index}>
-                <td>{new Date(trade.timestamp).toLocaleString()}</td>
+                <td>{trade.timestamp ? new Date(trade.timestamp).toLocaleString() : "N/A"}</td>
                 <td>
-                  <a href={`https://etherscan.io/address/${trade.tokenAddress}`} target="_blank" rel="noopener noreferrer">
-                    {trade.tokenAddress.slice(0, 6)}...{trade.tokenAddress.slice(-4)}
-                  </a>
+                  {trade.tokenAddress ? (
+                    <a href={`https://etherscan.io/address/${trade.tokenAddress}`} target="_blank" rel="noopener noreferrer">
+                      {trade.tokenAddress.slice(0, 6)}...{trade.tokenAddress.slice(-4)}
+                    </a>
+                  ) : (
+                    "N/A"
+                  )}
                 </td>
-                <td>{trade.amountIn}</td>
+                <td>{trade.amountIn || "N/A"}</td>
                 <td>{trade.state || "Holding"}</td>
                 <td>
                   <button className="button" onClick={() => handleAdjust(trade)}>Adjust</button>

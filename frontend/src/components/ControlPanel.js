@@ -1,4 +1,4 @@
-// src/components/ControlPanel.js
+// frontend/src/components/ControlPanel.js
 
 import React from 'react';
 import axios from '../axiosConfig';

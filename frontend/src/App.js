@@ -1,9 +1,9 @@
-// src/App.js
+// frontend/src/App.js
 
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
-import Trades from './pages/Trades'; // Using the pages version below
+import Trades from './pages/Trades'; // Trades page shows open trades
 import Settings from './pages/Settings';
 import Logs from './pages/Logs';
 import Navbar from './components/Navbar';

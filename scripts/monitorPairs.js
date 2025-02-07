@@ -4,65 +4,42 @@ const { ethers } = require('ethers');
 const { getSettings } = require('./settings');
 const { logMessage } = require('./logging');
 
-// Initialize settings
-const settings = getSettings();
-
-// Initialize WebSocket Provider
-const provider = new ethers.providers.WebSocketProvider(settings.RPC_URL_WSS);
-
-// Factory Contract ABI (only the PairCreated event)
-const factoryAbi = [
-    'event PairCreated(address indexed token0, address indexed token1, address pair, uint)'
+const PAIR_ABI = [
+  "function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast)",
+  "function token0() external view returns (address)",
+  "function token1() external view returns (address)"
 ];
 
-// Initialize Factory Contract
-const factoryContract = new ethers.Contract(settings.FACTORY_ADDRESS, factoryAbi, provider);
-
-// Event Listener for PairCreated
-factoryContract.on('PairCreated', (token0, token1, pair, event) => {
-    logMessage('Detected PairCreated Event:', { token0, token1, pair }, 'info');
-    // Here, you can add additional logic to handle the new pair
-    // For example, evaluating the pair and deciding to snipe
-});
-
-// Handle WebSocket Errors
-provider._websocket.on('error', (error) => {
-    logMessage(`WebSocket error: ${error.message}`, {}, 'error');
-});
-
-// Handle WebSocket Closure and Reconnection
-provider._websocket.on('close', (code, reason) => {
-    logMessage(`WebSocket closed: ${code} - ${reason || 'No reason provided'}`, {}, 'error');
-    logMessage('Attempting to reconnect in 5 seconds...', {}, 'info');
-    setTimeout(() => {
-        reconnect();
-    }, 5000);
-});
-
-// Reconnection Logic
-function reconnect() {
-    logMessage('Reconnecting to WebSocket provider...', {}, 'info');
-    provider = new ethers.providers.WebSocketProvider(settings.RPC_URL_WSS);
-    factoryContract = new ethers.Contract(settings.FACTORY_ADDRESS, factoryAbi, provider);
-    
-    // Re-attach the event listener
-    factoryContract.on('PairCreated', (token0, token1, pair, event) => {
-        logMessage('Detected PairCreated Event:', { token0, token1, pair }, 'info');
-        // Additional logic here
-    });
-
-    // Re-attach error handlers
-    provider._websocket.on('error', (error) => {
-        logMessage(`WebSocket error: ${error.message}`, {}, 'error');
-    });
-
-    provider._websocket.on('close', (code, reason) => {
-        logMessage(`WebSocket closed: ${code} - ${reason || 'No reason provided'}`, {}, 'error');
-        logMessage('Attempting to reconnect in 5 seconds...', {}, 'info');
-        setTimeout(() => {
-            reconnect();
-        }, 5000);
-    });
+/**
+ * Monitors an existing pair for liquidity changes.
+ * Calls the callback when base token liquidity exceeds the threshold.
+ *
+ * @param {string} pairAddress
+ * @param {function} callback - Called as callback(isViable, baseReserve)
+ */
+async function monitorPairLiquidity(pairAddress, callback) {
+  const settings = getSettings();
+  const provider = new ethers.providers.WebSocketProvider(settings.RPC_URL_WSS);
+  const pairContract = new ethers.Contract(pairAddress, PAIR_ABI, provider);
+  const baseTokenAddress = settings.BASE_TOKEN_ADDRESS.toLowerCase();
+  const minBaseReserve = settings.MIN_BASE_TOKEN_RESERVE;
+  
+  setInterval(async () => {
+    try {
+      const token0 = await pairContract.token0();
+      const reserves = await pairContract.getReserves();
+      let baseReserve;
+      if (token0.toLowerCase() === baseTokenAddress) {
+        baseReserve = parseFloat(ethers.utils.formatUnits(reserves.reserve0, 18));
+      } else {
+        baseReserve = parseFloat(ethers.utils.formatUnits(reserves.reserve1, 18));
+      }
+      logMessage(`Monitoring liquidity for pair ${pairAddress}: baseReserve = ${baseReserve}`, {}, 'info');
+      callback(baseReserve >= minBaseReserve, baseReserve);
+    } catch (err) {
+      logMessage(`Error monitoring liquidity for pair ${pairAddress}: ${err.message}`, {}, 'error');
+    }
+  }, 30000); // Check every 30 seconds
 }
 
-logMessage('Starting PairCreated event listener...', {}, 'info');
+module.exports = { monitorPairLiquidity };

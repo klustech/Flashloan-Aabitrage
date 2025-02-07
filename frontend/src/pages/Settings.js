@@ -1,25 +1,27 @@
-// src/pages/Settings.js
+// frontend/src/pages/Settings.js
 
 import React, { useState, useEffect } from 'react';
 import axios from '../axiosConfig';
 import './Settings.css';
 
 const Settings = () => {
+  // Initial state now uses MIN_BASE_TOKEN_RESERVE instead of MINIMUM_LOCKED_ETH
   const [settings, setSettings] = useState({
     ETH_AMOUNT_TO_SWAP: '0.05',
     SLIPPAGE_TOLERANCE: 5,
     GAS_PRICE_MULTIPLIER: 1.2,
     PROFIT_THRESHOLD: 10,
     DEADLINE_BUFFER: 60,
-    MINIMUM_LOCKED_ETH: '0.5',
     MAX_GAS_PRICE: '200',
     TOKEN_WHITELIST: '',
     TOKEN_BLACKLIST: '',
     FLASHBOTS_ENABLED: false,
+    MIN_BASE_TOKEN_RESERVE: '5'  // default value for base token reserve
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // Fetch current settings from the backend.
   const fetchSettings = async () => {
     setLoading(true);
     try {
@@ -31,7 +33,6 @@ const Settings = () => {
         GAS_PRICE_MULTIPLIER: fetched.GAS_PRICE_MULTIPLIER || 1.2,
         PROFIT_THRESHOLD: fetched.PROFIT_THRESHOLD || 10,
         DEADLINE_BUFFER: fetched.DEADLINE_BUFFER || 60,
-        MINIMUM_LOCKED_ETH: fetched.MINIMUM_LOCKED_ETH || '0.5',
         MAX_GAS_PRICE: fetched.MAX_GAS_PRICE || '200',
         TOKEN_WHITELIST: Array.isArray(fetched.TOKEN_WHITELIST)
           ? fetched.TOKEN_WHITELIST.join(', ')
@@ -40,6 +41,9 @@ const Settings = () => {
           ? fetched.TOKEN_BLACKLIST.join(', ')
           : '',
         FLASHBOTS_ENABLED: fetched.FLASHBOTS_ENABLED === true,
+        MIN_BASE_TOKEN_RESERVE: fetched.MIN_BASE_TOKEN_RESERVE !== undefined 
+          ? fetched.MIN_BASE_TOKEN_RESERVE.toString() 
+          : '5'
       });
     } catch (err) {
       console.error('Error fetching settings:', err);
@@ -52,6 +56,7 @@ const Settings = () => {
     fetchSettings();
   }, []);
 
+  // Send updated settings to the backend.
   const updateSettingsHandler = async () => {
     setLoading(true);
     try {
@@ -61,11 +66,16 @@ const Settings = () => {
         GAS_PRICE_MULTIPLIER: parseFloat(settings.GAS_PRICE_MULTIPLIER),
         PROFIT_THRESHOLD: parseFloat(settings.PROFIT_THRESHOLD),
         DEADLINE_BUFFER: parseInt(settings.DEADLINE_BUFFER, 10),
-        MINIMUM_LOCKED_ETH: settings.MINIMUM_LOCKED_ETH,
         MAX_GAS_PRICE: settings.MAX_GAS_PRICE,
-        TOKEN_WHITELIST: settings.TOKEN_WHITELIST ? settings.TOKEN_WHITELIST.split(',').map(addr => addr.trim()) : [],
-        TOKEN_BLACKLIST: settings.TOKEN_BLACKLIST ? settings.TOKEN_BLACKLIST.split(',').map(addr => addr.trim()) : [],
+        TOKEN_WHITELIST: settings.TOKEN_WHITELIST 
+          ? settings.TOKEN_WHITELIST.split(',').map(addr => addr.trim()) 
+          : [],
+        TOKEN_BLACKLIST: settings.TOKEN_BLACKLIST 
+          ? settings.TOKEN_BLACKLIST.split(',').map(addr => addr.trim()) 
+          : [],
         FLASHBOTS_ENABLED: settings.FLASHBOTS_ENABLED,
+        // Update MIN_BASE_TOKEN_RESERVE rather than MINIMUM_LOCKED_ETH
+        MIN_BASE_TOKEN_RESERVE: parseFloat(settings.MIN_BASE_TOKEN_RESERVE)
       };
       await axios.post('/settings', updated);
       alert('Settings updated successfully!');
@@ -125,13 +135,14 @@ const Settings = () => {
             onChange={e => setSettings({...settings, DEADLINE_BUFFER: e.target.value})}
           />
         </label>
+        {/* Replace the old Minimum Liquidity field with this new one */}
         <label>
-          Minimum Liquidity (ETH):
+          Minimum Base Token Reserve (ETH):
           <input
             type="number"
             step="0.01"
-            value={settings.MINIMUM_LOCKED_ETH}
-            onChange={e => setSettings({...settings, MINIMUM_LOCKED_ETH: e.target.value})}
+            value={settings.MIN_BASE_TOKEN_RESERVE}
+            onChange={e => setSettings({...settings, MIN_BASE_TOKEN_RESERVE: e.target.value})}
           />
         </label>
         <label>

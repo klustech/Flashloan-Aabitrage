@@ -1,4 +1,4 @@
-// src/components/Trades.js
+// frontend/src/components/Trades.js
 
 import React, { useState, useEffect } from 'react';
 import axios from '../axiosConfig';

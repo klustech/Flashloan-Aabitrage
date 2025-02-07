@@ -6,26 +6,24 @@ import axios from 'axios';
 import './Settings.css'; // Ensure you have the corresponding CSS
 
 const Settings = () => {
-  // Include FLASHBOTS_ENABLED in your default state
   const [settings, setSettings] = useState({
     ETH_AMOUNT_TO_SWAP: '0.05',
     SLIPPAGE_TOLERANCE: 5,
     GAS_PRICE_MULTIPLIER: 1.2,
     PROFIT_THRESHOLD: 10,
     DEADLINE_BUFFER: 60,
-    MINIMUM_LOCKED_ETH: '0.5',
     MAX_GAS_PRICE: '200',
     TOKEN_WHITELIST: '',
     TOKEN_BLACKLIST: '',
-    FLASHBOTS_ENABLED: false, // <-- NEW
+    FLASHBOTS_ENABLED: false,
+    // Updated field: this now represents the Base Token Reserve setting
+    MIN_BASE_TOKEN_RESERVE: '50'
   });
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  /**
-   * Fetches current settings from the backend.
-   */
+  // Fetch current settings from the backend.
   const fetchSettings = async () => {
     setLoading(true);
     setError(null);
@@ -34,13 +32,11 @@ const Settings = () => {
       const fetchedSettings = response.data;
 
       setSettings({
-        // Preserve existing fields exactly as they were
         ETH_AMOUNT_TO_SWAP: fetchedSettings.ETH_AMOUNT_TO_SWAP || '0.05',
         SLIPPAGE_TOLERANCE: fetchedSettings.SLIPPAGE_TOLERANCE || 5,
         GAS_PRICE_MULTIPLIER: fetchedSettings.GAS_PRICE_MULTIPLIER || 1.2,
         PROFIT_THRESHOLD: fetchedSettings.PROFIT_THRESHOLD || 10,
         DEADLINE_BUFFER: fetchedSettings.DEADLINE_BUFFER || 60,
-        MINIMUM_LOCKED_ETH: fetchedSettings.MINIMUM_LOCKED_ETH || '0.5',
         MAX_GAS_PRICE: fetchedSettings.MAX_GAS_PRICE || '200',
         TOKEN_WHITELIST: Array.isArray(fetchedSettings.TOKEN_WHITELIST)
           ? fetchedSettings.TOKEN_WHITELIST.join(', ')
@@ -48,8 +44,10 @@ const Settings = () => {
         TOKEN_BLACKLIST: Array.isArray(fetchedSettings.TOKEN_BLACKLIST)
           ? fetchedSettings.TOKEN_BLACKLIST.join(', ')
           : '',
-        // Fetch the new FLASHBOTS_ENABLED field (boolean)
         FLASHBOTS_ENABLED: fetchedSettings.FLASHBOTS_ENABLED === true,
+        MIN_BASE_TOKEN_RESERVE: fetchedSettings.MIN_BASE_TOKEN_RESERVE
+          ? fetchedSettings.MIN_BASE_TOKEN_RESERVE.toString()
+          : '50'
       });
     } catch (error) {
       console.error('Error fetching settings:', error);
@@ -58,21 +56,17 @@ const Settings = () => {
     setLoading(false);
   };
 
-  /**
-   * Sends updated settings to the backend.
-   */
+  // Send updated settings to the backend.
   const updateSettingsHandler = async () => {
     setLoading(true);
     setError(null);
     try {
       const updatedSettings = {
-        // Keep the original fields, converting strings to numbers as before
         ETH_AMOUNT_TO_SWAP: settings.ETH_AMOUNT_TO_SWAP,
         SLIPPAGE_TOLERANCE: parseFloat(settings.SLIPPAGE_TOLERANCE),
         GAS_PRICE_MULTIPLIER: parseFloat(settings.GAS_PRICE_MULTIPLIER),
         PROFIT_THRESHOLD: parseFloat(settings.PROFIT_THRESHOLD),
         DEADLINE_BUFFER: parseInt(settings.DEADLINE_BUFFER, 10),
-        MINIMUM_LOCKED_ETH: settings.MINIMUM_LOCKED_ETH,
         MAX_GAS_PRICE: settings.MAX_GAS_PRICE,
         TOKEN_WHITELIST: settings.TOKEN_WHITELIST
           ? settings.TOKEN_WHITELIST.split(',').map(addr => addr.trim())
@@ -80,13 +74,12 @@ const Settings = () => {
         TOKEN_BLACKLIST: settings.TOKEN_BLACKLIST
           ? settings.TOKEN_BLACKLIST.split(',').map(addr => addr.trim())
           : [],
-        // Include the new FLASHBOTS_ENABLED
         FLASHBOTS_ENABLED: settings.FLASHBOTS_ENABLED,
+        MIN_BASE_TOKEN_RESERVE: parseFloat(settings.MIN_BASE_TOKEN_RESERVE)
       };
 
       await axios.post('http://localhost:3001/api/settings', updatedSettings);
       alert('Settings updated successfully!');
-      // Refresh settings after update
       fetchSettings();
     } catch (error) {
       console.error('Error updating settings:', error);
@@ -96,7 +89,6 @@ const Settings = () => {
     setLoading(false);
   };
 
-  // Fetch current settings when component loads
   useEffect(() => {
     fetchSettings();
   }, []);
@@ -166,13 +158,14 @@ const Settings = () => {
           />
         </label>
 
+        {/* Updated field for Base Token Reserve */}
         <label className="label">
-          Minimum Liquidity (ETH):
+          Minimum Base Token Reserve (ETH):
           <input
             type="number"
             step="0.01"
-            value={settings.MINIMUM_LOCKED_ETH}
-            onChange={e => setSettings({ ...settings, MINIMUM_LOCKED_ETH: e.target.value })}
+            value={settings.MIN_BASE_TOKEN_RESERVE}
+            onChange={e => setSettings({ ...settings, MIN_BASE_TOKEN_RESERVE: e.target.value })}
             className="input"
           />
         </label>
@@ -207,7 +200,6 @@ const Settings = () => {
           />
         </label>
 
-        {/* NEW checkbox for enabling/disabling Flashbots */}
         <label className="label">
           Flashbots Enabled:
           <input

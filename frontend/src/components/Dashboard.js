@@ -1,9 +1,9 @@
 // frontend/src/components/Dashboard.js
 
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../axiosConfig';
 import { Link } from 'react-router-dom';
-import './Dashboard.css'; // Ensure you have the corresponding CSS
+import './Dashboard.css';
 
 const Dashboard = () => {
   const [status, setStatus] = useState('Stopped');
@@ -12,7 +12,7 @@ const Dashboard = () => {
 
   const fetchStatus = async () => {
     try {
-      const response = await axios.get('/api/status');
+      const response = await axios.get('/status');
       setStatus(response.data.status);
     } catch (error) {
       console.error('Error fetching status:', error);
@@ -21,7 +21,7 @@ const Dashboard = () => {
 
   const fetchDetectedPairs = async () => {
     try {
-      const response = await axios.get('/api/detected-pairs');
+      const response = await axios.get('/detected-pairs');
       const data = response.data;
 
       if (Array.isArray(data)) {
@@ -40,7 +40,7 @@ const Dashboard = () => {
 
   const handleStart = async () => {
     try {
-      const response = await axios.post('/api/start');
+      const response = await axios.post('/start');
       alert(response.data.status);
       fetchStatus();
     } catch (error) {
@@ -50,7 +50,7 @@ const Dashboard = () => {
 
   const handleStop = async () => {
     try {
-      const response = await axios.post('/api/stop');
+      const response = await axios.post('/stop');
       alert(response.data.status);
       fetchStatus();
     } catch (error) {
@@ -62,7 +62,7 @@ const Dashboard = () => {
     fetchStatus();
     fetchDetectedPairs();
     const interval = setInterval(fetchDetectedPairs, 5000); // Refresh every 5 seconds
-    return () => clearInterval(interval); // Clean up interval on unmount
+    return () => clearInterval(interval);
   }, []);
 
   return (
