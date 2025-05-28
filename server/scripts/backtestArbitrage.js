@@ -47,7 +47,9 @@ async function backtestArbitrage(startBlock, endBlock, routes, options) {
     (snap) => snap.blockNumber >= startBlock && snap.blockNumber <= endBlock
   );
   if (snapshots.length === 0) {
-    logger.info(`No historical snapshots in blocks [${startBlock}..${endBlock}].`);
+    logger.info(
+      `No historical snapshots in blocks [${startBlock}..${endBlock}].`
+    );
     return { tradeCount: 0, totalProfit: ethers.constants.Zero };
   }
 
@@ -55,11 +57,17 @@ async function backtestArbitrage(startBlock, endBlock, routes, options) {
   let totalProfit = ethers.BigNumber.from("0");
 
   for (const snap of snapshots) {
-    logger.debug(`Backtesting snapshot at block ${snap.blockNumber}, time ${snap.timestamp}`);
+    logger.debug(
+      `Backtesting snapshot at block ${snap.blockNumber}, time ${snap.timestamp}`
+    );
 
     for (const routeDef of routes) {
       // We'll treat finalOut as if it's denominated in DAI from simulateRoute
-      const finalOut = await simulateRoute(routeDef, options.borrowAmount, options.slippageBips);
+      const finalOut = await simulateRoute(
+        routeDef,
+        options.borrowAmount,
+        options.slippageBips
+      );
       // cost is the borrowed DAI
       const cost = options.borrowAmount;
       const profit = finalOut.sub(cost);

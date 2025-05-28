@@ -1,0 +1,48 @@
+# docker-compose.yml
+
+version: "3.9"
+services:
+  hardhat:
+    image: ghcr.io/foundry-rs/foundry:latest
+    command: ["anvil", "--fork-url", "${MAINNET_RPC_URL}", "--port", "8545"]
+    ports:
+      - "8555:8545"
+
+  api:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    environment:
+      - MAINNET_RPC_URL=http://hardhat:8545
+      - PRIVATE_KEY=${PRIVATE_KEY}
+      - CONTRACT_ADDRESS=${CONTRACT_ADDRESS}
+      - AAVE_LENDING_POOL_ADDRESS_PROVIDER=${AAVE_LENDING_POOL_ADDRESS_PROVIDER}
+      - TOKENS_DAI=${TOKENS_DAI}
+      - TOKENS_WETH=${TOKENS_WETH}
+      - TOKENS_USDC=${TOKENS_USDC}
+      - TOKENS_USDT=${TOKENS_USDT}
+      - TOKENS_UNI=${TOKENS_UNI}
+      - SLIPPAGE_BIPS=${SLIPPAGE_BIPS}
+      - GAS_PRICE_CEILING=${GAS_PRICE_CEILING}
+      - FLASHBOTS_RELAY_URL=${FLASHBOTS_RELAY_URL}
+      - MIN_PROFIT_DAI=${MIN_PROFIT_DAI}
+    ports:
+      - "3001:3001"
+    depends_on:
+      - hardhat
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - "./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro"
+    ports:
+      - "9090:9090"
+    depends_on:
+      - api
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus

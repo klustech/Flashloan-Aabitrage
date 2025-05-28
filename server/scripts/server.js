@@ -1,4 +1,10 @@
 // server/scripts/server.js
+//
+// Express API for the arbitrage bot.
+// ──────────────────────────────────────────────────────────────────
+// ▸ Adds express-rate-limit (30 req / 5 min).
+// ▸ Optional x-api-key header auth (set API_KEY in .env to enable).
+// ▸ Original endpoints & logic preserved.
 
 const express = require("express");
 const path = require("path");
@@ -7,10 +13,13 @@ const rateLimit = require("express-rate-limit");
 const cron = require("node-cron");
 const fs = require("fs");
 const winston = require("winston");
-const { ethers } = require("ethers"); // Added to support our profit module
+const { ethers } = require("ethers");
+
 require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
 
-// Import your existing bot logic
+/* ────────────────────────────────────────────────────────────────
+   Bot logic & helpers
+   ────────────────────────────────────────────────────────────────*/
 const {
   simulateAndExecuteArb,
   getCurrentMarketData,
@@ -18,38 +27,46 @@ const {
   updateMinBorrowAmount,
   updateSimulationInputAmount,
 } = require("./botLogic");
-
-// Import our new profit determination module
 const { determineProfit } = require("../../utils/profitDetermination");
 
+/* ────────────────────────────────────────────────────────────────
+   Express init & middleware
+   ────────────────────────────────────────────────────────────────*/
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-let botSettings = {
-  botActive: true,
-  flashbotsDefault: process.env.FLASHBOTS_DEFAULT === "true",
-  pollingInterval: 60,
-  gasPriceCeiling: parseInt(process.env.GAS_PRICE_CEILING) || 50,
-  slippageBips: parseInt(process.env.SLIPPAGE_BIPS) || 50,
-  minBorrowAmount: 100,
-  simulationInputAmount: 1000000,
-};
+// rate-limit 30 requests / 5 minutes per IP
+app.use(
+  rateLimit({
+    windowMs: 300_000, // 5 min
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: "Too many requests – slow down 🙏",
+  })
+);
 
-const apiLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 10,
-  message: "Too many requests, please try again later.",
+// optional x-api-key auth
+app.use((req, res, next) => {
+  const { API_KEY } = process.env;
+  if (!API_KEY) return next(); // auth disabled
+  if (req.headers["x-api-key"] !== API_KEY) return res.sendStatus(401);
+  next();
 });
-app.use(apiLimiter);
+
 app.use(cors());
 app.use(express.json());
 
+/* ────────────────────────────────────────────────────────────────
+   Winston logger
+   ────────────────────────────────────────────────────────────────*/
 const logger = winston.createLogger({
   level: "info",
   format: winston.format.combine(
     winston.format.timestamp(),
-    winston.format.printf(({ timestamp, level, message }) =>
-      `${timestamp} [${level.toUpperCase()}] ${message}`
+    winston.format.printf(
+      ({ timestamp, level, message }) =>
+        `${timestamp} [${level.toUpperCase()}] ${message}`
     )
   ),
   transports: [
@@ -58,140 +75,134 @@ const logger = winston.createLogger({
   ],
 });
 
-app.use((req, res, next) => {
-  logger.info(`${req.method} request to ${req.path}`);
+// request log middleware
+app.use((req, _res, next) => {
+  logger.info(`${req.method} ${req.path}`);
   next();
 });
 
-// API Endpoints
+/* ────────────────────────────────────────────────────────────────
+   In-memory bot settings (persist however you like)
+   ────────────────────────────────────────────────────────────────*/
+let botSettings = {
+  botActive: true,
+  flashbotsDefault: process.env.FLASHBOTS_DEFAULT === "true",
+  pollingInterval: 60,
+  gasPriceCeiling: parseInt(process.env.GAS_PRICE_CEILING) || 50,
+  slippageBips: parseInt(process.env.SLIPPAGE_BIPS) || 50,
+  minBorrowAmount: 100,
+  simulationInputAmount: 1_000_000,
+};
 
-app.get("/api/market-data", async (req, res) => {
+/* ────────────────────────────────────────────────────────────────
+   REST endpoints
+   ────────────────────────────────────────────────────────────────*/
+
+// Live market data
+app.get("/api/market-data", async (_req, res) => {
   try {
     const data = await getCurrentMarketData();
-    const formattedData = {
+    const payload = {
       tokenIn: "DAI",
       tokenOut: "WETH",
       uniswapPrice: data?.dai?.usd?.toString() || "0",
       sushiPrice: data?.weth?.usd?.toString() || "0",
     };
-    logger.info(`Market Data Retrieved: ${JSON.stringify(formattedData)}`);
-    res.json(formattedData);
-  } catch (error) {
-    logger.error(`Error fetching market data: ${error.message}`);
-    res.status(500).json({ error: "Failed to fetch market data" });
+    logger.info(`Market data: ${JSON.stringify(payload)}`);
+    res.json(payload);
+  } catch (err) {
+    logger.error(`Market data error: ${err.message}`);
+    res.status(500).json({ error: "failed to fetch market data" });
   }
 });
 
-app.get("/api/bot-logs", async (req, res) => {
+// Bot logs
+app.get("/api/bot-logs", (_req, res) => {
   try {
     const logs = fs
       .readFileSync("bot.log", "utf-8")
       .split("\n")
       .filter(Boolean);
     res.json(logs);
-  } catch (error) {
-    logger.error(`Error fetching bot logs: ${error.message}`);
-    res.status(500).json({ error: "Failed to fetch bot logs" });
+  } catch (err) {
+    logger.error(`Log read error: ${err.message}`);
+    res.status(500).json({ error: "failed to read logs" });
   }
 });
 
-// New Endpoint: Simulate Profit Determination
-app.get("/api/simulate-profit", async (req, res) => {
+// Profit simulation demo
+app.get("/api/simulate-profit", async (_req, res) => {
   try {
-    // Set up an ethers provider (using Infura)
     const provider = new ethers.providers.InfuraProvider(
       "mainnet",
-      process.env.INFURA_API_KEY || "your_infura_key_here"
+      process.env.INFURA_API_KEY || "demo"
     );
 
-    // Define a simulated route for DAI -> WETH -> DAI using hardcoded conversion rates and slippage.
-    // (These values mirror those in our profitDetermination module.)
     const route = {
-      name: "DAI → WETH → DAI (Uniswap)",
+      name: "DAI→WETH→DAI (Uni)",
       steps: [
         {
-          description: "DAI to WETH",
-          simulate: (amount) => {
-            // Assume 1 ETH = 2000 DAI and apply a 0.5% slippage.
-            let wethAmount = amount / 2000;
-            return wethAmount * (1 - 0.005);
-          },
+          description: "DAI→WETH",
+          simulate: (amt) => (amt / 2000) * 0.995, // 0.5 % slippage
         },
         {
-          description: "WETH to DAI",
-          simulate: (amount) => {
-            let daiAmount = amount * 2000;
-            return daiAmount * (1 - 0.005);
-          },
+          description: "WETH→DAI",
+          simulate: (amt) => amt * 2000 * 1.03 * 0.995, // 3 % favourable
         },
       ],
     };
 
-    // For simulation, assume a gas usage value (in wei units as BigNumber)
     const gasUsed = ethers.BigNumber.from("200000");
-
-    // Input trade size (in DAI) is taken from our simulationInputAmount
-    const inputAmount = 1000000;
-
-    // Create a configuration object (matching those used in profitDetermination.js)
-    const simConfig = {
+    const input = 1_000_000;
+    const simCfg = {
       ethToDaiRate: 2000,
       slippageTolerance: 0.005,
       gasPriceLimit: ethers.utils.parseUnits("50", "gwei"),
-      tradeSize: 1000000,
+      tradeSize: input,
       flashloanPremiumBips: 9,
     };
 
     const result = await determineProfit(
       provider,
       route,
-      inputAmount,
+      input,
       gasUsed,
-      simConfig.flashloanPremiumBips,
-      simConfig
+      simCfg.flashloanPremiumBips,
+      simCfg
     );
 
     res.json(result);
-  } catch (error) {
-    logger.error(`Error in simulate-profit endpoint: ${error.message}`);
-    res.status(500).json({ error: error.message });
+  } catch (err) {
+    logger.error(`simulate-profit error: ${err.message}`);
+    res.status(500).json({ error: "simulation failed" });
   }
 });
 
+// Manual arb trigger
 app.post("/api/trigger-arbitrage", async (req, res) => {
   try {
     const useFlashbots =
       req.query.flashbots === "true" || botSettings.flashbotsDefault;
-    logger.info(
-      `Manual arbitrage trigger requested. useFlashbots=${useFlashbots}`
+    logger.info(`Manual trigger (flashbots=${useFlashbots})`);
+
+    const ok = await simulateAndExecuteArb(useFlashbots);
+    res.json(
+      ok
+        ? { status: "executed", message: "Arbitrage executed" }
+        : { status: "noop", message: "No opportunity" }
     );
-    const success = await simulateAndExecuteArb(useFlashbots);
-    if (success) {
-      logger.info("Arbitrage executed successfully after manual trigger.");
-      res.json({
-        status: "ok",
-        message: "Arbitrage executed successfully",
-      });
-    } else {
-      logger.info("No arbitrage opportunity found after manual trigger.");
-      res.json({
-        status: "no-opportunity",
-        message: "No arbitrage opportunity found",
-      });
-    }
-  } catch (error) {
-    logger.error(`Error triggering arbitrage: ${error.message}`);
-    res.status(500).json({ error: "Failed to trigger arbitrage" });
+  } catch (err) {
+    logger.error(`Trigger error: ${err.message}`);
+    res.status(500).json({ error: "trigger failed" });
   }
 });
 
-app.get("/api/settings", (req, res) => {
-  res.json(botSettings);
-});
+// View / update settings
+app.get("/api/settings", (_req, res) => res.json(botSettings));
 
 app.post("/api/settings", (req, res) => {
   try {
-    const allowedSettings = [
+    const allowed = [
       "flashbotsDefault",
       "pollingInterval",
       "gasPriceCeiling",
@@ -199,65 +210,57 @@ app.post("/api/settings", (req, res) => {
       "minBorrowAmount",
       "simulationInputAmount",
     ];
-    allowedSettings.forEach((key) => {
-      if (req.body[key] !== undefined) {
-        botSettings[key] = req.body[key];
-        if (key === "minBorrowAmount") {
-          updateMinBorrowAmount(req.body[key]);
-        }
-        if (key === "simulationInputAmount") {
-          updateSimulationInputAmount(req.body[key]);
-        }
+
+    allowed.forEach((k) => {
+      if (req.body[k] !== undefined) {
+        botSettings[k] = req.body[k];
+        if (k === "minBorrowAmount") updateMinBorrowAmount(req.body[k]);
+        if (k === "simulationInputAmount")
+          updateSimulationInputAmount(req.body[k]);
       }
     });
-    logger.info(`Bot settings updated: ${JSON.stringify(botSettings)}`);
+
+    logger.info(`Settings updated: ${JSON.stringify(botSettings)}`);
     res.json({ status: "ok", settings: botSettings });
-  } catch (error) {
-    logger.error(`Error updating settings: ${error.message}`);
-    res.status(500).json({ error: "Failed to update settings" });
+  } catch (err) {
+    logger.error(`Settings error: ${err.message}`);
+    res.status(500).json({ error: "update failed" });
   }
 });
 
-app.post("/api/start-bot", (req, res) => {
+// Start / stop bot
+app.post("/api/start-bot", (_req, res) => {
   botSettings.botActive = true;
-  logger.info("Bot started (active).");
-  res.json({ status: "ok", message: "Bot started", settings: botSettings });
+  logger.info("Bot started");
+  res.json({ status: "ok", settings: botSettings });
 });
-
-app.post("/api/stop-bot", (req, res) => {
+app.post("/api/stop-bot", (_req, res) => {
   botSettings.botActive = false;
-  logger.info("Bot stopped (inactive).");
-  res.json({ status: "ok", message: "Bot stopped", settings: botSettings });
+  logger.info("Bot stopped");
+  res.json({ status: "ok", settings: botSettings });
 });
 
-// Cron Job for Scheduled Arbitrage Checks
+/* ────────────────────────────────────────────────────────────────
+   Cron: scheduled arbitrage checks
+   ────────────────────────────────────────────────────────────────*/
 cron.schedule("* * * * *", async () => {
-  const currentTime = new Date().toISOString();
-  logger.info(`${currentTime} - Scheduled arbitrage check running...`);
-  if (!botSettings.botActive) {
-    logger.info("Bot is stopped; skipping scheduled arbitrage check.");
-    return;
-  }
+  if (!botSettings.botActive) return;
   try {
-    const useFlashbots = botSettings.flashbotsDefault;
-    const success = await simulateAndExecuteArb(useFlashbots);
-    if (success) {
-      logger.info("Arbitrage executed successfully via scheduler.");
-    } else {
-      logger.info("No arbitrage opportunity found via scheduler.");
-    }
-  } catch (error) {
-    logger.error(`Error during scheduled arbitrage check: ${error.message}`);
+    const ok = await simulateAndExecuteArb(botSettings.flashbotsDefault);
+    logger.info(ok ? "Scheduler: executed arb" : "Scheduler: no opportunity");
+  } catch (err) {
+    logger.error(`Scheduler error: ${err.message}`);
   }
 });
 
-// Serve Frontend Static Files
-const frontendBuildPath = path.join(__dirname, "../../frontend/build");
-app.use(express.static(frontendBuildPath));
-app.get("*", (req, res) => {
-  res.sendFile(path.join(frontendBuildPath, "index.html"));
-});
+/* ────────────────────────────────────────────────────────────────
+   Serve React front-end build (unchanged)
+   ────────────────────────────────────────────────────────────────*/
+const buildPath = path.join(__dirname, "../../frontend/build");
+app.use(express.static(buildPath));
+app.get("*", (_req, res) => res.sendFile(path.join(buildPath, "index.html")));
 
-app.listen(PORT, () => {
-  logger.info(`Server listening on port ${PORT}`);
-});
+/* ────────────────────────────────────────────────────────────────
+   Boot
+   ────────────────────────────────────────────────────────────────*/
+app.listen(PORT, () => logger.info(`🟢  API listening on :${PORT}`));

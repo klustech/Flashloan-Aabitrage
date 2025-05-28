@@ -1,100 +1,87 @@
-// contracts/ArbitrageFlashloan.sol
 // SPDX-License-Identifier: GPL-3.0-or-later
+pragma solidity ^0.8.20;
 
-pragma solidity ^0.8.0;
-pragma experimental ABIEncoderV2;
-
-// Import local, updated interfaces instead of the original Aave v2 versions
+// ─── Local Interfaces ────────────────────────────────────────────────────────
 import "./interfaces/ILendingPoolAddressesProvider.sol";
 import "./interfaces/ILendingPool.sol";
 import "./interfaces/IFlashLoanReceiver.sol";
 
-// Uniswap V2 Router Interface
+// ─── External Interfaces ─────────────────────────────────────────────────────
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 
-// OpenZeppelin Libraries
+// ─── OpenZeppelin ────────────────────────────────────────────────────────────
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-/**
- * @title ArbitrageFlashloan
- * @notice Executes flashloan-based arbitrage using Uniswap and SushiSwap, with dynamic slippage and minimum profit checks.
- */
-contract ArbitrageFlashloan is Ownable, IFlashLoanReceiver {
+/// @title ArbitrageFlashloan
+/// @notice Simple Aave‑V2 flash‑loan contract that performs three swaps (Uni → Sushi → Uni)
+///         and repays the loan in the same transaction.  Includes runtime loss‑cap and
+///         min‑profit guard‐rails.
+contract ArbitrageFlashloan is Ownable, ReentrancyGuard, IFlashLoanReceiver {
     using SafeERC20 for IERC20;
 
-    ILendingPoolAddressesProvider public addressesProvider;
-    ILendingPool public lendingPool;
+    // ─── Immutable Config ────────────────────────────────────────────────────
+    ILendingPoolAddressesProvider public immutable addressesProvider;
+    ILendingPool                 public immutable lendingPool;
+    IUniswapV2Router02           public immutable uniswapRouter;
+    IUniswapV2Router02           public immutable sushiRouter;
 
-    IUniswapV2Router02 public uniswapRouter;
-    IUniswapV2Router02 public sushiSwapRouter;
+    // ─── Risk Parameters ─────────────────────────────────────────────────────
+    uint256 public maxLossBps = 100; // 1 %
 
-    // Maximum allowable loss threshold (in DAI)
-    uint256 public constant MAX_LOSS_THRESHOLD = 100 ether;
+    function setMaxLossBps(uint256 bps) external onlyOwner {
+        require(bps <= 1_000, "too generous"); // ≤ 10 %
+        maxLossBps = bps;
+    }
 
+    /// @dev Swap parameters bundled to avoid stack‑too‑deep.
     struct SwapData {
-        address[] uniswapPath;
+        address[] uniPath;
         address[] sushiPath;
         address[] thirdPath;
-        uint256 minOutUni;
-        uint256 minOutSushi;
-        uint256 minOutThird;
-        uint256 minProfit;
+        uint256   minOutUni;
+        uint256   minOutSushi;
+        uint256   minOutThird;
+        uint256   minProfit;
     }
 
-    event ArbitrageExecuted(uint256 borrowAmount, int256 profit, string route);
-    event ProfitWithdrawn(address token, uint256 amount);
+    // ─── Events ──────────────────────────────────────────────────────────────
+    event SwapExecuted(address dex, address[] path, uint256 amountIn, uint256 amountOut);
+    event ArbitrageExecuted(uint256 borrowed, int256 pnl);
     event LossExceeded(uint256 loss);
-    event SwapExecuted(
-        address dex,
-        address[] path,
-        uint256 amountIn,
-        uint256 amountOut
-    );
+    event ProfitWithdrawn(address token, uint256 amount);
 
-    constructor(
-        address _addressesProvider,
-        address _uniswapRouter,
-        address _sushiSwapRouter
-    ) {
-        require(_addressesProvider != address(0), "Invalid AddressesProvider");
-        require(_uniswapRouter != address(0), "Invalid Uniswap Router");
-        require(_sushiSwapRouter != address(0), "Invalid SushiSwap Router");
-
-        addressesProvider = ILendingPoolAddressesProvider(_addressesProvider);
-        lendingPool = ILendingPool(addressesProvider.getLendingPool());
-        uniswapRouter = IUniswapV2Router02(_uniswapRouter);
-        sushiSwapRouter = IUniswapV2Router02(_sushiSwapRouter);
+    // ─── Constructor ─────────────────────────────────────────────────────────
+    constructor(address _provider, address _uni, address _sushi) {
+        require(_provider != address(0) && _uni != address(0) && _sushi != address(0), "zero addr");
+        addressesProvider = ILendingPoolAddressesProvider(_provider);
+        lendingPool       = ILendingPool(addressesProvider.getLendingPool());
+        uniswapRouter     = IUniswapV2Router02(_uni);
+        sushiRouter       = IUniswapV2Router02(_sushi);
     }
 
-    /**
-     * @notice Initiates a flashloan from Aave, specifying swap paths and minimum outputs.
-     */
+    // ─── Public Flash‑Loan Entry ─────────────────────────────────────────────
     function initiateFlashLoan(
-        address tokenToBorrow,
-        uint256 amountToBorrow,
-        SwapData calldata swapData
+        address  token,
+        uint256  amount,
+        SwapData calldata data
     ) external onlyOwner {
-        require(swapData.uniswapPath.length >= 2, "Uniswap path too short");
-        require(swapData.sushiPath.length >= 2, "SushiSwap path too short");
-        require(swapData.thirdPath.length >= 2, "Third path too short");
+        // basic path sanity‑checks ------------------------------------------------
+        require(data.uniPath.length   >= 2, "uni <2");
+        require(data.sushiPath.length >= 2, "sushi <2");
+        require(data.thirdPath.length >= 2, "third <2");
+        require(token == data.uniPath[0],                       "uni start");
+        require(token == data.sushiPath[data.sushiPath.length-1], "sushi end");
+        require(token == data.thirdPath[data.thirdPath.length-1], "third end");
 
-        // Validate that tokenToBorrow matches the specified paths
-        require(tokenToBorrow == swapData.uniswapPath[0], "Mismatch in Uniswap path start");
-        require(tokenToBorrow == swapData.sushiPath[swapData.sushiPath.length - 1], "Mismatch in SushiSwap path end");
-        require(tokenToBorrow == swapData.thirdPath[swapData.thirdPath.length - 1], "Mismatch in Third path end");
-
-        address[] memory assets = new address[](1);
-        assets[0] = tokenToBorrow;
-
+        address[]  memory assets  = new address[](1);
         uint256[] memory amounts = new uint256[](1);
-        amounts[0] = amountToBorrow;
-
-        uint256[] memory modes = new uint256[](1);
-        modes[0] = 0; // No debt mode
-
-        bytes memory params = abi.encode(swapData);
+        uint256[] memory modes   = new uint256[](1);
+        assets[0]  = token;
+        amounts[0] = amount;
+        modes[0]   = 0; // no debt (full repayment)
 
         lendingPool.flashLoan(
             address(this),
@@ -102,106 +89,87 @@ contract ArbitrageFlashloan is Ownable, IFlashLoanReceiver {
             amounts,
             modes,
             address(this),
-            params,
-            0 // referralCode
+            abi.encode(data),
+            0
         );
     }
 
-    /**
-     * @notice This function is called after the flash loan is received.
-     */
+    // ─── Aave Callback ───────────────────────────────────────────────────────
     function executeOperation(
         address[] calldata assets,
         uint256[] calldata amounts,
         uint256[] calldata premiums,
-        address initiator,
-        bytes calldata params
-    )
-        external
-        override
-        returns (bool)
-    {
-        require(msg.sender == address(lendingPool), "Caller must be LendingPool");
-        require(initiator == address(this), "Initiator must be this contract");
+        address         initiator,
+        bytes   calldata params
+    ) external override nonReentrant returns (bool) {
+        require(msg.sender == address(lendingPool), "only pool");
+        require(initiator  == address(this),        "bad initiator");
 
-        SwapData memory swapData = abi.decode(params, (SwapData));
+        SwapData memory d = abi.decode(params, (SwapData));
+        int256 pnl = _performArb(amounts[0], premiums[0], d);
 
-        // Perform the arbitrage using the flattened swap chain helper
-        int256 profit = _performArbitrageFlattened(amounts[0], premiums[0], swapData);
-
-        if (profit < 0) {
-            uint256 loss = uint256(-profit);
-            if (loss > MAX_LOSS_THRESHOLD) {
-                emit LossExceeded(loss);
-                revert("Loss exceeded threshold");
-            }
-        }
-
-        uint256 totalDebt = amounts[0] + premiums[0];
-        // Automatic Profit Withdrawal
-        address tokenAddress = assets[0];
-        IERC20 token = IERC20(tokenAddress);
-        uint256 currentBalance = token.balanceOf(address(this));
-        require(currentBalance >= totalDebt, "Insufficient funds for repayment");
-        uint256 profitAmount = currentBalance - totalDebt;
-        if (profitAmount > 0) {
-            token.safeTransfer(owner(), profitAmount);
-            emit ProfitWithdrawn(tokenAddress, profitAmount);
-        }
-        token.safeApprove(address(lendingPool), totalDebt);
+        _settleAndWithdraw(assets[0], amounts[0], premiums[0], pnl, d.minProfit);
         return true;
     }
 
-    /**
-     * @dev Helper function to perform the swap chain in a flattened manner.
-     * This reduces the number of local variables to alleviate stack depth issues.
-     */
-    function _performArbitrageFlattened(
-        uint256 amountIn,
-        uint256 premium,
-        SwapData memory swapData
-    ) internal returns (int256) {
-        uint256 result = _swapTokens(uniswapRouter, swapData.uniswapPath, amountIn, swapData.minOutUni);
-        result = _swapTokens(sushiSwapRouter, swapData.sushiPath, result, swapData.minOutSushi);
-        result = _swapTokens(uniswapRouter, swapData.thirdPath, result, swapData.minOutThird);
-        int256 profit = int256(result) - int256(amountIn + premium);
-        if (profit < int256(swapData.minProfit)) {
-            revert("Final profit below required threshold");
+    // ─── Internals ───────────────────────────────────────────────────────────
+    function _performArb(uint256 amountIn, uint256 premium, SwapData memory d) internal returns (int256) {
+        uint256 out = _swap(uniswapRouter, d.uniPath,   amountIn, d.minOutUni);
+        out         = _swap(sushiRouter,  d.sushiPath,  out,      d.minOutSushi);
+        out         = _swap(uniswapRouter, d.thirdPath, out,      d.minOutThird);
+
+        int256 pnl = int256(out) - int256(amountIn + premium);
+        require(pnl >= int256(d.minProfit), "minProfit");
+
+        emit ArbitrageExecuted(amountIn, pnl);
+        return pnl;
+    }
+
+    function _swap(IUniswapV2Router02 router, address[] memory path, uint256 amtIn, uint256 minOut) private returns (uint256 out) {
+        IERC20(path[0]).safeApprove(address(router), 0); // reset first (gas‑safe after OZ 4.8)
+        IERC20(path[0]).safeIncreaseAllowance(address(router), amtIn);
+        uint256[] memory amts = router.swapExactTokensForTokens(amtIn, minOut, path, address(this), block.timestamp);
+        out = amts[amts.length-1];
+        emit SwapExecuted(address(router), path, amtIn, out);
+    }
+
+    /// @dev isolate repayment branch to avoid "stack too deep" in executeOperation
+    function _settleAndWithdraw(
+        address asset,
+        uint256 principal,
+        uint256 fee,
+        int256  pnl,
+        uint256 minProfit
+    ) private {
+        if (pnl < 0) {
+            uint256 loss = uint256(-pnl);
+            uint256 maxLoss = (principal * maxLossBps) / 10_000;
+            if (loss > maxLoss) {
+                emit LossExceeded(loss);
+                revert("loss > cap");
+            }
         }
-        emit ArbitrageExecuted(amountIn, profit, "Uniswap->SushiSwap->Uniswap");
-        return profit;
+
+        uint256 debt = principal + fee;
+        IERC20 token = IERC20(asset);
+        uint256 bal  = token.balanceOf(address(this));
+        require(bal >= debt, "bal < debt");
+
+        if (bal > debt) {
+            uint256 profit = bal - debt;
+            require(profit >= minProfit, "profit < minProfit");
+            token.safeTransfer(owner(), profit);
+            emit ProfitWithdrawn(asset, profit);
+        }
+
+        token.safeIncreaseAllowance(address(lendingPool), debt);
     }
 
-    /**
-     * @dev Helper function to perform token swaps.
-     */
-    function _swapTokens(
-        IUniswapV2Router02 router,
-        address[] memory path,
-        uint256 amountIn,
-        uint256 minAmountOut
-    ) internal returns (uint256) {
-        // Approve router to spend tokens
-        IERC20(path[0]).safeApprove(address(router), amountIn);
-        uint256[] memory amounts = router.swapExactTokensForTokens(
-            amountIn,
-            minAmountOut,
-            path,
-            address(this),
-            block.timestamp
-        );
-        uint256 actualOut = amounts[amounts.length - 1];
-        emit SwapExecuted(address(router), path, amountIn, actualOut);
-        return actualOut;
-    }
-
-    /**
-     * @notice Withdraws profit (ERC20 tokens) from the contract.
-     */
+    // ─── Admin Sweep ─────────────────────────────────────────────────────────
     function withdrawProfit(address token) external onlyOwner {
-        uint256 balance = IERC20(token).balanceOf(address(this));
-        require(balance > 0, "No profit to withdraw");
-        IERC20(token).safeTransfer(owner(), balance);
-        emit ProfitWithdrawn(token, balance);
+        uint256 bal = IERC20(token).balanceOf(address(this));
+        require(bal > 0, "no funds");
+        IERC20(token).safeTransfer(owner(), bal);
+        emit ProfitWithdrawn(token, bal);
     }
 }

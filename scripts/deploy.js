@@ -10,9 +10,14 @@ async function main() {
   const sushiSwapRouterAddress = "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F"; // SushiSwap Router
 
   try {
-    const formattedAddressesProvider = ethers.utils.getAddress(AAVE_LENDING_POOL_ADDRESS_PROVIDER);
-    const formattedUniswapRouter = ethers.utils.getAddress(uniswapRouterAddress);
-    const formattedSushiSwapRouter = ethers.utils.getAddress(sushiSwapRouterAddress);
+    const formattedAddressesProvider = ethers.utils.getAddress(
+      AAVE_LENDING_POOL_ADDRESS_PROVIDER
+    );
+    const formattedUniswapRouter =
+      ethers.utils.getAddress(uniswapRouterAddress);
+    const formattedSushiSwapRouter = ethers.utils.getAddress(
+      sushiSwapRouterAddress
+    );
 
     console.log("Deploying ArbitrageFlashloan with the following parameters:");
     console.log(`AddressesProvider: ${formattedAddressesProvider}`);
@@ -23,14 +28,33 @@ async function main() {
     const maxFeePerGas = ethers.utils.parseUnits("30", "gwei");
     const maxPriorityFeePerGas = ethers.utils.parseUnits("2", "gwei");
 
-    console.log(`Current maxFeePerGas: ${ethers.utils.formatUnits(feeData.maxFeePerGas || 0, "gwei")} gwei`);
-    console.log(`Setting maxFeePerGas to: ${ethers.utils.formatUnits(maxFeePerGas, "gwei")} gwei`);
-    console.log(`Setting maxPriorityFeePerGas to: ${ethers.utils.formatUnits(maxPriorityFeePerGas, "gwei")} gwei`);
+    console.log(
+      `Current maxFeePerGas: ${ethers.utils.formatUnits(
+        feeData.maxFeePerGas || 0,
+        "gwei"
+      )} gwei`
+    );
+    console.log(
+      `Setting maxFeePerGas to: ${ethers.utils.formatUnits(
+        maxFeePerGas,
+        "gwei"
+      )} gwei`
+    );
+    console.log(
+      `Setting maxPriorityFeePerGas to: ${ethers.utils.formatUnits(
+        maxPriorityFeePerGas,
+        "gwei"
+      )} gwei`
+    );
 
     const network = await ethers.provider.getNetwork();
-    console.log(`Deploying on network: ${network.name} (chainId: ${network.chainId})`);
+    console.log(
+      `Deploying on network: ${network.name} (chainId: ${network.chainId})`
+    );
 
-    const ArbitrageFlashloan = await ethers.getContractFactory("ArbitrageFlashloan");
+    const ArbitrageFlashloan = await ethers.getContractFactory(
+      "ArbitrageFlashloan"
+    );
     const arbitrageFlashloan = await ArbitrageFlashloan.deploy(
       formattedAddressesProvider,
       formattedUniswapRouter,

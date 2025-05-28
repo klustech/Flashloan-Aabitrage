@@ -1,16 +1,27 @@
 // frontend/src/index.js
 
-import React from 'react';
-import ReactDOM from 'react-dom';
-import App from './App';
-import './App.css';
-import { BrowserRouter } from 'react-router-dom';
+import React from "react";
+import ReactDOM from "react-dom/client";
+import "./index.css";
+import App from "./App";
+import reportWebVitals from "./reportWebVitals";
+import { ThemeProvider, createTheme } from "@mui/material/styles";
 
-ReactDOM.render(
+const theme = createTheme({
+  palette: {
+    primary: { main: "#1976d2" },
+    secondary: { main: "#dc004e" },
+  },
+  typography: { fontFamily: "Roboto, Arial, sans-serif" },
+});
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(
   <React.StrictMode>
-    <BrowserRouter>
+    <ThemeProvider theme={theme}>
       <App />
-    </BrowserRouter>
-  </React.StrictMode>,
-  document.getElementById('root')
+    </ThemeProvider>
+  </React.StrictMode>
 );
+
+reportWebVitals();

@@ -1,27 +1,5 @@
 // frontend/src/App.js
 
-<<<<<<< HEAD
-import React from 'react';
-import { Routes, Route } from 'react-router-dom';
-import Dashboard from './pages/Dashboard';
-import Trades from './pages/Trades'; // Trades page shows open trades
-import Settings from './pages/Settings';
-import Logs from './pages/Logs';
-import Navbar from './components/Navbar';
-import './App.css';
-
-function App() {
-  return (
-    <div className="App">
-      <Navbar />
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/trades" element={<Trades />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="/logs" element={<Logs />} />
-      </Routes>
-    </div>
-=======
 import React, { useEffect, useState } from "react";
 import {
   AppBar,
@@ -34,7 +12,7 @@ import {
   Button,
   Grid,
   CircularProgress,
-  TextField
+  TextField,
 } from "@mui/material";
 import { Line } from "react-chartjs-2";
 import "chart.js/auto";
@@ -51,26 +29,26 @@ import {
   getSettings,
   updateSettings,
   startBot,
-  stopBot
+  stopBot,
 } from "./services/api";
 
 function Dashboard({ prices, marketHistory, loadingPrices }) {
   const chartData = {
-    labels: marketHistory.map(entry => entry.time),
+    labels: marketHistory.map((entry) => entry.time),
     datasets: [
       {
         label: "Uniswap Price (ETH)",
-        data: marketHistory.map(entry => entry.uniswapPrice),
+        data: marketHistory.map((entry) => entry.uniswapPrice),
         borderColor: "blue",
-        fill: false
+        fill: false,
       },
       {
         label: "SushiSwap Price (ETH)",
-        data: marketHistory.map(entry => entry.sushiPrice),
+        data: marketHistory.map((entry) => entry.sushiPrice),
         borderColor: "red",
-        fill: false
-      }
-    ]
+        fill: false,
+      },
+    ],
   };
 
   return (
@@ -240,7 +218,12 @@ function Settings({ settings, onSettingsSave, onStart, onStop }) {
           </Button>
         </Grid>
         <Grid item xs={12} sm={6}>
-          <Button fullWidth variant="outlined" color="secondary" onClick={onStart}>
+          <Button
+            fullWidth
+            variant="outlined"
+            color="secondary"
+            onClick={onStart}
+          >
             Start Bot
           </Button>
         </Grid>
@@ -326,9 +309,9 @@ function App() {
     try {
       const data = await getCurrentPrices();
       setPrices(data);
-      setMarketHistory(prev => [
+      setMarketHistory((prev) => [
         ...prev.slice(-9),
-        { time: new Date().toLocaleTimeString(), ...data }
+        { time: new Date().toLocaleTimeString(), ...data },
       ]);
     } finally {
       setLoadingPrices(false);
@@ -377,7 +360,10 @@ function App() {
           />
         )}
         {activeTab === 1 && (
-          <BotControl onTrigger={handleTriggerArbitrage} arbLoading={arbLoading} />
+          <BotControl
+            onTrigger={handleTriggerArbitrage}
+            arbLoading={arbLoading}
+          />
         )}
         {activeTab === 2 && (
           <Settings
@@ -387,10 +373,11 @@ function App() {
             onStop={stopBot}
           />
         )}
-        {activeTab === 3 && <BotLogs logs={botLogs} loadingLogs={loadingLogs} />}
+        {activeTab === 3 && (
+          <BotLogs logs={botLogs} loadingLogs={loadingLogs} />
+        )}
       </Box>
     </Box>
->>>>>>> fb927c21 (Major upgrades since last push)
   );
 }
 

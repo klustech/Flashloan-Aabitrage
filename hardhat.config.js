@@ -1,46 +1,21 @@
-// hardhat.config.js
-
-require("@nomiclabs/hardhat-ethers");  // Interact with ethers.js
-require("@nomiclabs/hardhat-waffle"); // Waffle testing library
+require("@nomiclabs/hardhat-waffle");
+require("@nomiclabs/hardhat-ethers");
+require("@nomiclabs/hardhat-etherscan");
+require("solidity-coverage");
 require("dotenv").config();
 
-const {
-  RPC_URL_MAINNET,
-  SEPOLIA_URL,
-  PRIVATE_KEY,
-} = process.env;
-
-// Validate essential environment variables
-if (!RPC_URL_MAINNET || !SEPOLIA_URL || !PRIVATE_KEY) {
-  throw new Error("Please ensure RPC_URL_MAINNET, SEPOLIA_URL, and PRIVATE_KEY are set in your .env file.");
-}
+const { PRIVATE_KEY, SEPOLIA_RPC_URL, MAINNET_RPC_URL, ETHERSCAN_API_KEY } =
+  process.env;
 
 module.exports = {
-<<<<<<< HEAD
-  solidity: "0.8.20", // Specify the Solidity compiler version
-=======
   defaultNetwork: "hardhat",
->>>>>>> fb927c21 (Major upgrades since last push)
   networks: {
     hardhat: {
+      // fork _once_ at startup
       forking: {
-        url: RPC_URL_MAINNET, // Use the HTTP RPC URL for forking
+        url: MAINNET_RPC_URL,
+        blockNumber: 17_000_000,
       },
-<<<<<<< HEAD
-      chainId: 31337, // Updated Chain ID for Hardhat local network
-    },
-    sepolia: {
-      url: SEPOLIA_URL, // Sepolia RPC URL
-      accounts: [PRIVATE_KEY], // Use the private key directly without adding '0x'
-      chainId: 11155111, // Sepolia Chain ID
-    },
-    mainnet: {
-      url: RPC_URL_MAINNET, // Mainnet RPC URL
-      accounts: [PRIVATE_KEY], // Use the private key directly without adding '0x'
-      chainId: 1, // Ethereum mainnet Chain ID
-    },
-  },
-=======
       chainId: 1337,
     },
     localhost: {
@@ -58,13 +33,16 @@ module.exports = {
     },
   },
   solidity: {
-    version: "0.8.17",
-    settings: {
-      optimizer: {
-        enabled: true,
-        runs: 200,
+    compilers: [
+      {
+        version: "0.8.20",
+        settings: { optimizer: { enabled: true, runs: 200 } },
       },
-    },
+      {
+        version: "0.8.17",
+        settings: { optimizer: { enabled: true, runs: 200 } },
+      },
+    ],
   },
   etherscan: {
     apiKey: ETHERSCAN_API_KEY || "",
@@ -78,5 +56,7 @@ module.exports = {
   mocha: {
     timeout: 20000,
   },
->>>>>>> fb927c21 (Major upgrades since last push)
+  coverage: {
+    skipFiles: ["mocks/", "interfaces/"],
+  },
 };

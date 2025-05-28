@@ -1,0 +1,47 @@
+# .github/workflows/ci.yml
+
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [18, 20]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Compile contracts
+        run: yarn hardhat compile --force
+
+      - name: Run Hardhat tests
+        run: yarn hardhat test --network hardhat
+
+      - name: Run solidity-coverage
+        run: yarn coverage
+
+      - name: Run Foundry fuzz & invariants
+        uses: foundry-rs/foundry-toolchain@v1
+      - name: Foundry test
+        run: forge test -vvv
+
+      - name: Static analysis with Slither
+        run: |
+          chmod +x scripts/slither.sh
+          ./scripts/slither.sh

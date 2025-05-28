@@ -1,79 +1,50 @@
+require("dotenv").config();
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
-/**
- * Single comprehensive test for ArbitrageFlashloan on a mainnet fork.
- * This file deploys the contract with exactly three constructor arguments
- * and passes explicit gas fee overrides to ensure that maxFeePerGas and
- * maxPriorityFeePerGas are high enough for the current base fee.
- *
- * Ensure you run:
- *   npx hardhat node --fork https://mainnet.infura.io/v3/YOUR_INFURA_KEY --fork-block-number 17000000
- * in one terminal, then:
- *   npx hardhat test --network localhost
- * in another.
- */
 describe("ArbitrageFlashloan (Mainnet Fork)", function () {
-  let deployer;
-  let arbitrage;
+  this.timeout(60000);
 
-  // Mainnet addresses for the required contracts:
-  const AAVE_PROVIDER_MAINNET = "0xb53c1a33016b2dc2ff3653530bff1848a515c8c5"; // Aave LendingPoolAddressProvider V2
-  const UNISWAP_ROUTER_MAINNET = "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"; // Uniswap V2 Router02
-  const SUSHISWAP_ROUTER_MAINNET = "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F"; // SushiSwap Router
+  let deployer, arbitrage;
 
-  before(async function () {
+  const providerAddr = process.env.AAVE_LENDING_POOL_ADDRESS_PROVIDER;
+  const uniRouter = process.env.UNISWAP_ROUTER_ADDRESS;
+  const sushiRouter = process.env.SUSHISWAP_ROUTER_ADDRESS;
+
+  before(async () => {
+    if (!providerAddr || !uniRouter || !sushiRouter) {
+      throw new Error(
+        "Set AAVE_LENDING_POOL_ADDRESS_PROVIDER, UNISWAP_ROUTER_ADDRESS, SUSHISWAP_ROUTER_ADDRESS in .env"
+      );
+    }
     [deployer] = await ethers.getSigners();
-
-    const ArbitrageFlashloan = await ethers.getContractFactory("ArbitrageFlashloan");
-
-    // Deploy with exactly three constructor arguments.
-    // Also, include an explicit gas override object with sufficiently high maxFeePerGas.
-    arbitrage = await ArbitrageFlashloan.deploy(
-      AAVE_PROVIDER_MAINNET,
-      UNISWAP_ROUTER_MAINNET,
-      SUSHISWAP_ROUTER_MAINNET,
-      {
-        maxFeePerGas: ethers.utils.parseUnits("100", "gwei"),
-        maxPriorityFeePerGas: ethers.utils.parseUnits("2", "gwei"),
-      }
-    );
+    const Arb = await ethers.getContractFactory("ArbitrageFlashloan");
+    arbitrage = await Arb.deploy(providerAddr, uniRouter, sushiRouter);
     await arbitrage.deployed();
   });
 
-  it("Should assign the contract deployer as the owner", async function () {
+  it("assigns deployer as owner", async () => {
     expect(await arbitrage.owner()).to.equal(deployer.address);
   });
 
-  it("Should allow calling initiateFlashLoan (even if it reverts due to swap logic)", async function () {
+  it("allows initiateFlashLoan to be called (even if it reverts later)", async () => {
     const SwapData = {
-      uniswapPath: [
-        "0x6B175474E89094C44Da98b954EedeAC495271d0F", // DAI
-        "0xC02aaa39b223FE8D0A0e5C4F27eAD9083C756Cc2",  // WETH
-      ],
-      sushiPath: [
-        "0xC02aaa39b223FE8D0A0e5C4F27eAD9083C756Cc2",  // WETH
-        "0x6B175474E89094C44Da98b954EedeAC495271d0F", // DAI
-      ],
-      thirdPath: [
-        "0xC02aaa39b223FE8D0A0e5C4F27eAD9083C756Cc2",  // WETH
-        "0x6B175474E89094C44Da98b954EedeAC495271d0F", // DAI
-      ],
+      uniPath: [process.env.TOKENS_DAI, process.env.TOKENS_WETH],
+      sushiPath: [process.env.TOKENS_WETH, process.env.TOKENS_DAI],
+      thirdPath: [process.env.TOKENS_WETH, process.env.TOKENS_DAI],
       minOutUni: 0,
       minOutSushi: 0,
       minOutThird: 0,
       minProfit: 0,
     };
 
-    // Here, we call initiateFlashLoan.
-    // Even if the swap logic reverts later due to swap issues,
-    // our goal is to check that deployment succeeded without constructor errors.
+    // simulate with callStatic so we don't need a working flashLoan pool
     await expect(
-      arbitrage.initiateFlashLoan(
-        "0x6B175474E89094C44Da98b954EedeAC495271d0F", // DAI token
-        ethers.utils.parseEther("100"), // borrow 100 DAI
+      arbitrage.callStatic.initiateFlashLoan(
+        SwapData.uniPath[0],
+        ethers.utils.parseEther("1"),
         SwapData
       )
-    ).to.be.reverted; // It may revert due to swap conditions, but that is not our focus.
+    ).to.be.reverted;
   });
 });

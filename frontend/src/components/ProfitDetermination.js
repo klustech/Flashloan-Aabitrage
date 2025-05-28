@@ -1,11 +1,12 @@
 // src/components/ProfitDetermination.js
-import React, { useState, useEffect } from 'react';
-import axios from '../config/axiosConfig';
-import { toast } from 'react-toastify';
-import './ProfitDetermination.css';
+import React, { useState, useEffect } from "react";
+import axios from "../config/axiosConfig";
+import { toast } from "react-toastify";
+import "./ProfitDetermination.css";
 
 const ProfitDetermination = () => {
-  const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000/api';
+  const API_BASE_URL =
+    process.env.REACT_APP_API_BASE_URL || "http://localhost:5000/api";
   const [profitData, setProfitData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -43,26 +44,38 @@ const ProfitDetermination = () => {
         <div className="profit-grid">
           <div className="profit-item">
             <span className="profit-label">Simulated Output (DAI):</span>
-            <span className="profit-value">{profitData.simulatedOutput.toFixed(6)}</span>
+            <span className="profit-value">
+              {profitData.simulatedOutput.toFixed(6)}
+            </span>
           </div>
           <div className="profit-item">
             <span className="profit-label">Estimated Gas Cost (DAI):</span>
-            <span className="profit-value">{profitData.gasCostDAI.toFixed(6)}</span>
+            <span className="profit-value">
+              {profitData.gasCostDAI.toFixed(6)}
+            </span>
           </div>
           <div className="profit-item">
-            <span className="profit-label">Total Cost (with Premium) (DAI):</span>
-            <span className="profit-value">{profitData.totalCostDAI.toFixed(6)}</span>
+            <span className="profit-label">
+              Total Cost (with Premium) (DAI):
+            </span>
+            <span className="profit-value">
+              {profitData.totalCostDAI.toFixed(6)}
+            </span>
           </div>
           <div className="profit-item">
             <span className="profit-label">Net Profit (DAI):</span>
-            <span className={`profit-value ${profitData.profit > 0 ? 'profit' : 'loss'}`}>
+            <span
+              className={`profit-value ${
+                profitData.profit > 0 ? "profit" : "loss"
+              }`}
+            >
               {profitData.profit.toFixed(6)}
             </span>
           </div>
           <div className="profit-item">
             <span className="profit-label">Arbitrage Opportunity:</span>
             <span className="profit-value">
-              {profitData.profit > 0 ? 'Yes' : 'No'}
+              {profitData.profit > 0 ? "Yes" : "No"}
             </span>
           </div>
         </div>
