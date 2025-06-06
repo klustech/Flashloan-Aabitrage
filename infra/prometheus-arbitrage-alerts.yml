@@ -1,0 +1,20 @@
+# infra/prometheus-arbitrage-alerts.yml
+groups:
+  - name: arbitrage.rules
+    rules:
+      - alert: ArbitrageScriptError
+        expr: increase(arbitrage_script_errors_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Arbitrage script error occurred"
+          description: "The arbitrage bot has encountered an error in the last 5 minutes."
+      - alert: ArbitrageProfitNegative
+        expr: avg_over_time(arbitrage_profit[5m]) < 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Negative arbitrage profit"
+          description: "The average arbitrage profit is negative over the last 5 minutes."

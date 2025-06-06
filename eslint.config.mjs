@@ -1,17 +1,86 @@
+// eslint.config.mjs
 import js from "@eslint/js";
 import globals from "globals";
 import pluginReact from "eslint-plugin-react";
 import { defineConfig } from "eslint/config";
 
 export default defineConfig([
+  //
+  // ── 1) Top‐level ignores (replaces .eslintignore) ──────────────────────────────
+  //
+  {
+    ignores: [
+      "node_modules/**",
+      "frontend/build/**",
+      "cache/**",
+      "**/dist/**",
+      "artifacts/**",
+    ],
+  },
+
+  //
+  // ── 2) Backend (Node) files: enable CommonJS, Node globals ─────────────────────
+  //
+  {
+    files: [
+      "server/**",
+      "scripts/**",
+      "ml/**",
+      "utils/**",
+      "hardhat.config.js",
+      "test/**/*.{js,mjs,cjs}",
+    ],
+    languageOptions: {
+      globals: {
+        ...globals.node, // allow `require`, `module`, `process`, etc.
+      },
+      parserOptions: { ecmaVersion: "latest" },
+    },
+  },
+
+  //
+  // ── 3) Frontend & React files under /frontend ─────────────────────────────────
+  //
+  {
+    files: ["frontend/**/*.{js,jsx,mjs,cjs}"],
+    languageOptions: {
+      globals: {
+        ...globals.browser, // `window`, `document`, etc.
+        ...globals.node, // allow `process.env` in your React code
+      },
+      parserOptions: {
+        ecmaVersion: "latest",
+        sourceType: "module",
+        ecmaFeatures: { jsx: true },
+      },
+    },
+    settings: {
+      react: { version: "detect" },
+    },
+    plugins: { js: js, react: pluginReact },
+    extends: [
+      "js/recommended", // ESLint’s JS rules
+      pluginReact.configs.flat.recommended, // React’s flat rules
+    ],
+    rules: {
+      "react/prop-types": "off",
+      "no-undef": [
+        "error",
+        {
+          typeof: true, // allow checks like `typeof process`
+        },
+      ],
+    },
+  },
+
+  //
+  // ── 4) “All JS” rules for every file type ─────────────────────────────────────
+  //
   {
     files: ["**/*.{js,mjs,cjs,jsx}"],
-    plugins: { js },
-    extends: ["js/recommended"],
+    rules: {
+      "no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+      "no-console": "off",
+    },
   },
-  {
-    files: ["**/*.{js,mjs,cjs,jsx}"],
-    languageOptions: { globals: globals.browser },
-  },
-  pluginReact.configs.flat.recommended,
 ]);

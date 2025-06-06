@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-scorer
+  namespace: flashloan-arb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ml-scorer
+  template:
+    metadata:
+      labels:
+        app: ml-scorer
+    spec:
+      containers:
+        - name: ml-scorer
+          image: your-docker-repo/flashloan-ml:latest
+          ports:
+            - containerPort: 3002
+          env:
+            - name: REDIS_HOST
+              value: "redis"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: arb-secrets
+                  key: REDIS_PASSWORD
+      imagePullSecrets:
+        - name: regcred
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ml-scorer-svc
+  namespace: flashloan-arb
+spec:
+  selector:
+    app: ml-scorer
+  ports:
+    - port: 3002
+      targetPort: 3002
+  type: ClusterIP

@@ -1,13 +1,13 @@
-# docker-compose.yml
-
 version: "3.9"
 services:
+  # Ethereum node (Anvil forking mainnet)
   hardhat:
     image: ghcr.io/foundry-rs/foundry:latest
     command: ["anvil", "--fork-url", "${MAINNET_RPC_URL}", "--port", "8545"]
     ports:
-      - "8555:8545"
+      - "8545:8545"
 
+  # Express API / bot server
   api:
     build:
       context: .
@@ -20,17 +20,19 @@ services:
       - TOKENS_DAI=${TOKENS_DAI}
       - TOKENS_WETH=${TOKENS_WETH}
       - TOKENS_USDC=${TOKENS_USDC}
-      - TOKENS_USDT=${TOKENS_USDT}
-      - TOKENS_UNI=${TOKENS_UNI}
+      - UNISWAP_ROUTER_ADDRESS=${UNISWAP_ROUTER_ADDRESS}
+      - SUSHISWAP_ROUTER_ADDRESS=${SUSHISWAP_ROUTER_ADDRESS}
       - SLIPPAGE_BIPS=${SLIPPAGE_BIPS}
       - GAS_PRICE_CEILING=${GAS_PRICE_CEILING}
       - FLASHBOTS_RELAY_URL=${FLASHBOTS_RELAY_URL}
       - MIN_PROFIT_DAI=${MIN_PROFIT_DAI}
+      - PORT=3001
     ports:
       - "3001:3001"
     depends_on:
       - hardhat
 
+  # Prometheus for metrics
   prometheus:
     image: prom/prometheus:latest
     volumes:
@@ -40,6 +42,7 @@ services:
     depends_on:
       - api
 
+  # Grafana for dashboards
   grafana:
     image: grafana/grafana:latest
     ports:
