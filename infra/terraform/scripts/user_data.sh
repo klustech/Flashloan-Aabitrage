@@ -7,7 +7,7 @@ apt-get install -y nodejs
 npm install -g pm2
 
 # Clone repo & start services
-git clone https://github.com/youruser/flashloan-arb.git /home/ubuntu/flashloan-arb
+git clone https://github.com/flashloan-arb/flashloan-arbitrage.git /home/ubuntu/flashloan-arb
 cd /home/ubuntu/flashloan-arb
 npm ci
 docker-compose up -d

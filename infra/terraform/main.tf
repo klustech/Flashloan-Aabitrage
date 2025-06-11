@@ -3,7 +3,8 @@ provider "aws" {
 }
 
 resource "aws_instance" "arb_bot" {
-  ami           = "ami-0123456789abcdef0" # Ubuntu 20.04 LTS
+  # Ubuntu 20.04 LTS AMI for us-east-1 (update as needed)
+  ami           = "ami-09e67e426f25ce0d7"
   instance_type = "t3.medium"
   user_data     = file("scripts/user_data.sh" )
   tags = {

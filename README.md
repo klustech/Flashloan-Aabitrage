@@ -11,3 +11,19 @@ loans and multiple DEX integrations.
 npm ci
 ./scripts/install-deps.sh
 ```
+
+2. Start the services:
+
+```bash
+npm run bot &
+npm run api
+```
+
+## Testing
+
+Running the Hardhat test suite downloads compiler binaries. If you are behind a
+proxy, ensure access to `binaries.soliditylang.org`.
+
+```bash
+npm test
+```

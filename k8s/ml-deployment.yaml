@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: ml-scorer
-          image: your-docker-repo/flashloan-ml:latest
+          image: ghcr.io/flashloan-arb/ml-scorer:latest
           ports:
             - containerPort: 3002
           env:

@@ -9,7 +9,10 @@ const ProtectedRoute = ({ children, roles = [] }) => {
   if (!isAuthenticated) return <Navigate to="/login" replace />;
 
   if (roles.length > 0) {
-    const userRoles = user?.["https://example.com/roles"] || [];
+    const claimNS =
+      process.env.REACT_APP_AUTH0_CLAIM_NAMESPACE ||
+      "https://flashloan-arb.com/roles";
+    const userRoles = user?.[claimNS] || [];
     const hasRole = roles.some((role) => userRoles.includes(role));
     if (!hasRole) return <Navigate to="/unauthorized" replace />;
   }
