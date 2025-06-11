@@ -1,37 +1,33 @@
 // server/utils/redisClient.js
 
 /**
- * A stubbed Redis client that does nothing.
- * This prevents "Cannot find module 'ioredis'" errors.
- *
- * Any code that does:
- *   const redis = require("../utils/redisClient");
- *   await redis.get(key);
- *   await redis.set(key, value, "EX", ttl);
- *   await redis.hmset(key, ...);
- *   const data = await redis.hgetall(key);
- *
- * will still compile, but simply be a no-op or return null/empty object.
+ * Thin wrapper around ioredis providing the minimal Redis operations used in
+ * the project. If REDIS_URL is unset, the client connects to localhost by
+ * default.
  */
 
+const Redis = require("ioredis");
+
+const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
+const client = new Redis(REDIS_URL);
+
 async function get(key) {
-  // No-op: always return null
-  return null;
+  return client.get(key);
 }
 
 async function set(key, value, option, ttl) {
-  // No-op
-  return null;
+  if (option && ttl) {
+    return client.set(key, value, option, ttl);
+  }
+  return client.set(key, value);
 }
 
-async function hmset(key, field1, value1, field2, value2, field3, value3) {
-  // No-op
-  return null;
+async function hmset(key, ...args) {
+  return client.hmset(key, ...args);
 }
 
 async function hgetall(key) {
-  // Always return an empty object
-  return {};
+  return client.hgetall(key);
 }
 
 module.exports = {

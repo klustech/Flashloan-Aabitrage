@@ -45,19 +45,13 @@ const CHAIN_CONFIGS = {
   },
   arbitrum: {
     uniswapV2: {
-      subgraphId: "QmUNIV2ARB", // placeholder ID
-      gatewayUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/QmUNIV2ARB`,
-    },
-    sushiV2: {
-      subgraphId: "QmSUSHIV2ARB", // placeholder ID
-      gatewayUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/QmSUSHIV2ARB`,
       subgraphUrl: THEGRAPH_API_KEY
-        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/QmUNIV2ARB`
+        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/ianlapham/uniswap-arbitrum-one`
         : "https://api.thegraph.com/subgraphs/name/ianlapham/uniswap-arbitrum-one",
     },
     sushiV2: {
       subgraphUrl: THEGRAPH_API_KEY
-        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/QmSUSHIV2ARB`
+        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/sushiswap/arbitrum-exchange`
         : "https://api.thegraph.com/subgraphs/name/sushiswap/arbitrum-exchange",
     },
     uniswapV3: {
@@ -75,19 +69,13 @@ const CHAIN_CONFIGS = {
   },
   optimism: {
     uniswapV2: {
-      subgraphId: "QmUNIV2OPT", // placeholder ID
-      gatewayUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/QmUNIV2OPT`,
-    },
-    sushiV2: {
-      subgraphId: "QmSUSHIV2OPT", // placeholder ID
-      gatewayUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/QmSUSHIV2OPT`,
       subgraphUrl: THEGRAPH_API_KEY
-        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/QmUNIV2OPT`
+        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/ianlapham/optimism-post-regenesis`
         : "https://api.thegraph.com/subgraphs/name/ianlapham/optimism-post-regenesis",
     },
     sushiV2: {
       subgraphUrl: THEGRAPH_API_KEY
-        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/QmSUSHIV2OPT`
+        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/sushiswap/optimism-exchange`
         : "https://api.thegraph.com/subgraphs/name/sushiswap/optimism-exchange",
     },
     uniswapV3: {
