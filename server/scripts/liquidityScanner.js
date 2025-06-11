@@ -1,37 +1,6 @@
-// server/scripts/liquidityScanner.js
-
-/**
- * Query various DEX subgraphs (Uniswap V2, SushiSwap V2, Uniswap V3, Balancer V2, Curve V2)
- * to assemble a unified list of top‐N liquidity pools per chain.
- *
- * Supports:
- *  - Uniswap V2 & SushiSwap V2 (via The Graph Gateway; requires THEGRAPH_API_KEY)
- *  - Uniswap V3 (via Uniswap V3 subgraph)
- *  - Balancer V2 (via Balancer V2 subgraph)
- *  - Curve V2 (via Curve subgraph)
- *
- * Environment variables:
- *  - THEGRAPH_API_KEY           (for V2 gateway URLs)
- *  - DYNAMIC_ROUTE_TOPN         (default number of pools to fetch per DEX)
- *  - DYNAMIC_ROUTE_MIN_LIQUIDITY_USD (minimum reserveUSD filter for V2)
- *  - INCLUDE_V3=true/false
- *  - INCLUDE_BALANCER=true/false
- *  - INCLUDE_CURVE=true/false
- *
- * Chain‐specific subgraphs must be configured in `CHAIN_CONFIGS`.
- * The function `getTopLiquidityPairs(chain)` returns an array of pool objects:
- *   {
- *     pairAddress, token0, token1, reserve0, reserve1, reserveUSD, dex, [fee], [poolAddress], [tokens]
- *   }
- *
- * For V3 entries: { poolAddress, token0, token1, fee, liquidity, dex: "UniswapV3" }
- * For Balancer entries: { poolAddress, tokens: [...], dex: "BalancerV2", totalLiquidityUSD }
- * For Curve entries: { poolAddress, tokens: [...], dex: "CurveV2", totalLiquidityUSD }
- */
-
-const axios = require("axios");
-const redis = require("../utils/redisClient");
-require("dotenv").config();
+require("dotenv").config({
+  path: require("path").resolve(__dirname, "../../.env"),
+});
 
 // ────────────────────────────────────────────────────────────────────────────────
 // DEFAULTS (override via .env)
@@ -43,11 +12,9 @@ const DEFAULT_MIN_LIQUIDITY_USD =
 // The Graph Gateway API key (for Uniswap V2 & SushiSwap V2)
 const THEGRAPH_API_KEY = process.env.THEGRAPH_API_KEY;
 if (!THEGRAPH_API_KEY) {
-  console.error(
-    "Error: THEGRAPH_API_KEY is not set. " +
-      "Please add THEGRAPH_API_KEY=<your_key> to your .env."
+  console.warn(
+    "Warning: THEGRAPH_API_KEY is not set. Using public subgraph URLs."
   );
-  // process.exit(1);
 }
 
 // ────────────────────────────────────────────────────────────────────────────────
@@ -56,12 +23,14 @@ if (!THEGRAPH_API_KEY) {
 const CHAIN_CONFIGS = {
   ethereum: {
     uniswapV2: {
-      subgraphId: "EYCKATKGBKLWvSfwvBjzfCBmGwYNdVkduYXVivCsLRFu", // Uniswap V2 Mainnet
-      gatewayUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/EYCKATKGBKLWvSfwvBjzfCBmGwYNdVkduYXVivCsLRFu`,
+      subgraphUrl: THEGRAPH_API_KEY
+        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/EYCKATKGBKLWvSfwvBjzfCBmGwYNdVkduYXVivCsLRFu`
+        : "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v2",
     },
     sushiV2: {
-      subgraphId: "A4JrrMwrEXsYNAiYw7rWwbHhQZdj6YZg1uVy5wa6g821", // SushiSwap V2 Mainnet
-      gatewayUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/A4JrrMwrEXsYNAiYw7rWwbHhQZdj6YZg1uVy5wa6g821`,
+      subgraphUrl: THEGRAPH_API_KEY
+        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/A4JrrMwrEXsYNAiYw7rWwbHhQZdj6YZg1uVy5wa6g821`
+        : "https://api.thegraph.com/subgraphs/name/sushiswap/exchange",
     },
     uniswapV3: {
       subgraphUrl: "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3",
@@ -74,17 +43,67 @@ const CHAIN_CONFIGS = {
       subgraphUrl: "https://api.thegraph.com/subgraphs/name/curvefi/curve",
     },
   },
-  // Add other chains (arbitrum, optimism) here if needed:
-  // arbitrum: { ... }, optimism: { ... }
+  arbitrum: {
+    uniswapV2: {
+      subgraphId: "QmUNIV2ARB", // placeholder ID
+      gatewayUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/QmUNIV2ARB`,
+    },
+    sushiV2: {
+      subgraphId: "QmSUSHIV2ARB", // placeholder ID
+      gatewayUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/QmSUSHIV2ARB`,
+      subgraphUrl: THEGRAPH_API_KEY
+        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/QmUNIV2ARB`
+        : "https://api.thegraph.com/subgraphs/name/ianlapham/uniswap-arbitrum-one",
+    },
+    sushiV2: {
+      subgraphUrl: THEGRAPH_API_KEY
+        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/QmSUSHIV2ARB`
+        : "https://api.thegraph.com/subgraphs/name/sushiswap/arbitrum-exchange",
+    },
+    uniswapV3: {
+      subgraphUrl:
+        "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3-arbitrum",
+    },
+    balancerV2: {
+      subgraphUrl:
+        "https://api.thegraph.com/subgraphs/name/balancer-labs/balancer-arbitrum-v2",
+    },
+    curveV2: {
+      subgraphUrl:
+        "https://api.thegraph.com/subgraphs/name/curvefi/curve-arbitrum",
+    },
+  },
+  optimism: {
+    uniswapV2: {
+      subgraphId: "QmUNIV2OPT", // placeholder ID
+      gatewayUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/QmUNIV2OPT`,
+    },
+    sushiV2: {
+      subgraphId: "QmSUSHIV2OPT", // placeholder ID
+      gatewayUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/QmSUSHIV2OPT`,
+      subgraphUrl: THEGRAPH_API_KEY
+        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/QmUNIV2OPT`
+        : "https://api.thegraph.com/subgraphs/name/ianlapham/optimism-post-regenesis",
+    },
+    sushiV2: {
+      subgraphUrl: THEGRAPH_API_KEY
+        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/QmSUSHIV2OPT`
+        : "https://api.thegraph.com/subgraphs/name/sushiswap/optimism-exchange",
+    },
+    uniswapV3: {
+      subgraphUrl:
+        "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3-optimism",
+    },
+    balancerV2: {
+      subgraphUrl:
+        "https://api.thegraph.com/subgraphs/name/balancer-labs/balancer-optimism-v2",
+    },
+    curveV2: {
+      subgraphUrl:
+        "https://api.thegraph.com/subgraphs/name/curvefi/curve-optimism",
+    },
+  },
 };
-
-// ────────────────────────────────────────────────────────────────────────────────
-// HELPER: Build Gateway URL for a given subgraph ID (for V2 gateways).
-// ────────────────────────────────────────────────────────────────────────────────
-function gatewayUrlFor(subgraphId) {
-  return `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${subgraphId}`;
-}
-
 // ────────────────────────────────────────────────────────────────────────────────
 // UTILITY: Perform a GraphQL POST to the given URL with retries.
 // ────────────────────────────────────────────────────────────────────────────────
@@ -117,7 +136,7 @@ async function fetchUniswapV2TopPairs(
   topN = DEFAULT_TOP_N,
   minLiquidityUSD = DEFAULT_MIN_LIQUIDITY_USD
 ) {
-  const { gatewayUrl } = chainConfig.uniswapV2;
+  const { subgraphUrl } = chainConfig.uniswapV2;
   const query = `
     {
       pairs(
@@ -135,7 +154,7 @@ async function fetchUniswapV2TopPairs(
       }
     }
   `;
-  const data = await graphqlRequest(gatewayUrl, query);
+  const data = await graphqlRequest(subgraphUrl, query);
   if (!data || !data.data || !Array.isArray(data.data.pairs)) {
     return [];
   }
@@ -158,7 +177,7 @@ async function fetchSushiV2TopPairs(
   topN = DEFAULT_TOP_N,
   minLiquidityUSD = DEFAULT_MIN_LIQUIDITY_USD
 ) {
-  const { gatewayUrl } = chainConfig.sushiV2;
+  const { subgraphUrl } = chainConfig.sushiV2;
   const query = `
     {
       pairs(
@@ -176,7 +195,7 @@ async function fetchSushiV2TopPairs(
       }
     }
   `;
-  const data = await graphqlRequest(gatewayUrl, query);
+  const data = await graphqlRequest(subgraphUrl, query);
   if (!data || !data.data || !Array.isArray(data.data.pairs)) {
     return [];
   }
@@ -283,18 +302,21 @@ async function fetchCurveV2TopPools(chainConfig, topN = DEFAULT_TOP_N) {
 // ────────────────────────────────────────────────────────────────────────────────
 // CACHE KEY for adjacency graph in Redis
 // ────────────────────────────────────────────────────────────────────────────────
-const CACHE_KEY = "adjacency_graph";
+const CACHE_KEY_PREFIX = "adjacency_graph";
 
 // ────────────────────────────────────────────────────────────────────────────────
 // Build adjacency graph once per interval and cache in Redis for 300s
 // ────────────────────────────────────────────────────────────────────────────────
-async function buildAdjacencyGraph() {
-  const cached = await redis.get(CACHE_KEY);
+async function buildAdjacencyGraph(chain = "ethereum") {
+  const cacheKey = `${CACHE_KEY_PREFIX}_${chain}`;
+  const cached = await redis.get(cacheKey);
   if (cached) {
     return JSON.parse(cached);
   }
-
-  const chainConfig = CHAIN_CONFIGS["ethereum"];
+  const chainConfig = CHAIN_CONFIGS[chain];
+  if (!chainConfig) {
+    throw new Error(`Unsupported chain: ${chain}`);
+  }
   // Fetch V2 pairs
   const [uniV2, sushiV2] = await Promise.all([
     fetchUniswapV2TopPairs(
@@ -380,7 +402,7 @@ async function buildAdjacencyGraph() {
   });
 
   // Cache for 300 seconds
-  await redis.set(CACHE_KEY, JSON.stringify(adjacencyGraph), "EX", 300);
+  await redis.set(cacheKey, JSON.stringify(adjacencyGraph), "EX", 300);
   return adjacencyGraph;
 }
 
@@ -395,7 +417,7 @@ async function getTopLiquidityPairs(
   chain = "ethereum",
   { topN = DEFAULT_TOP_N, minLiquidityUSD = DEFAULT_MIN_LIQUIDITY_USD } = {}
 ) {
-  const adjacencyGraph = await buildAdjacencyGraph();
+  const adjacencyGraph = await buildAdjacencyGraph(chain);
   const entries = [];
 
   // Flatten adjacency entries into array of unique pools

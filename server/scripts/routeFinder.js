@@ -1,6 +1,7 @@
-// server/scripts/routeFinder.js
-
-require("dotenv").config();
+require("dotenv").config({
+  path: require("path").resolve(__dirname, "../../.env"),
+});
+const redis = require("../utils/redisClient");
 const { getTopLiquidityPairs } = require("./liquidityScanner");
 const { ethers } = require("ethers");
 const { Graph } = require("graphlib");
@@ -137,10 +138,13 @@ function convertCycleToRouteDef(cycleTokens, allPools) {
 // ------------------------------------------------------------------------------------
 // Step 1: Fetch top-N pools via getTopLiquidityPairs(), build adjacency graph
 // ------------------------------------------------------------------------------------
-async function getAllPools(topN, minLiquidityUSD) {
+async function getAllPools({ topN, minLiquidityUSD, chain }) {
   // getTopLiquidityPairs returns an array of pool objects:
   //   { token0, token1, pairAddress, dex, fee, tokens?, reserveUSD, feeBps? }
-  const flatPools = await getTopLiquidityPairs({ topN, minLiquidityUSD });
+  const flatPools = await getTopLiquidityPairs(chain, {
+    topN,
+    minLiquidityUSD,
+  });
   const adjacencyGraph = makeAdjacencyGraphFromPools(flatPools);
   return { adjacencyGraph, flatPools };
 }
@@ -359,15 +363,30 @@ function enumerate3HopRoutes(allPools) {
 // ------------------------------------------------------------------------------------
 // Main Exported Function: getAllRoutes(topN)
 // ------------------------------------------------------------------------------------
-async function getAllRoutes(topN) {
-  const minLiq = process.env.MIN_LIQUIDITY || "100000";
+async function getAllRoutes({
+  startToken,
+  topN,
+  minLiquidityUSD,
+  maxHops,
+  allowLongCycles,
+  chain,
+}) {
+  const minLiq = minLiquidityUSD || process.env.MIN_LIQUIDITY || "100000";
 
   // 1. Fetch pools & adjacency map
-  const { adjacencyGraph, flatPools } = await getAllPools(topN, minLiq);
+  const { adjacencyGraph, flatPools } = await getAllPools({
+    topN,
+    minLiquidityUSD: minLiq,
+    chain,
+  });
 
   let routeDefs = [];
 
-  if (process.env.ALLOW_LNG_CYCLES === "true") {
+  const allowCycles =
+    typeof allowLongCycles === "boolean"
+      ? allowLongCycles
+      : process.env.ALLOW_LNG_CYCLES === "true";
+  if (allowCycles) {
     // 2a. Negative‐cycle detection
     const cycles = await findNegativeCycles(adjacencyGraph, flatPools);
     let idx = 1;
@@ -381,8 +400,8 @@ async function getAllRoutes(topN) {
     }
   } else {
     // 2b. ≤3-Hop enumeration
-    const threeHopRoutes = enumerate3HopRoutes(flatPools);
-    routeDefs = threeHopRoutes;
+    const routes = enumerate3HopRoutes(flatPools);
+    routeDefs = routes;
   }
 
   return routeDefs;
