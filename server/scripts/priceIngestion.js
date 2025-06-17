@@ -13,7 +13,14 @@
  */
 
 const { ethers } = require("ethers");
-const { Multicall } = require("@makerdao/multicall");
+
+// Simple Multicall contract interface. We only need the aggregate function to
+// batch fetch reserves for a list of pools. Using the direct contract interface
+// avoids relying on the deprecated `@makerdao/multicall` constructor which is no
+// longer exported by the library.
+const MULTICALL_ABI = [
+  "function aggregate(tuple(address target, bytes callData)[] calls) view returns (uint256 blockNumber, bytes[] returnData)",
+];
 
 const reserveCache = new Map();
 const subscriptions = new Map();
@@ -27,10 +34,12 @@ const provider = WS_URL
 const MULTICALL_ADDRESS =
   process.env.MULTICALL_ADDRESS || "0x5BA1e12693Dc8F9c48aAD8770482f4739bEeD696"; // mainnet v2
 
-const multicall = new Multicall({
-  ethersProvider: provider,
-  multicallCustomContractAddress: MULTICALL_ADDRESS,
-});
+// Ethers.js contract instance for the Multicall contract
+const multicall = new ethers.Contract(
+  MULTICALL_ADDRESS,
+  MULTICALL_ABI,
+  provider
+);
 
 const PAIR_ABI = [
   "event Sync(uint112 reserve0, uint112 reserve1)",
@@ -79,12 +88,7 @@ async function fetchMulticallReservesForRoute(routeOrPoolInfo) {
   const pairInterface = new ethers.utils.Interface(PAIR_ABI);
   const callData = pairInterface.encodeFunctionData("getReserves");
   try {
-    const { returnData } = await multicall.aggregate([
-      {
-        target: poolAddress,
-        callData,
-      },
-    ]);
+    const [, returnData] = await multicall.aggregate([[poolAddress, callData]]);
     const [r0, r1] = pairInterface.decodeFunctionResult(
       "getReserves",
       returnData[0]

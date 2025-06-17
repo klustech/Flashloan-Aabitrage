@@ -1,6 +1,7 @@
 require("dotenv").config({
   path: require("path").resolve(__dirname, "../../.env"),
 });
+const redis = require("../utils/redisClient");
 
 // ────────────────────────────────────────────────────────────────────────────────
 // DEFAULTS (override via .env)

@@ -464,9 +464,12 @@ function parallelSimulate(routes, amountIn, slippageBips) {
     const results = [];
     let completed = 0;
     routes.forEach((route) => {
-      const worker = new Worker(path.join(__dirname, "workerSimulator.js"), {
-        workerData: { route, amountIn: amountIn.toString(), slippageBips },
-      });
+      const worker = new Worker(
+        path.join(__dirname, "scripts", "workerSimulator.js"),
+        {
+          workerData: { route, amountIn: amountIn.toString(), slippageBips },
+        }
+      );
       worker.on("message", (msg) => {
         results.push({
           routeId: msg.routeId,

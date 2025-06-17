@@ -4,14 +4,15 @@
  * and simulate route-based arbitrage outcomes.
  *
  * You must have "historicalData.json" with snapshots of blockNumber and token prices.
- * Replays data in [startBlock, endBlock], uses the existing simulateRoute from botLogic.js.
+ * Replays data in [startBlock, endBlock], using the simulateRoute helper from
+ * utils/profitDetermination.js.
  */
 
 const { ethers } = require("ethers");
 const fs = require("fs");
 const path = require("path");
 const logger = require("winston");
-const { simulateRoute } = require("../botLogic");
+const { simulateRoute } = require("../../utils/profitDetermination");
 
 // Example structure of "historicalData.json":
 // [

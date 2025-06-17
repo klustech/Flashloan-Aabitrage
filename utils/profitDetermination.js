@@ -272,4 +272,5 @@ module.exports = {
   getSimulationConfig,
   runProfitDetermination,
   simulateSwapPaths,
+  simulateRoute,
 };
