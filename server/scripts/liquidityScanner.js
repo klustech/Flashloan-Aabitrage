@@ -13,6 +13,12 @@ const DEFAULT_MIN_LIQUIDITY_USD =
 
 // The Graph Gateway API key (for Uniswap V2 & SushiSwap V2)
 const THEGRAPH_API_KEY = process.env.THEGRAPH_API_KEY;
+const {
+  UNISWAP_ARBITRUM_SUBGRAPH_ID,
+  SUSHISWAP_ARBITRUM_SUBGRAPH_ID,
+  UNISWAP_OPTIMISM_SUBGRAPH_ID,
+  SUSHISWAP_OPTIMISM_SUBGRAPH_ID,
+} = process.env;
 if (!THEGRAPH_API_KEY) {
   console.warn(
     "Warning: THEGRAPH_API_KEY is not set. Using public subgraph URLs."
@@ -49,14 +55,18 @@ const CHAIN_CONFIGS = {
   },
   arbitrum: {
     uniswapV2: {
-      subgraphUrl: THEGRAPH_API_KEY
+      subgraphUrl: UNISWAP_ARBITRUM_SUBGRAPH_ID
+        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${UNISWAP_ARBITRUM_SUBGRAPH_ID}`
+        : THEGRAPH_API_KEY
         ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/ianlapham/uniswap-arbitrum-one`
         : "https://api.thegraph.com/subgraphs/name/ianlapham/uniswap-arbitrum-one",
       fallbackUrl:
         "https://api.thegraph.com/subgraphs/name/ianlapham/uniswap-arbitrum-one",
     },
     sushiV2: {
-      subgraphUrl: THEGRAPH_API_KEY
+      subgraphUrl: SUSHISWAP_ARBITRUM_SUBGRAPH_ID
+        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${SUSHISWAP_ARBITRUM_SUBGRAPH_ID}`
+        : THEGRAPH_API_KEY
         ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/sushiswap/arbitrum-exchange`
         : "https://api.thegraph.com/subgraphs/name/sushiswap/arbitrum-exchange",
       fallbackUrl:
@@ -77,14 +87,18 @@ const CHAIN_CONFIGS = {
   },
   optimism: {
     uniswapV2: {
-      subgraphUrl: THEGRAPH_API_KEY
+      subgraphUrl: UNISWAP_OPTIMISM_SUBGRAPH_ID
+        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${UNISWAP_OPTIMISM_SUBGRAPH_ID}`
+        : THEGRAPH_API_KEY
         ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/ianlapham/optimism-post-regenesis`
         : "https://api.thegraph.com/subgraphs/name/ianlapham/optimism-post-regenesis",
       fallbackUrl:
         "https://api.thegraph.com/subgraphs/name/ianlapham/optimism-post-regenesis",
     },
     sushiV2: {
-      subgraphUrl: THEGRAPH_API_KEY
+      subgraphUrl: SUSHISWAP_OPTIMISM_SUBGRAPH_ID
+        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${SUSHISWAP_OPTIMISM_SUBGRAPH_ID}`
+        : THEGRAPH_API_KEY
         ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/sushiswap/optimism-exchange`
         : "https://api.thegraph.com/subgraphs/name/sushiswap/optimism-exchange",
       fallbackUrl:

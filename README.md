@@ -12,7 +12,17 @@ npm ci
 ./scripts/install-deps.sh
 ```
 
-2. Start the services:
+2. Set The Graph API variables if querying via the hosted service. Include your API key and optional subgraph IDs for Arbitrum and Optimism networks:
+
+```
+THEGRAPH_API_KEY=<your_key>
+UNISWAP_ARBITRUM_SUBGRAPH_ID=<id>
+SUSHISWAP_ARBITRUM_SUBGRAPH_ID=<id>
+UNISWAP_OPTIMISM_SUBGRAPH_ID=<id>
+SUSHISWAP_OPTIMISM_SUBGRAPH_ID=<id>
+```
+
+3. Start the services:
 
 ```bash
 npm run bot &
