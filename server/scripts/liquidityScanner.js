@@ -2,6 +2,7 @@ require("dotenv").config({
   path: require("path").resolve(__dirname, "../../.env"),
 });
 const redis = require("../utils/redisClient");
+const axios = require("axios");
 
 // ────────────────────────────────────────────────────────────────────────────────
 // DEFAULTS (override via .env)
@@ -27,11 +28,13 @@ const CHAIN_CONFIGS = {
       subgraphUrl: THEGRAPH_API_KEY
         ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/EYCKATKGBKLWvSfwvBjzfCBmGwYNdVkduYXVivCsLRFu`
         : "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v2",
+      fallbackUrl: "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v2",
     },
     sushiV2: {
       subgraphUrl: THEGRAPH_API_KEY
         ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/A4JrrMwrEXsYNAiYw7rWwbHhQZdj6YZg1uVy5wa6g821`
         : "https://api.thegraph.com/subgraphs/name/sushiswap/exchange",
+      fallbackUrl: "https://api.thegraph.com/subgraphs/name/sushiswap/exchange",
     },
     uniswapV3: {
       subgraphUrl: "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3",
@@ -49,11 +52,15 @@ const CHAIN_CONFIGS = {
       subgraphUrl: THEGRAPH_API_KEY
         ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/ianlapham/uniswap-arbitrum-one`
         : "https://api.thegraph.com/subgraphs/name/ianlapham/uniswap-arbitrum-one",
+      fallbackUrl:
+        "https://api.thegraph.com/subgraphs/name/ianlapham/uniswap-arbitrum-one",
     },
     sushiV2: {
       subgraphUrl: THEGRAPH_API_KEY
         ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/sushiswap/arbitrum-exchange`
         : "https://api.thegraph.com/subgraphs/name/sushiswap/arbitrum-exchange",
+      fallbackUrl:
+        "https://api.thegraph.com/subgraphs/name/sushiswap/arbitrum-exchange",
     },
     uniswapV3: {
       subgraphUrl:
@@ -73,11 +80,15 @@ const CHAIN_CONFIGS = {
       subgraphUrl: THEGRAPH_API_KEY
         ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/ianlapham/optimism-post-regenesis`
         : "https://api.thegraph.com/subgraphs/name/ianlapham/optimism-post-regenesis",
+      fallbackUrl:
+        "https://api.thegraph.com/subgraphs/name/ianlapham/optimism-post-regenesis",
     },
     sushiV2: {
       subgraphUrl: THEGRAPH_API_KEY
         ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/sushiswap/optimism-exchange`
         : "https://api.thegraph.com/subgraphs/name/sushiswap/optimism-exchange",
+      fallbackUrl:
+        "https://api.thegraph.com/subgraphs/name/sushiswap/optimism-exchange",
     },
     uniswapV3: {
       subgraphUrl:
@@ -96,7 +107,7 @@ const CHAIN_CONFIGS = {
 // ────────────────────────────────────────────────────────────────────────────────
 // UTILITY: Perform a GraphQL POST to the given URL with retries.
 // ────────────────────────────────────────────────────────────────────────────────
-async function graphqlRequest(url, query, variables = {}) {
+async function graphqlRequest(url, query, variables = {}, fallbackUrl) {
   try {
     const resp = await axios.post(
       url,
@@ -113,6 +124,31 @@ async function graphqlRequest(url, query, variables = {}) {
     } else {
       console.error(`Error fetching from ${url}:`, err.message);
     }
+    if (
+      err.response &&
+      err.response.status === 404 &&
+      fallbackUrl &&
+      fallbackUrl !== url
+    ) {
+      console.warn(`Retrying GraphQL request using fallback ${fallbackUrl}`);
+      try {
+        const resp = await axios.post(
+          fallbackUrl,
+          { query, variables },
+          { headers: { "Content-Type": "application/json" }, timeout: 30000 }
+        );
+        return resp.data;
+      } catch (err2) {
+        if (err2.response && err2.response.data) {
+          console.error(
+            `Graph error at ${fallbackUrl}:`,
+            JSON.stringify(err2.response.data, null, 2)
+          );
+        } else {
+          console.error(`Error fetching from ${fallbackUrl}:`, err2.message);
+        }
+      }
+    }
     return null;
   }
 }
@@ -125,7 +161,7 @@ async function fetchUniswapV2TopPairs(
   topN = DEFAULT_TOP_N,
   minLiquidityUSD = DEFAULT_MIN_LIQUIDITY_USD
 ) {
-  const { subgraphUrl } = chainConfig.uniswapV2;
+  const { subgraphUrl, fallbackUrl } = chainConfig.uniswapV2;
   const query = `
     {
       pairs(
@@ -143,7 +179,7 @@ async function fetchUniswapV2TopPairs(
       }
     }
   `;
-  const data = await graphqlRequest(subgraphUrl, query);
+  const data = await graphqlRequest(subgraphUrl, query, {}, fallbackUrl);
   if (!data || !data.data || !Array.isArray(data.data.pairs)) {
     return [];
   }
@@ -166,7 +202,7 @@ async function fetchSushiV2TopPairs(
   topN = DEFAULT_TOP_N,
   minLiquidityUSD = DEFAULT_MIN_LIQUIDITY_USD
 ) {
-  const { subgraphUrl } = chainConfig.sushiV2;
+  const { subgraphUrl, fallbackUrl } = chainConfig.sushiV2;
   const query = `
     {
       pairs(
@@ -184,7 +220,7 @@ async function fetchSushiV2TopPairs(
       }
     }
   `;
-  const data = await graphqlRequest(subgraphUrl, query);
+  const data = await graphqlRequest(subgraphUrl, query, {}, fallbackUrl);
   if (!data || !data.data || !Array.isArray(data.data.pairs)) {
     return [];
   }
