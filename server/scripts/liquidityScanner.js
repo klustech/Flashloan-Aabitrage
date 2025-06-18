@@ -7,9 +7,12 @@ const axios = require("axios");
 // ────────────────────────────────────────────────────────────────────────────────
 // DEFAULTS (override via .env)
 // ────────────────────────────────────────────────────────────────────────────────
-const DEFAULT_TOP_N = parseInt(process.env.DYNAMIC_ROUTE_TOPN, 10) || 20;
+const envTopN = process.env.DYNAMIC_ROUTE_TOPN;
+const DEFAULT_TOP_N = envTopN !== undefined ? parseInt(envTopN, 10) : 20;
+
+const envMinLiq = process.env.DYNAMIC_ROUTE_MIN_LIQUIDITY_USD;
 const DEFAULT_MIN_LIQUIDITY_USD =
-  parseInt(process.env.DYNAMIC_ROUTE_MIN_LIQUIDITY_USD, 10) || 100000;
+  envMinLiq !== undefined ? parseInt(envMinLiq, 10) : 100000;
 
 // The Graph Gateway API key (for Uniswap V2 & SushiSwap V2)
 const THEGRAPH_API_KEY = process.env.THEGRAPH_API_KEY;

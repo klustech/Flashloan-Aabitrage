@@ -14,9 +14,14 @@ const cron = require("node-cron");
 const fs = require("fs");
 const winston = require("winston");
 const { ethers } = require("ethers");
-const client = require("prom-client");
+// Use prom-client if available; otherwise fall back to a no-op stub
+const client = require("../metrics");
 
-require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
+try {
+  require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
+} catch (err) {
+  // Allow running without dotenv installed
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Bot logic & helpers

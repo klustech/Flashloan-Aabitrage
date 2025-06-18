@@ -37,3 +37,7 @@ Thumbs.db
 
 # Other
 coverage/
+
+# Patch files
+*.patch
+*.diff
