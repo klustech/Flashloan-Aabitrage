@@ -216,6 +216,7 @@ const {
   TOKENS_UNI,
   UNISWAP_ROUTER_ADDRESS,
   SUSHISWAP_ROUTER_ADDRESS,
+  ROUTERXYZ_ROUTER_ADDRESS,
 } = process.env;
 
 if (
@@ -338,6 +339,13 @@ function getUniRouter(chain) {
 function getSushiRouter(chain) {
   return new ethers.Contract(
     SUSHISWAP_ROUTER_ADDRESS,
+    minimalRouterABI,
+    wallets[chain]
+  );
+}
+function getRouterXYZRouter(chain) {
+  return new ethers.Contract(
+    ROUTERXYZ_ROUTER_ADDRESS,
     minimalRouterABI,
     wallets[chain]
   );
@@ -609,6 +617,7 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
   const wallet = wallets[chain];
   const uniRouter = getUniRouter(chain);
   const sushiRouter = getSushiRouter(chain);
+  const routerXYZRouter = getRouterXYZRouter(chain);
   const arbContract = new ethers.Contract(
     arbContractAddresses[chain],
     arbitrageABI,
