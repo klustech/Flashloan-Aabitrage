@@ -371,7 +371,11 @@ async function getAllRoutes({
   allowLongCycles,
   chain,
 }) {
-  const minLiq = minLiquidityUSD || process.env.MIN_LIQUIDITY || "100000";
+  const minLiq =
+    minLiquidityUSD ||
+    process.env.DYNAMIC_ROUTE_MIN_LIQUIDITY_USD ||
+    process.env.MIN_LIQUIDITY ||
+    "100000";
 
   // 1. Fetch pools & adjacency map
   const { adjacencyGraph, flatPools } = await getAllPools({

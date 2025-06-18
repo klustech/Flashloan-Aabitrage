@@ -184,6 +184,7 @@ const {
   MIN_PROFIT_DAI,
   MIN_LIQUIDITY,
   DYNAMIC_ROUTE_HOPS,
+  DYNAMIC_ROUTE_MIN_LIQUIDITY_USD,
   DYNAMIC_ROUTE_TOPN,
   FLASHLOAN_PREMIUM_BIPS,
   INCLUDE_V3,
@@ -501,7 +502,7 @@ function parallelSimulate(routes, amountIn, slippageBips) {
 // ─────────────────────────────────────────────────────────────────────────────
 async function getAllRoutes(chain) {
   const topN = Number(DYNAMIC_ROUTE_TOPN || 20);
-  const minLiq = MIN_LIQUIDITY || "100000";
+  const minLiq = DYNAMIC_ROUTE_MIN_LIQUIDITY_USD || MIN_LIQUIDITY || "100000";
 
   let routes = [];
   try {
