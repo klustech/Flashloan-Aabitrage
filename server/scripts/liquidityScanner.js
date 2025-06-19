@@ -131,22 +131,32 @@ async function graphqlRequest(url, query, variables = {}, fallbackUrl) {
       { query, variables },
       { headers: { "Content-Type": "application/json" }, timeout: 30000 }
     );
+    if (resp.data && resp.data.errors) {
+      console.error(
+        `Graph error at ${url}:`,
+        JSON.stringify(resp.data.errors, null, 2)
+      );
+      if (fallbackUrl && fallbackUrl !== url) {
+        console.warn(`Retrying GraphQL request using fallback ${fallbackUrl}`);
+        const fallback = await axios.post(
+          fallbackUrl,
+          { query, variables },
+          { headers: { "Content-Type": "application/json" }, timeout: 30000 }
+        );
+        return fallback.data;
+      }
+    }
     return resp.data;
   } catch (err) {
     if (err.response && err.response.data) {
       console.error(
-        `Graph error at ${url}:`,
+        `Error fetching from ${url}:`,
         JSON.stringify(err.response.data, null, 2)
       );
     } else {
       console.error(`Error fetching from ${url}:`, err.message);
     }
-    if (
-      err.response &&
-      err.response.status === 404 &&
-      fallbackUrl &&
-      fallbackUrl !== url
-    ) {
+    if (fallbackUrl && fallbackUrl !== url) {
       console.warn(`Retrying GraphQL request using fallback ${fallbackUrl}`);
       try {
         const resp = await axios.post(
@@ -158,7 +168,7 @@ async function graphqlRequest(url, query, variables = {}, fallbackUrl) {
       } catch (err2) {
         if (err2.response && err2.response.data) {
           console.error(
-            `Graph error at ${fallbackUrl}:`,
+            `Error fetching from ${fallbackUrl}:`,
             JSON.stringify(err2.response.data, null, 2)
           );
         } else {
@@ -445,6 +455,11 @@ async function buildAdjacencyGraph(chain = "ethereum") {
 
   // Cache for 300 seconds
   await redis.set(cacheKey, JSON.stringify(adjacencyGraph), "EX", 300);
+  if (Object.keys(adjacencyGraph).length === 0) {
+    console.warn(
+      `No pools fetched for ${chain}. Check subgraph IDs and THEGRAPH_API_KEY.`
+    );
+  }
   return adjacencyGraph;
 }
 

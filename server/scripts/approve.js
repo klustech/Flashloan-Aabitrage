@@ -30,7 +30,6 @@ async function main() {
     // Router addresses
     UNISWAP_ROUTER_ADDRESS,
     SUSHISWAP_ROUTER_ADDRESS,
-    ROUTERXYZ_ROUTER_ADDRESS,
   } = process.env;
 
   if (!PRIVATE_KEY) {
@@ -56,11 +55,7 @@ async function main() {
     UNI: TOKENS_UNI,
     AAVE: TOKENS_AAVE,
   };
-  const ROUTERS = [
-    UNISWAP_ROUTER_ADDRESS,
-    SUSHISWAP_ROUTER_ADDRESS,
-    ROUTERXYZ_ROUTER_ADDRESS,
-  ];
+  const ROUTERS = [UNISWAP_ROUTER_ADDRESS, SUSHISWAP_ROUTER_ADDRESS];
 
   // Minimal ERC-20 ABI for allowance/approve
   const ERC20_ABI = [
