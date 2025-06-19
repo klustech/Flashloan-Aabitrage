@@ -18788,3 +18788,663 @@
 [2025-06-19T19:47:49.469Z] [INFO] [optimism] Current gas price: 0.001008978 Gwei.
 [2025-06-19T19:47:49.470Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
 [2025-06-19T19:47:49.471Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T20:44:15.882Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T20:44:16.765Z] [INFO] [ethereum] Current gas price: 0.61485169 Gwei.
+[2025-06-19T20:44:20.556Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T20:44:20.556Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T20:44:20.558Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T20:44:20.805Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T20:44:23.474Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T20:44:23.475Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T20:44:23.476Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T20:44:23.605Z] [INFO] [optimism] Current gas price: 0.00001131 Gwei.
+[2025-06-19T20:44:24.082Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T20:44:24.083Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T20:44:34.084Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T20:44:34.544Z] [INFO] [ethereum] Current gas price: 0.626958714 Gwei.
+[2025-06-19T20:44:34.624Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T20:44:34.625Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T20:44:34.626Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T20:44:34.893Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T20:44:34.974Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T20:44:34.974Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T20:44:34.978Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T20:44:35.116Z] [INFO] [optimism] Current gas price: 0.001008444 Gwei.
+[2025-06-19T20:44:35.117Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T20:44:35.117Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T20:44:45.119Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T20:44:45.586Z] [INFO] [ethereum] Current gas price: 0.68559719 Gwei.
+[2025-06-19T20:44:45.654Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T20:44:45.654Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T20:44:45.656Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T20:44:45.942Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T20:44:46.020Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T20:44:46.020Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T20:44:46.021Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T20:44:46.145Z] [INFO] [optimism] Current gas price: 0.00100846 Gwei.
+[2025-06-19T20:44:46.148Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T20:44:46.148Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T20:58:46.417Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T20:58:47.164Z] [INFO] [ethereum] Current gas price: 0.57805474 Gwei.
+[2025-06-19T20:58:50.737Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T20:58:50.738Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T20:58:50.739Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T20:58:50.995Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T20:58:53.870Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T20:58:53.871Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T20:58:53.872Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T20:58:54.018Z] [INFO] [optimism] Current gas price: 0.000010112 Gwei.
+[2025-06-19T20:58:54.476Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T20:58:54.476Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T20:59:04.478Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T20:59:05.009Z] [INFO] [ethereum] Current gas price: 0.558670397 Gwei.
+[2025-06-19T20:59:05.138Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T20:59:05.138Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T20:59:05.142Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T20:59:05.450Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T20:59:05.522Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T20:59:05.523Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T20:59:05.525Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T20:59:05.661Z] [INFO] [optimism] Current gas price: 0.001008041 Gwei.
+[2025-06-19T20:59:05.662Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T20:59:05.662Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T20:59:15.664Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T20:59:16.126Z] [INFO] [ethereum] Current gas price: 0.62691917 Gwei.
+[2025-06-19T20:59:16.193Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T20:59:16.193Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T20:59:16.195Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T20:59:16.513Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T20:59:16.579Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T20:59:16.579Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T20:59:16.581Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T20:59:16.705Z] [INFO] [optimism] Current gas price: 0.001008021 Gwei.
+[2025-06-19T20:59:16.707Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T20:59:16.707Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T20:59:26.709Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T20:59:27.214Z] [INFO] [ethereum] Current gas price: 0.610065276 Gwei.
+[2025-06-19T20:59:27.321Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T20:59:27.322Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T20:59:27.323Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T20:59:27.638Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T20:59:27.791Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T20:59:27.792Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T20:59:27.793Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T20:59:27.992Z] [INFO] [optimism] Current gas price: 0.001008012 Gwei.
+[2025-06-19T20:59:27.994Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T20:59:27.994Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T20:59:37.995Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T20:59:38.505Z] [INFO] [ethereum] Current gas price: 0.596066587 Gwei.
+[2025-06-19T20:59:38.641Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T20:59:38.641Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T20:59:38.652Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T20:59:38.996Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T20:59:39.123Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T20:59:39.124Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T20:59:39.125Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T20:59:39.304Z] [INFO] [optimism] Current gas price: 0.001008029 Gwei.
+[2025-06-19T20:59:39.305Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T20:59:39.305Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T20:59:49.307Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T20:59:49.781Z] [INFO] [ethereum] Current gas price: 0.558792478 Gwei.
+[2025-06-19T20:59:49.856Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T20:59:49.857Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T20:59:49.858Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T20:59:50.145Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T20:59:50.207Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T20:59:50.207Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T20:59:50.208Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T20:59:50.373Z] [INFO] [optimism] Current gas price: 0.001008004 Gwei.
+[2025-06-19T20:59:50.374Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T20:59:50.374Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:00:00.375Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:00:00.835Z] [INFO] [ethereum] Current gas price: 0.557233859 Gwei.
+[2025-06-19T21:00:00.972Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:00:00.972Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:00:00.973Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:00:01.410Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:00:01.539Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:00:01.539Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:00:01.550Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:00:01.714Z] [INFO] [optimism] Current gas price: 0.001008013 Gwei.
+[2025-06-19T21:00:01.715Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:00:01.715Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:00:11.717Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:00:12.177Z] [INFO] [ethereum] Current gas price: 0.557233859 Gwei.
+[2025-06-19T21:00:12.324Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:00:12.325Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:00:12.326Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:00:12.612Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:00:12.723Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:00:12.724Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:00:12.725Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:00:12.896Z] [INFO] [optimism] Current gas price: 0.001008068 Gwei.
+[2025-06-19T21:00:12.897Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:00:12.897Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:00:22.898Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:00:23.377Z] [INFO] [ethereum] Current gas price: 0.513800893 Gwei.
+[2025-06-19T21:00:23.460Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:00:23.460Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:00:23.461Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:00:23.733Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:00:23.803Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:00:23.804Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:00:23.806Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:00:23.960Z] [INFO] [optimism] Current gas price: 0.001008018 Gwei.
+[2025-06-19T21:00:23.961Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:00:23.962Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:00:33.963Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:00:34.438Z] [INFO] [ethereum] Current gas price: 0.577994599 Gwei.
+[2025-06-19T21:00:34.512Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:00:34.513Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:00:34.514Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:00:34.805Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:00:34.877Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:00:34.877Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:00:34.878Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:00:35.019Z] [INFO] [optimism] Current gas price: 0.001008007 Gwei.
+[2025-06-19T21:00:35.020Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:00:35.020Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:00:45.022Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:00:45.474Z] [INFO] [ethereum] Current gas price: 0.571068234 Gwei.
+[2025-06-19T21:00:45.547Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:00:45.547Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:00:45.551Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:00:45.823Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:00:45.895Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:00:45.896Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:00:45.897Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:00:46.083Z] [INFO] [optimism] Current gas price: 0.001007986 Gwei.
+[2025-06-19T21:00:46.086Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:00:46.087Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:00:56.089Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:00:56.548Z] [INFO] [ethereum] Current gas price: 0.56795821 Gwei.
+[2025-06-19T21:00:56.628Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:00:56.628Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:00:56.630Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:00:56.922Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:00:56.991Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:00:56.991Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:00:56.993Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:00:57.140Z] [INFO] [optimism] Current gas price: 0.000009558 Gwei.
+[2025-06-19T21:00:57.142Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:00:57.143Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:01:07.145Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:01:08.149Z] [INFO] [ethereum] Current gas price: 0.552859758 Gwei.
+[2025-06-19T21:01:08.319Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:01:08.319Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:01:08.321Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:01:08.760Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:01:08.880Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:01:08.881Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:01:08.882Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:01:09.025Z] [INFO] [optimism] Current gas price: 0.00100803 Gwei.
+[2025-06-19T21:01:09.026Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:01:09.026Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:01:19.027Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:01:19.474Z] [INFO] [ethereum] Current gas price: 0.621663765 Gwei.
+[2025-06-19T21:01:19.544Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:01:19.545Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:01:19.545Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:01:19.817Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:01:19.878Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:01:19.878Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:01:19.880Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:01:20.023Z] [INFO] [optimism] Current gas price: 0.001008077 Gwei.
+[2025-06-19T21:01:20.024Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:01:20.025Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:01:30.026Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:01:30.474Z] [INFO] [ethereum] Current gas price: 0.60005581 Gwei.
+[2025-06-19T21:01:30.540Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:01:30.540Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:01:30.541Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:01:30.812Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:01:30.875Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:01:30.876Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:01:30.877Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:01:31.037Z] [INFO] [optimism] Current gas price: 0.001008051 Gwei.
+[2025-06-19T21:01:31.038Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:01:31.038Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:01:41.041Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:01:41.488Z] [INFO] [ethereum] Current gas price: 0.568671487 Gwei.
+[2025-06-19T21:01:41.557Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:01:41.558Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:01:41.559Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:01:41.847Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:01:41.906Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:01:41.907Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:01:41.909Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:01:42.072Z] [INFO] [optimism] Current gas price: 0.000009246 Gwei.
+[2025-06-19T21:01:42.074Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:01:42.074Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:01:52.075Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:01:52.562Z] [INFO] [ethereum] Current gas price: 0.546289537 Gwei.
+[2025-06-19T21:01:52.665Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:01:52.665Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:01:52.666Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:01:52.980Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:01:53.112Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:01:53.113Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:01:53.114Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:01:53.274Z] [INFO] [optimism] Current gas price: 0.001007997 Gwei.
+[2025-06-19T21:01:53.275Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:01:53.275Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:02:03.279Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:02:03.739Z] [INFO] [ethereum] Current gas price: 0.59721955 Gwei.
+[2025-06-19T21:02:03.847Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:02:03.848Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:02:03.849Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:02:04.194Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:02:04.309Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:02:04.310Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:02:04.311Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:02:04.637Z] [INFO] [optimism] Current gas price: 0.001008019 Gwei.
+[2025-06-19T21:02:04.637Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:02:04.638Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:02:14.639Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:02:15.112Z] [INFO] [ethereum] Current gas price: 0.568641894 Gwei.
+[2025-06-19T21:02:15.192Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:02:15.192Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:02:15.194Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:02:15.462Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:02:15.532Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:02:15.532Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:02:15.533Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:02:15.692Z] [INFO] [optimism] Current gas price: 0.000009472 Gwei.
+[2025-06-19T21:02:15.694Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:02:15.694Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:02:25.694Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:02:26.155Z] [INFO] [ethereum] Current gas price: 0.611274899 Gwei.
+[2025-06-19T21:02:26.232Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:02:26.232Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:02:26.242Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:02:26.575Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:02:26.693Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:02:26.693Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:02:26.694Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:02:27.009Z] [INFO] [optimism] Current gas price: 0.001329761 Gwei.
+[2025-06-19T21:02:27.011Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:02:27.011Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:02:37.012Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:02:37.608Z] [INFO] [ethereum] Current gas price: 0.599263976 Gwei.
+[2025-06-19T21:02:37.714Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:02:37.724Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:02:37.725Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:02:38.054Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:02:38.134Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:02:38.134Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:02:38.136Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:02:38.503Z] [INFO] [optimism] Current gas price: 0.000009443 Gwei.
+[2025-06-19T21:02:38.505Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:02:38.505Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:02:48.508Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:02:48.964Z] [INFO] [ethereum] Current gas price: 0.599263976 Gwei.
+[2025-06-19T21:02:49.040Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:02:49.041Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:02:49.043Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:02:49.338Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:02:49.411Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:02:49.411Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:02:49.412Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:02:49.561Z] [INFO] [optimism] Current gas price: 0.001008007 Gwei.
+[2025-06-19T21:02:49.563Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:02:49.563Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:02:59.563Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:03:00.056Z] [INFO] [ethereum] Current gas price: 0.58257688 Gwei.
+[2025-06-19T21:03:00.191Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:03:00.191Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:03:00.193Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:03:00.521Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:03:00.631Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:03:00.641Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:03:00.642Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:03:00.827Z] [INFO] [optimism] Current gas price: 0.001008007 Gwei.
+[2025-06-19T21:03:00.828Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:03:00.829Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:03:10.829Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:03:11.305Z] [INFO] [ethereum] Current gas price: 0.566656752 Gwei.
+[2025-06-19T21:03:11.408Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:03:11.410Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:03:11.411Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:03:11.720Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:03:11.799Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:03:11.802Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:03:11.803Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:03:11.975Z] [INFO] [optimism] Current gas price: 0.001008031 Gwei.
+[2025-06-19T21:03:11.976Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:03:11.976Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:03:21.978Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:03:22.589Z] [INFO] [ethereum] Current gas price: 0.570031692 Gwei.
+[2025-06-19T21:03:22.729Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:03:22.730Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:03:22.741Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:03:23.209Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:03:23.282Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:03:23.283Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:03:23.287Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:03:23.426Z] [INFO] [optimism] Current gas price: 0.001007994 Gwei.
+[2025-06-19T21:03:23.427Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:03:23.427Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:03:33.429Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:03:33.907Z] [INFO] [ethereum] Current gas price: 0.641030393 Gwei.
+[2025-06-19T21:03:33.981Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:03:33.981Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:03:33.982Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:03:34.250Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:03:34.324Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:03:34.325Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:03:34.331Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:03:34.475Z] [INFO] [optimism] Current gas price: 0.001007994 Gwei.
+[2025-06-19T21:03:34.477Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:03:34.477Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:03:44.478Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:03:45.002Z] [INFO] [ethereum] Current gas price: 0.598305043 Gwei.
+[2025-06-19T21:03:45.127Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:03:45.127Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:03:45.128Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:03:45.563Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:03:45.627Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:03:45.627Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:03:45.628Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:03:45.773Z] [INFO] [optimism] Current gas price: 0.00100804 Gwei.
+[2025-06-19T21:03:45.775Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:03:45.775Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:03:55.779Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:03:56.278Z] [INFO] [ethereum] Current gas price: 0.59639159 Gwei.
+[2025-06-19T21:03:59.736Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:03:59.736Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:03:59.737Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:04:00.100Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:04:03.094Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:04:03.095Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:04:03.096Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:04:03.305Z] [INFO] [optimism] Current gas price: 0.001008015 Gwei.
+[2025-06-19T21:04:04.013Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:04:04.013Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:04:14.014Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:04:14.490Z] [INFO] [ethereum] Current gas price: 0.57569418 Gwei.
+[2025-06-19T21:04:14.568Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:04:14.568Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:04:14.571Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:04:14.845Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:04:14.906Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:04:14.907Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:04:14.908Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:04:15.041Z] [INFO] [optimism] Current gas price: 0.000009532 Gwei.
+[2025-06-19T21:04:15.042Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:04:15.042Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:04:25.043Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:04:25.589Z] [INFO] [ethereum] Current gas price: 0.647500858 Gwei.
+[2025-06-19T21:04:25.663Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:04:25.666Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:04:25.668Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:04:25.945Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:04:26.058Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:04:26.059Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:04:26.060Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:04:26.213Z] [INFO] [optimism] Current gas price: 0.001007993 Gwei.
+[2025-06-19T21:04:26.215Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:04:26.215Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:04:36.216Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:04:36.789Z] [INFO] [ethereum] Current gas price: 0.647500858 Gwei.
+[2025-06-19T21:04:36.913Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:04:36.922Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:04:36.924Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:04:37.371Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:04:37.477Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:04:37.477Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:04:37.478Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:04:38.024Z] [INFO] [optimism] Current gas price: 0.000009411 Gwei.
+[2025-06-19T21:04:38.026Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:04:38.027Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:04:48.027Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:04:48.482Z] [INFO] [ethereum] Current gas price: 0.700228665 Gwei.
+[2025-06-19T21:04:48.565Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:04:48.565Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:04:48.568Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:04:48.862Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:04:48.923Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:04:48.924Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:04:48.925Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:04:49.090Z] [INFO] [optimism] Current gas price: 0.001008032 Gwei.
+[2025-06-19T21:04:49.091Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:04:49.091Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:04:59.093Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:04:59.591Z] [INFO] [ethereum] Current gas price: 0.700228665 Gwei.
+[2025-06-19T21:04:59.666Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:04:59.667Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:04:59.673Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:04:59.946Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:05:00.079Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:05:00.079Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:05:00.080Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:05:00.399Z] [INFO] [optimism] Current gas price: 0.000009476 Gwei.
+[2025-06-19T21:05:00.400Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:05:00.400Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:05:10.404Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:05:10.900Z] [INFO] [ethereum] Current gas price: 0.663571257 Gwei.
+[2025-06-19T21:05:10.997Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:05:10.997Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:05:10.998Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:05:11.327Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:05:11.395Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:05:11.395Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:05:11.397Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:05:11.529Z] [INFO] [optimism] Current gas price: 0.001008026 Gwei.
+[2025-06-19T21:05:11.530Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:05:11.530Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:05:21.531Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:05:22.823Z] [INFO] [ethereum] Current gas price: 0.623707666 Gwei.
+[2025-06-19T21:05:22.958Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:05:22.959Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:05:22.960Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:05:23.255Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:05:23.317Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:05:23.317Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:05:23.318Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:05:23.541Z] [INFO] [optimism] Current gas price: 0.001008002 Gwei.
+[2025-06-19T21:05:23.542Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:05:23.542Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:05:33.543Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:05:34.005Z] [INFO] [ethereum] Current gas price: 0.701651031 Gwei.
+[2025-06-19T21:05:34.076Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:05:34.076Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:05:34.077Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:05:34.390Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:05:34.455Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:05:34.455Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:05:34.457Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:05:34.661Z] [INFO] [optimism] Current gas price: 0.000009431 Gwei.
+[2025-06-19T21:05:34.662Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:05:34.663Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:05:44.665Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:05:45.146Z] [INFO] [ethereum] Current gas price: 0.729366357 Gwei.
+[2025-06-19T21:05:45.227Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:05:45.228Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:05:45.229Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:05:45.534Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:05:45.611Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:05:45.612Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:05:45.613Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:05:45.767Z] [INFO] [optimism] Current gas price: 0.000009445 Gwei.
+[2025-06-19T21:05:45.769Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:05:45.770Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:05:55.771Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:05:56.249Z] [INFO] [ethereum] Current gas price: 0.820467116 Gwei.
+[2025-06-19T21:05:56.324Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:05:56.324Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:05:56.326Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:05:56.615Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:05:56.677Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:05:56.677Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:05:56.679Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:05:56.823Z] [INFO] [optimism] Current gas price: 0.001007994 Gwei.
+[2025-06-19T21:05:56.825Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:05:56.825Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:06:06.826Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:06:07.499Z] [INFO] [ethereum] Current gas price: 0.775943942 Gwei.
+[2025-06-19T21:06:07.689Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:06:07.689Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:06:07.690Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:06:08.004Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:06:08.092Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:06:08.093Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:06:08.095Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:06:08.226Z] [INFO] [optimism] Current gas price: 0.001008015 Gwei.
+[2025-06-19T21:06:08.227Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:06:08.228Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:06:18.229Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:06:18.693Z] [INFO] [ethereum] Current gas price: 0.770214501 Gwei.
+[2025-06-19T21:06:18.756Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:06:18.757Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:06:18.758Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:06:19.066Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:06:19.132Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:06:19.133Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:06:19.133Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:06:19.298Z] [INFO] [optimism] Current gas price: 0.001008029 Gwei.
+[2025-06-19T21:06:19.299Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:06:19.299Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:06:29.304Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:06:29.855Z] [INFO] [ethereum] Current gas price: 0.79996787 Gwei.
+[2025-06-19T21:06:29.937Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:06:29.938Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:06:29.939Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:06:30.224Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:06:30.285Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:06:30.285Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:06:30.287Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:06:30.439Z] [INFO] [optimism] Current gas price: 0.001008012 Gwei.
+[2025-06-19T21:06:30.440Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:06:30.441Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:06:40.442Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:06:40.900Z] [INFO] [ethereum] Current gas price: 0.770088187 Gwei.
+[2025-06-19T21:06:40.975Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:06:40.976Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:06:40.978Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:06:41.264Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:06:41.330Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:06:41.331Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:06:41.335Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:06:41.479Z] [INFO] [optimism] Current gas price: 0.001008012 Gwei.
+[2025-06-19T21:06:41.480Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:06:41.480Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:06:51.481Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:06:52.491Z] [INFO] [ethereum] Current gas price: 0.864753531 Gwei.
+[2025-06-19T21:06:52.622Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:06:52.623Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:06:52.632Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:06:53.090Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:06:53.176Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:06:53.177Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:06:53.179Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:06:53.334Z] [INFO] [optimism] Current gas price: 0.000009757 Gwei.
+[2025-06-19T21:06:53.335Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:06:53.336Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:07:03.337Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:07:03.929Z] [INFO] [ethereum] Current gas price: 0.862059023 Gwei.
+[2025-06-19T21:07:04.010Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:07:04.011Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:07:04.012Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:07:04.307Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:07:04.370Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:07:04.371Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:07:04.372Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:07:04.559Z] [INFO] [optimism] Current gas price: 0.001007979 Gwei.
+[2025-06-19T21:07:04.560Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:07:04.561Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:07:14.562Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:07:15.093Z] [INFO] [ethereum] Current gas price: 0.884747692 Gwei.
+[2025-06-19T21:07:15.179Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:07:15.190Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:07:15.191Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:07:15.472Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:07:15.545Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:07:15.546Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:07:15.547Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:07:15.689Z] [INFO] [optimism] Current gas price: 0.001008046 Gwei.
+[2025-06-19T21:07:15.690Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:07:15.690Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:07:25.691Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:07:26.172Z] [INFO] [ethereum] Current gas price: 0.858391575 Gwei.
+[2025-06-19T21:07:26.242Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:07:26.250Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:07:26.251Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:07:26.540Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:07:26.651Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:07:26.653Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:07:26.654Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:07:26.985Z] [INFO] [optimism] Current gas price: 0.001008013 Gwei.
+[2025-06-19T21:07:26.986Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:07:26.986Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:07:36.988Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:07:38.012Z] [INFO] [ethereum] Current gas price: 0.831741319 Gwei.
+[2025-06-19T21:07:38.144Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:07:38.145Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:07:38.146Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:07:38.729Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:07:38.791Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:07:38.792Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:07:38.793Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:07:38.938Z] [INFO] [optimism] Current gas price: 0.001007996 Gwei.
+[2025-06-19T21:07:38.941Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:07:38.941Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:07:48.942Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:07:49.408Z] [INFO] [ethereum] Current gas price: 0.935666645 Gwei.
+[2025-06-19T21:07:49.492Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:07:49.492Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:07:49.493Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:07:49.776Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:07:49.849Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:07:49.849Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:07:49.850Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:07:50.041Z] [INFO] [optimism] Current gas price: 0.001008035 Gwei.
+[2025-06-19T21:07:50.042Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:07:50.042Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:08:00.043Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:08:00.728Z] [INFO] [ethereum] Current gas price: 0.935666645 Gwei.
+[2025-06-19T21:08:00.863Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:08:00.863Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:08:00.874Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:08:01.206Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:08:01.323Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:08:01.324Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:08:01.324Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:08:01.618Z] [INFO] [optimism] Current gas price: 0.000009839 Gwei.
+[2025-06-19T21:08:01.619Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:08:01.619Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:21:20.176Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:21:20.919Z] [INFO] [ethereum] Current gas price: 0.970067339 Gwei.
+[2025-06-19T21:21:24.484Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:21:24.485Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:21:24.487Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:21:24.731Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:21:27.476Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:21:27.476Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:21:27.477Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:21:27.624Z] [INFO] [optimism] Current gas price: 0.000009 Gwei.
+[2025-06-19T21:21:28.025Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:21:28.026Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:21:38.029Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:21:38.442Z] [INFO] [ethereum] Current gas price: 0.967538329 Gwei.
+[2025-06-19T21:21:38.539Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:21:38.540Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:21:38.542Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:21:38.834Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:21:38.912Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:21:38.913Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:21:38.914Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:21:39.068Z] [INFO] [optimism] Current gas price: 0.001006726 Gwei.
+[2025-06-19T21:21:39.070Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:21:39.070Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-19T21:21:49.072Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-19T21:21:49.511Z] [INFO] [ethereum] Current gas price: 0.923452314 Gwei.
+[2025-06-19T21:21:49.580Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:21:49.581Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-19T21:21:49.583Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-19T21:21:49.867Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-19T21:21:49.995Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:21:50.008Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-19T21:21:50.009Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-19T21:21:50.239Z] [INFO] [optimism] Current gas price: 0.001006685 Gwei.
+[2025-06-19T21:21:50.240Z] [INFO] [optimism] routeFinder returned 0 routes (topN=200, minLiq=0).
+[2025-06-19T21:21:50.240Z] [INFO] [optimism] getAllRoutes returned 0 routes.

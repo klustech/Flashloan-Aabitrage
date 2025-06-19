@@ -46,14 +46,23 @@ const CHAIN_CONFIGS = {
       fallbackUrl: "https://api.thegraph.com/subgraphs/name/sushiswap/exchange",
     },
     uniswapV3: {
-      subgraphUrl: "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3",
+      subgraphUrl: THEGRAPH_API_KEY
+        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/uniswap/uniswap-v3`
+        : "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3",
+      fallbackUrl: "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3",
     },
     balancerV2: {
-      subgraphUrl:
+      subgraphUrl: THEGRAPH_API_KEY
+        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/balancer-labs/balancer-v2`
+        : "https://api.thegraph.com/subgraphs/name/balancer-labs/balancer-v2",
+      fallbackUrl:
         "https://api.thegraph.com/subgraphs/name/balancer-labs/balancer-v2",
     },
     curveV2: {
-      subgraphUrl: "https://api.thegraph.com/subgraphs/name/curvefi/curve",
+      subgraphUrl: THEGRAPH_API_KEY
+        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/curvefi/curve`
+        : "https://api.thegraph.com/subgraphs/name/curvefi/curve",
+      fallbackUrl: "https://api.thegraph.com/subgraphs/name/curvefi/curve",
     },
   },
   arbitrum: {
@@ -76,15 +85,24 @@ const CHAIN_CONFIGS = {
         "https://api.thegraph.com/subgraphs/name/sushiswap/arbitrum-exchange",
     },
     uniswapV3: {
-      subgraphUrl:
+      subgraphUrl: THEGRAPH_API_KEY
+        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/uniswap/uniswap-v3-arbitrum`
+        : "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3-arbitrum",
+      fallbackUrl:
         "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3-arbitrum",
     },
     balancerV2: {
-      subgraphUrl:
+      subgraphUrl: THEGRAPH_API_KEY
+        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/balancer-labs/balancer-arbitrum-v2`
+        : "https://api.thegraph.com/subgraphs/name/balancer-labs/balancer-arbitrum-v2",
+      fallbackUrl:
         "https://api.thegraph.com/subgraphs/name/balancer-labs/balancer-arbitrum-v2",
     },
     curveV2: {
-      subgraphUrl:
+      subgraphUrl: THEGRAPH_API_KEY
+        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/curvefi/curve-arbitrum`
+        : "https://api.thegraph.com/subgraphs/name/curvefi/curve-arbitrum",
+      fallbackUrl:
         "https://api.thegraph.com/subgraphs/name/curvefi/curve-arbitrum",
     },
   },
@@ -108,15 +126,24 @@ const CHAIN_CONFIGS = {
         "https://api.thegraph.com/subgraphs/name/sushiswap/optimism-exchange",
     },
     uniswapV3: {
-      subgraphUrl:
+      subgraphUrl: THEGRAPH_API_KEY
+        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/uniswap/uniswap-v3-optimism`
+        : "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3-optimism",
+      fallbackUrl:
         "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3-optimism",
     },
     balancerV2: {
-      subgraphUrl:
+      subgraphUrl: THEGRAPH_API_KEY
+        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/balancer-labs/balancer-optimism-v2`
+        : "https://api.thegraph.com/subgraphs/name/balancer-labs/balancer-optimism-v2",
+      fallbackUrl:
         "https://api.thegraph.com/subgraphs/name/balancer-labs/balancer-optimism-v2",
     },
     curveV2: {
-      subgraphUrl:
+      subgraphUrl: THEGRAPH_API_KEY
+        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/curvefi/curve-optimism`
+        : "https://api.thegraph.com/subgraphs/name/curvefi/curve-optimism",
+      fallbackUrl:
         "https://api.thegraph.com/subgraphs/name/curvefi/curve-optimism",
     },
   },
