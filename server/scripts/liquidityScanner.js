@@ -208,6 +208,9 @@ async function fetchUniswapV2TopPairs(
   `;
   const data = await graphqlRequest(subgraphUrl, query, {}, fallbackUrl);
   if (!data || !data.data || !Array.isArray(data.data.pairs)) {
+    console.warn(
+      `UniswapV2 query returned no pairs for ${subgraphUrl}. Check the response.`
+    );
     return [];
   }
   return data.data.pairs.map((p) => ({
@@ -249,6 +252,9 @@ async function fetchSushiV2TopPairs(
   `;
   const data = await graphqlRequest(subgraphUrl, query, {}, fallbackUrl);
   if (!data || !data.data || !Array.isArray(data.data.pairs)) {
+    console.warn(
+      `SushiSwapV2 query returned no pairs for ${subgraphUrl}. Check the response.`
+    );
     return [];
   }
   return data.data.pairs.map((p) => ({
@@ -285,6 +291,9 @@ async function fetchUniswapV3TopPools(chainConfig, topN = DEFAULT_TOP_N) {
   `;
   const data = await graphqlRequest(url, query);
   if (!data || !data.data || !Array.isArray(data.data.pools)) {
+    console.warn(
+      `UniswapV3 query returned no pools for ${url}. Check the response.`
+    );
     return [];
   }
   return data.data.pools.map((p) => ({
@@ -314,6 +323,9 @@ async function fetchBalancerV2TopPools(chainConfig, topN = DEFAULT_TOP_N) {
   `;
   const data = await graphqlRequest(url, query);
   if (!data || !data.data || !Array.isArray(data.data.pools)) {
+    console.warn(
+      `BalancerV2 query returned no pools for ${url}. Check the response.`
+    );
     return [];
   }
   return data.data.pools.map((p) => ({
@@ -341,6 +353,9 @@ async function fetchCurveV2TopPools(chainConfig, topN = DEFAULT_TOP_N) {
   `;
   const data = await graphqlRequest(url, query);
   if (!data || !data.data || !Array.isArray(data.data.pools)) {
+    console.warn(
+      `CurveV2 query returned no pools for ${url}. Check the response.`
+    );
     return [];
   }
   return data.data.pools.map((p) => ({

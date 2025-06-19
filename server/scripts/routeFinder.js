@@ -145,6 +145,9 @@ async function getAllPools({ topN, minLiquidityUSD, chain }) {
     topN,
     minLiquidityUSD,
   });
+  if (!flatPools.length) {
+    console.warn(`No pools returned for ${chain} with topN=${topN}`);
+  }
   const adjacencyGraph = makeAdjacencyGraphFromPools(flatPools);
   return { adjacencyGraph, flatPools };
 }

@@ -12,7 +12,9 @@ npm ci
 ./scripts/install-deps.sh
 ```
 
-2. Set The Graph API variables if querying via the hosted service. Include your API key and optional subgraph IDs for Arbitrum and Optimism networks:
+2. Copy `.env.example` to `.env` and fill in the required addresses (router addresses, deployed Arbitrage contracts, etc.). Only Uniswap and SushiSwap routers are needed; the old `ROUTERXYZ` fields have been removed.
+
+3. Set The Graph API variables if querying via the hosted service. Include your API key and optional subgraph IDs for Arbitrum and Optimism networks:
 
 ```
 THEGRAPH_API_KEY=<your_key>
@@ -22,7 +24,11 @@ UNISWAP_OPTIMISM_SUBGRAPH_ID=<id>
 SUSHISWAP_OPTIMISM_SUBGRAPH_ID=<id>
 ```
 
-3. Start the services:
+If the bot logs `routeFinder returned 0 routes`, double-check these subgraph
+IDs and ensure your API key has access. When an ID is invalid, the scanner
+falls back to the public subgraphs, but no pools may be returned.
+
+4. Start the services:
 
 ```bash
 npm run bot &
