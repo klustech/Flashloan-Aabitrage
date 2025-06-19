@@ -1,9 +1,0 @@
-# ignore React build output
-frontend/build/
-
-# ignore Hardhat build artifacts
-artifacts/
-cache/
-
-# ignore node_modules
-node_modules/
