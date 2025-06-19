@@ -14,7 +14,10 @@ npm ci
 
 2. Copy `.env.example` to `.env` and fill in the required addresses (router addresses, deployed Arbitrage contracts, etc.). Only Uniswap and SushiSwap routers are needed; the old `ROUTERXYZ` fields have been removed.
 
-3. Set The Graph API variables if querying via the hosted service. Include your API key and optional subgraph IDs for Arbitrum and Optimism networks:
+<<<<<<< ours 3. Set The Graph API variables if querying via the hosted service. Include your API key and the subgraph IDs for each network you plan to query. These IDs can be obtained from [The Graph explorer](https://thegraph.com/explorer/):
+======= 3. Set The Graph API variables if querying via The Graph gateway. Provide your API key and the subgraph IDs for each network you plan to query. These IDs can be obtained from [The Graph explorer](https://thegraph.com/explorer/). If an ID is omitted, the scanner defaults to the legacy hosted-service URL:
+
+> > > > > > > theirs
 
 ```
 THEGRAPH_API_KEY=<your_key>
@@ -22,6 +25,15 @@ UNISWAP_ARBITRUM_SUBGRAPH_ID=<id>
 SUSHISWAP_ARBITRUM_SUBGRAPH_ID=<id>
 UNISWAP_OPTIMISM_SUBGRAPH_ID=<id>
 SUSHISWAP_OPTIMISM_SUBGRAPH_ID=<id>
+UNISWAP_V3_SUBGRAPH_ID=<id>
+BALANCER_V2_SUBGRAPH_ID=<id>
+CURVE_V2_SUBGRAPH_ID=<id>
+UNISWAP_V3_ARBITRUM_SUBGRAPH_ID=<id>
+BALANCER_ARBITRUM_SUBGRAPH_ID=<id>
+CURVE_ARBITRUM_SUBGRAPH_ID=<id>
+UNISWAP_V3_OPTIMISM_SUBGRAPH_ID=<id>
+BALANCER_OPTIMISM_SUBGRAPH_ID=<id>
+CURVE_OPTIMISM_SUBGRAPH_ID=<id>
 ```
 
 If the bot logs `routeFinder returned 0 routes`, double-check these subgraph
