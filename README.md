@@ -18,18 +18,26 @@ npm ci
 
 ```
 THEGRAPH_API_KEY=<your_key>
+
+# Uniswap/SushiSwap V2 subgraphs
 UNISWAP_ARBITRUM_SUBGRAPH_ID=<id>
 SUSHISWAP_ARBITRUM_SUBGRAPH_ID=<id>
 UNISWAP_OPTIMISM_SUBGRAPH_ID=<id>
 SUSHISWAP_OPTIMISM_SUBGRAPH_ID=<id>
+
+# Uniswap V3 subgraphs
 UNISWAP_V3_SUBGRAPH_ID=<id>
-BALANCER_V2_SUBGRAPH_ID=<id>
-CURVE_V2_SUBGRAPH_ID=<id>
 UNISWAP_V3_ARBITRUM_SUBGRAPH_ID=<id>
-BALANCER_ARBITRUM_SUBGRAPH_ID=<id>
-CURVE_ARBITRUM_SUBGRAPH_ID=<id>
 UNISWAP_V3_OPTIMISM_SUBGRAPH_ID=<id>
+
+# Balancer V2 subgraphs
+BALANCER_V2_SUBGRAPH_ID=<id>
+BALANCER_ARBITRUM_SUBGRAPH_ID=<id>
 BALANCER_OPTIMISM_SUBGRAPH_ID=<id>
+
+# Curve V2 subgraphs
+CURVE_V2_SUBGRAPH_ID=<id>
+CURVE_ARBITRUM_SUBGRAPH_ID=<id>
 CURVE_OPTIMISM_SUBGRAPH_ID=<id>
 ```
 
@@ -38,6 +46,13 @@ IDs and ensure your API key has access. When an ID is invalid, the scanner
 falls back to the public subgraphs, but no pools may be returned.
 The liquidity scanner will also retry queries using `liquidityPools` and
 `inputTokens` for subgraphs following the community DeFi standard schema.
+<<<<<<< ours
+=======
+Be sure to map V2 and V3 subgraph IDs to the correct environment variables;
+using a V3 ID for `UNISWAP_ARBITRUM_SUBGRAPH_ID` will cause `pairs` queries to
+fail.
+
+> > > > > > > theirs
 
 4. Start the services:
 
