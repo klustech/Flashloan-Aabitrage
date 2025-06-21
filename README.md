@@ -14,10 +14,7 @@ npm ci
 
 2. Copy `.env.example` to `.env` and fill in the required addresses (router addresses, deployed Arbitrage contracts, etc.). Only Uniswap and SushiSwap routers are needed; the old `ROUTERXYZ` fields have been removed.
 
-<<<<<<< ours 3. Set The Graph API variables if querying via the hosted service. Include your API key and the subgraph IDs for each network you plan to query. These IDs can be obtained from [The Graph explorer](https://thegraph.com/explorer/):
-======= 3. Set The Graph API variables if querying via The Graph gateway. Provide your API key and the subgraph IDs for each network you plan to query. These IDs can be obtained from [The Graph explorer](https://thegraph.com/explorer/). If an ID is omitted, the scanner defaults to the legacy hosted-service URL:
-
-> > > > > > > theirs
+3. Set The Graph API variables if querying via The Graph gateway. Provide your API key and the subgraph IDs for each network you plan to query. These IDs can be obtained from [The Graph explorer](https://thegraph.com/explorer/). If an ID is omitted, the scanner defaults to the legacy hosted-service URL:
 
 ```
 THEGRAPH_API_KEY=<your_key>
@@ -39,6 +36,8 @@ CURVE_OPTIMISM_SUBGRAPH_ID=<id>
 If the bot logs `routeFinder returned 0 routes`, double-check these subgraph
 IDs and ensure your API key has access. When an ID is invalid, the scanner
 falls back to the public subgraphs, but no pools may be returned.
+The liquidity scanner will also retry queries using `liquidityPools` and
+`inputTokens` for subgraphs following the community DeFi standard schema.
 
 4. Start the services:
 

@@ -235,7 +235,7 @@ async function fetchUniswapV2TopPairs(
   minLiquidityUSD = DEFAULT_MIN_LIQUIDITY_USD
 ) {
   const { subgraphUrl, fallbackUrl } = chainConfig.uniswapV2;
-  const query = `
+  const queryPairs = `
     {
       pairs(
         first: ${topN}
@@ -252,14 +252,64 @@ async function fetchUniswapV2TopPairs(
       }
     }
   `;
-  const data = await graphqlRequest(subgraphUrl, query, {}, fallbackUrl);
-  if (!data || !data.data || !Array.isArray(data.data.pairs)) {
+  let data = await graphqlRequest(subgraphUrl, queryPairs, {}, fallbackUrl);
+  let pairs = data && data.data && data.data.pairs;
+  if (!Array.isArray(pairs)) {
+    const altQuery = `
+      {
+        liquidityPools(
+          first: ${topN}
+          orderBy: reserveUSD
+          orderDirection: desc
+          where: { reserveUSD_gt: ${minLiquidityUSD} }
+        ) {
+          id
+          token0 { id symbol }
+          token1 { id symbol }
+          reserve0
+          reserve1
+          reserveUSD
+        }
+      }
+    `;
+    data = await graphqlRequest(subgraphUrl, altQuery, {}, fallbackUrl);
+    pairs = data && data.data && data.data.liquidityPools;
+    if (!Array.isArray(pairs)) {
+      const altQuery2 = `
+        {
+          liquidityPools(
+            first: ${topN}
+            orderBy: totalValueLockedUSD
+            orderDirection: desc
+            where: { totalValueLockedUSD_gt: ${minLiquidityUSD} }
+          ) {
+            id
+            inputTokens { id symbol }
+            totalValueLockedUSD
+          }
+        }
+      `;
+      data = await graphqlRequest(subgraphUrl, altQuery2, {}, fallbackUrl);
+      pairs = data && data.data && data.data.liquidityPools;
+      if (Array.isArray(pairs)) {
+        pairs = pairs.map((p) => ({
+          id: p.id,
+          token0: { id: p.inputTokens[0].id, symbol: p.inputTokens[0].symbol },
+          token1: { id: p.inputTokens[1].id, symbol: p.inputTokens[1].symbol },
+          reserve0: "0",
+          reserve1: "0",
+          reserveUSD: p.totalValueLockedUSD,
+        }));
+      }
+    }
+  }
+  if (!Array.isArray(pairs)) {
     console.warn(
       `UniswapV2 query returned no pairs for ${subgraphUrl}. Check the response.`
     );
     return [];
   }
-  return data.data.pairs.map((p) => ({
+  return pairs.map((p) => ({
     pairAddress: p.id,
     token0: p.token0.id,
     token1: p.token1.id,
@@ -279,7 +329,7 @@ async function fetchSushiV2TopPairs(
   minLiquidityUSD = DEFAULT_MIN_LIQUIDITY_USD
 ) {
   const { subgraphUrl, fallbackUrl } = chainConfig.sushiV2;
-  const query = `
+  const queryPairs = `
     {
       pairs(
         first: ${topN}
@@ -296,14 +346,64 @@ async function fetchSushiV2TopPairs(
       }
     }
   `;
-  const data = await graphqlRequest(subgraphUrl, query, {}, fallbackUrl);
-  if (!data || !data.data || !Array.isArray(data.data.pairs)) {
+  let data = await graphqlRequest(subgraphUrl, queryPairs, {}, fallbackUrl);
+  let pairs = data && data.data && data.data.pairs;
+  if (!Array.isArray(pairs)) {
+    const altQuery = `
+      {
+        liquidityPools(
+          first: ${topN}
+          orderBy: reserveUSD
+          orderDirection: desc
+          where: { reserveUSD_gt: ${minLiquidityUSD} }
+        ) {
+          id
+          token0 { id symbol }
+          token1 { id symbol }
+          reserve0
+          reserve1
+          reserveUSD
+        }
+      }
+    `;
+    data = await graphqlRequest(subgraphUrl, altQuery, {}, fallbackUrl);
+    pairs = data && data.data && data.data.liquidityPools;
+    if (!Array.isArray(pairs)) {
+      const altQuery2 = `
+        {
+          liquidityPools(
+            first: ${topN}
+            orderBy: totalValueLockedUSD
+            orderDirection: desc
+            where: { totalValueLockedUSD_gt: ${minLiquidityUSD} }
+          ) {
+            id
+            inputTokens { id symbol }
+            totalValueLockedUSD
+          }
+        }
+      `;
+      data = await graphqlRequest(subgraphUrl, altQuery2, {}, fallbackUrl);
+      pairs = data && data.data && data.data.liquidityPools;
+      if (Array.isArray(pairs)) {
+        pairs = pairs.map((p) => ({
+          id: p.id,
+          token0: { id: p.inputTokens[0].id, symbol: p.inputTokens[0].symbol },
+          token1: { id: p.inputTokens[1].id, symbol: p.inputTokens[1].symbol },
+          reserve0: "0",
+          reserve1: "0",
+          reserveUSD: p.totalValueLockedUSD,
+        }));
+      }
+    }
+  }
+  if (!Array.isArray(pairs)) {
     console.warn(
       `SushiSwapV2 query returned no pairs for ${subgraphUrl}. Check the response.`
     );
     return [];
   }
-  return data.data.pairs.map((p) => ({
+  return pairs.map((p) => ({
     pairAddress: p.id,
     token0: p.token0.id,
     token1: p.token1.id,
@@ -320,7 +420,7 @@ async function fetchSushiV2TopPairs(
 async function fetchUniswapV3TopPools(chainConfig, topN = DEFAULT_TOP_N) {
   if (!chainConfig.uniswapV3 || !chainConfig.uniswapV3.subgraphUrl) return [];
   const url = chainConfig.uniswapV3.subgraphUrl;
-  const query = `
+  const queryPools = `
     {
       pools(
         first: ${topN}
@@ -335,14 +435,62 @@ async function fetchUniswapV3TopPools(chainConfig, topN = DEFAULT_TOP_N) {
       }
     }
   `;
-  const data = await graphqlRequest(url, query);
-  if (!data || !data.data || !Array.isArray(data.data.pools)) {
+  let data = await graphqlRequest(url, queryPools);
+  let pools = data && data.data && data.data.pools;
+  if (!Array.isArray(pools)) {
+    const altQuery = `
+      {
+        liquidityPools(
+          first: ${topN}
+          orderBy: liquidity
+          orderDirection: desc
+        ) {
+          id
+          token0 { id symbol }
+          token1 { id symbol }
+          feeTier
+          liquidity
+        }
+      }
+    `;
+    data = await graphqlRequest(url, altQuery);
+    pools = data && data.data && data.data.liquidityPools;
+    if (!Array.isArray(pools)) {
+      const altQuery2 = `
+        {
+          liquidityPools(
+            first: ${topN}
+            orderBy: totalValueLockedUSD
+            orderDirection: desc
+          ) {
+            id
+            inputTokens { id symbol }
+            feeTier
+            liquidity
+            totalValueLockedUSD
+          }
+        }
+      `;
+      data = await graphqlRequest(url, altQuery2);
+      pools = data && data.data && data.data.liquidityPools;
+      if (Array.isArray(pools)) {
+        pools = pools.map((p) => ({
+          id: p.id,
+          token0: { id: p.inputTokens[0].id, symbol: p.inputTokens[0].symbol },
+          token1: { id: p.inputTokens[1].id, symbol: p.inputTokens[1].symbol },
+          feeTier: p.feeTier,
+          liquidity: p.liquidity,
+        }));
+      }
+    }
+  }
+  if (!Array.isArray(pools)) {
     console.warn(
       `UniswapV3 query returned no pools for ${url}. Check the response.`
     );
     return [];
   }
-  return data.data.pools.map((p) => ({
+  return pools.map((p) => ({
     poolAddress: p.id,
     token0: p.token0.id,
     token1: p.token1.id,
@@ -358,7 +506,7 @@ async function fetchUniswapV3TopPools(chainConfig, topN = DEFAULT_TOP_N) {
 async function fetchBalancerV2TopPools(chainConfig, topN = DEFAULT_TOP_N) {
   if (!chainConfig.balancerV2 || !chainConfig.balancerV2.subgraphUrl) return [];
   const url = chainConfig.balancerV2.subgraphUrl;
-  const query = `
+  const queryPools = `
     {
       pools(first: ${topN}, orderBy: totalLiquidity, orderDirection: desc) {
         id
@@ -367,14 +515,48 @@ async function fetchBalancerV2TopPools(chainConfig, topN = DEFAULT_TOP_N) {
       }
     }
   `;
-  const data = await graphqlRequest(url, query);
-  if (!data || !data.data || !Array.isArray(data.data.pools)) {
+  let data = await graphqlRequest(url, queryPools);
+  let pools = data && data.data && data.data.pools;
+  if (!Array.isArray(pools)) {
+    const altQuery = `
+      {
+        liquidityPools(first: ${topN}, orderBy: totalLiquidity, orderDirection: desc) {
+          id
+          tokens { address }
+          totalLiquidity
+        }
+      }
+    `;
+    data = await graphqlRequest(url, altQuery);
+    pools = data && data.data && data.data.liquidityPools;
+    if (!Array.isArray(pools)) {
+      const altQuery2 = `
+        {
+          liquidityPools(first: ${topN}, orderBy: totalLiquidityUSD, orderDirection: desc) {
+            id
+            inputTokens { id }
+            totalLiquidityUSD
+          }
+        }
+      `;
+      data = await graphqlRequest(url, altQuery2);
+      pools = data && data.data && data.data.liquidityPools;
+      if (Array.isArray(pools)) {
+        pools = pools.map((p) => ({
+          id: p.id,
+          tokens: p.inputTokens.map((t) => ({ address: t.id })),
+          totalLiquidity: p.totalLiquidityUSD,
+        }));
+      }
+    }
+  }
+  if (!Array.isArray(pools)) {
     console.warn(
       `BalancerV2 query returned no pools for ${url}. Check the response.`
     );
     return [];
   }
-  return data.data.pools.map((p) => ({
+  return pools.map((p) => ({
     poolAddress: p.id,
     tokens: p.tokens.map((t) => t.address),
     totalLiquidityUSD: parseFloat(p.totalLiquidity), // approximate USD value
@@ -388,7 +570,7 @@ async function fetchBalancerV2TopPools(chainConfig, topN = DEFAULT_TOP_N) {
 async function fetchCurveV2TopPools(chainConfig, topN = DEFAULT_TOP_N) {
   if (!chainConfig.curveV2 || !chainConfig.curveV2.subgraphUrl) return [];
   const url = chainConfig.curveV2.subgraphUrl;
-  const query = `
+  const queryPools = `
     {
       pools(first: ${topN}, orderBy: totalLiquidityUSD, orderDirection: desc) {
         id
@@ -397,14 +579,48 @@ async function fetchCurveV2TopPools(chainConfig, topN = DEFAULT_TOP_N) {
       }
     }
   `;
-  const data = await graphqlRequest(url, query);
-  if (!data || !data.data || !Array.isArray(data.data.pools)) {
+  let data = await graphqlRequest(url, queryPools);
+  let pools = data && data.data && data.data.pools;
+  if (!Array.isArray(pools)) {
+    const altQuery = `
+      {
+        liquidityPools(first: ${topN}, orderBy: totalLiquidityUSD, orderDirection: desc) {
+          id
+          tokens { id }
+          totalLiquidityUSD
+        }
+      }
+    `;
+    data = await graphqlRequest(url, altQuery);
+    pools = data && data.data && data.data.liquidityPools;
+    if (!Array.isArray(pools)) {
+      const altQuery2 = `
+        {
+          liquidityPools(first: ${topN}, orderBy: totalValueLockedUSD, orderDirection: desc) {
+            id
+            inputTokens { id }
+            totalValueLockedUSD
+          }
+        }
+      `;
+      data = await graphqlRequest(url, altQuery2);
+      pools = data && data.data && data.data.liquidityPools;
+      if (Array.isArray(pools)) {
+        pools = pools.map((p) => ({
+          id: p.id,
+          tokens: p.inputTokens.map((t) => ({ id: t.id })),
+          totalLiquidityUSD: p.totalValueLockedUSD,
+        }));
+      }
+    }
+  }
+  if (!Array.isArray(pools)) {
     console.warn(
       `CurveV2 query returned no pools for ${url}. Check the response.`
     );
     return [];
   }
-  return data.data.pools.map((p) => ({
+  return pools.map((p) => ({
     poolAddress: p.id,
     tokens: p.tokens.map((t) => t.id),
     totalLiquidityUSD: parseFloat(p.totalLiquidityUSD),
