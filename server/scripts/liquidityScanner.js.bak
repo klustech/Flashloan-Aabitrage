@@ -168,6 +168,43 @@ const CHAIN_CONFIGS = {
   },
 };
 // ────────────────────────────────────────────────────────────────────────────────
+// Introspection helpers to adapt to varying subgraph schemas
+// ────────────────────────────────────────────────────────────────────────────────
+const SCHEMA_FIELD_CACHE = {};
+
+<<<<<<< ours
+async function getQueryFields(url) {
+  if (SCHEMA_FIELD_CACHE[url]) return SCHEMA_FIELD_CACHE[url];
+  const introspectionQuery = `{\n    __type(name: "Query") { fields { name } }\n  }`;
+  const data = await graphqlRequest(url, introspectionQuery);
+=======
+async function getQueryFields(url, fallbackUrl) {
+  if (SCHEMA_FIELD_CACHE[url]) return SCHEMA_FIELD_CACHE[url];
+  const introspectionQuery = `{\n    __type(name: "Query") { fields { name } }\n  }`;
+  const data = await graphqlRequest(url, introspectionQuery, {}, fallbackUrl);
+>>>>>>> theirs
+  const fields =
+    data &&
+    data.data &&
+    data.data.__type &&
+    Array.isArray(data.data.__type.fields)
+      ? data.data.__type.fields.map((f) => f.name)
+      : [];
+  SCHEMA_FIELD_CACHE[url] = fields;
+  return fields;
+}
+
+<<<<<<< ours
+async function hasField(url, field) {
+  const fields = await getQueryFields(url);
+=======
+async function hasField(url, field, fallbackUrl) {
+  const fields = await getQueryFields(url, fallbackUrl);
+>>>>>>> theirs
+  return fields.includes(field);
+}
+
+// ────────────────────────────────────────────────────────────────────────────────
 // UTILITY: Perform a GraphQL POST to the given URL with retries.
 // ────────────────────────────────────────────────────────────────────────────────
 async function graphqlRequest(url, query, variables = {}, fallbackUrl) {
@@ -235,29 +272,67 @@ async function fetchUniswapV2TopPairs(
   minLiquidityUSD = DEFAULT_MIN_LIQUIDITY_USD
 ) {
   const { subgraphUrl, fallbackUrl } = chainConfig.uniswapV2;
-  const queryPairs = `
-    {
-      pairs(
-        first: ${topN}
-        orderBy: reserveUSD
-        orderDirection: desc
-        where: { reserveUSD_gt: ${minLiquidityUSD} }
-      ) {
-        id
-        token0 { id symbol }
-        token1 { id symbol }
-        reserve0
-        reserve1
-        reserveUSD
-      }
-    }
-  `;
-  let data = await graphqlRequest(subgraphUrl, queryPairs, {}, fallbackUrl);
-  let pairs = data && data.data && data.data.pairs;
-  if (!Array.isArray(pairs)) {
-    const altQuery = `
+<<<<<<< ours
+  const useLiquidityPools = await hasField(subgraphUrl, "liquidityPools");
+=======
+  const useLiquidityPools = await hasField(subgraphUrl, "liquidityPools", fallbackUrl);
+>>>>>>> theirs
+  let data;
+  let pairs;
+
+  if (useLiquidityPools) {
+    const query = `
       {
         liquidityPools(
+          first: ${topN}
+          orderBy: totalValueLockedUSD
+          orderDirection: desc
+          where: { totalValueLockedUSD_gt: ${minLiquidityUSD} }
+        ) {
+          id
+          inputTokens { id symbol }
+          totalValueLockedUSD
+        }
+      }
+    `;
+    data = await graphqlRequest(subgraphUrl, query, {}, fallbackUrl);
+    pairs = data && data.data && data.data.liquidityPools;
+    if (!Array.isArray(pairs)) {
+      const altQuery = `
+        {
+          liquidityPools(
+            first: ${topN}
+            orderBy: reserveUSD
+            orderDirection: desc
+            where: { reserveUSD_gt: ${minLiquidityUSD} }
+          ) {
+            id
+            token0 { id symbol }
+            token1 { id symbol }
+            reserve0
+            reserve1
+            reserveUSD
+          }
+        }
+      `;
+      data = await graphqlRequest(subgraphUrl, altQuery, {}, fallbackUrl);
+      pairs = data && data.data && data.data.liquidityPools;
+    }
+    if (Array.isArray(pairs)) {
+      pairs = pairs.map((p) => ({
+        id: p.id,
+        token0: { id: p.inputTokens[0].id, symbol: p.inputTokens[0].symbol },
+        token1: { id: p.inputTokens[1].id, symbol: p.inputTokens[1].symbol },
+        reserve0: p.reserve0 || "0",
+        reserve1: p.reserve1 || "0",
+        reserveUSD: p.totalValueLockedUSD || p.reserveUSD,
+      }));
+    }
+  }
+  if (!Array.isArray(pairs)) {
+    const legacyQuery = `
+      {
+        pairs(
           first: ${topN}
           orderBy: reserveUSD
           orderDirection: desc
@@ -272,43 +347,15 @@ async function fetchUniswapV2TopPairs(
         }
       }
     `;
-    data = await graphqlRequest(subgraphUrl, altQuery, {}, fallbackUrl);
-    pairs = data && data.data && data.data.liquidityPools;
-<<<<<<< ours
-=======
-    if (!Array.isArray(pairs)) {
-      const altQuery2 = `
-        {
-          liquidityPools(
-            first: ${topN}
-            orderBy: totalValueLockedUSD
-            orderDirection: desc
-            where: { totalValueLockedUSD_gt: ${minLiquidityUSD} }
-          ) {
-            id
-            inputTokens { id symbol }
-            totalValueLockedUSD
-          }
-        }
-      `;
-      data = await graphqlRequest(subgraphUrl, altQuery2, {}, fallbackUrl);
-      pairs = data && data.data && data.data.liquidityPools;
-      if (Array.isArray(pairs)) {
-        pairs = pairs.map((p) => ({
-          id: p.id,
-          token0: { id: p.inputTokens[0].id, symbol: p.inputTokens[0].symbol },
-          token1: { id: p.inputTokens[1].id, symbol: p.inputTokens[1].symbol },
-          reserve0: "0",
-          reserve1: "0",
-          reserveUSD: p.totalValueLockedUSD,
-        }));
-      }
-    }
->>>>>>> theirs
+    data = await graphqlRequest(subgraphUrl, legacyQuery, {}, fallbackUrl);
+    pairs = data && data.data && data.data.pairs;
   }
   if (!Array.isArray(pairs)) {
     console.warn(
       `UniswapV2 query returned no pairs for ${subgraphUrl}. Check the response.`
+    );
+    console.warn(
+      "Verify that your UNISWAP_*_SUBGRAPH_ID variable points to a Uniswap V2 subgraph."
     );
     return [];
   }
@@ -332,29 +379,80 @@ async function fetchSushiV2TopPairs(
   minLiquidityUSD = DEFAULT_MIN_LIQUIDITY_USD
 ) {
   const { subgraphUrl, fallbackUrl } = chainConfig.sushiV2;
-  const queryPairs = `
-    {
-      pairs(
-        first: ${topN}
-        orderBy: reserveUSD
-        orderDirection: desc
-        where: { reserveUSD_gt: ${minLiquidityUSD} }
-      ) {
-        id
-        token0 { id symbol }
-        token1 { id symbol }
-        reserve0
-        reserve1
-        reserveUSD
-      }
-    }
-  `;
-  let data = await graphqlRequest(subgraphUrl, queryPairs, {}, fallbackUrl);
-  let pairs = data && data.data && data.data.pairs;
-  if (!Array.isArray(pairs)) {
-    const altQuery = `
+<<<<<<< ours
+  const useLiquidityPools = await hasField(subgraphUrl, "liquidityPools");
+=======
+  const useLiquidityPools = await hasField(subgraphUrl, "liquidityPools", fallbackUrl);
+>>>>>>> theirs
+  let data;
+  let pairs;
+
+  if (useLiquidityPools) {
+    const query = `
       {
         liquidityPools(
+          first: ${topN}
+          orderBy: totalValueLockedUSD
+          orderDirection: desc
+          where: { totalValueLockedUSD_gt: ${minLiquidityUSD} }
+        ) {
+          id
+          inputTokens { id symbol }
+          totalValueLockedUSD
+        }
+      }
+    `;
+    data = await graphqlRequest(subgraphUrl, query, {}, fallbackUrl);
+    pairs = data && data.data && data.data.liquidityPools;
+    if (!Array.isArray(pairs)) {
+      const altQuery = `
+        {
+          liquidityPools(
+            first: ${topN}
+            orderBy: reserveUSD
+            orderDirection: desc
+            where: { reserveUSD_gt: ${minLiquidityUSD} }
+          ) {
+            id
+            token0 { id symbol }
+            token1 { id symbol }
+            reserve0
+            reserve1
+            reserveUSD
+          }
+        }
+      `;
+      data = await graphqlRequest(subgraphUrl, altQuery, {}, fallbackUrl);
+      pairs = data && data.data && data.data.liquidityPools;
+<<<<<<< ours
+=======
+    }
+    if (Array.isArray(pairs)) {
+      pairs = pairs.map((p) => ({
+        id: p.id,
+        token0: { id: p.inputTokens[0].id, symbol: p.inputTokens[0].symbol },
+        token1: { id: p.inputTokens[1].id, symbol: p.inputTokens[1].symbol },
+        reserve0: p.reserve0 || "0",
+        reserve1: p.reserve1 || "0",
+        reserveUSD: p.totalValueLockedUSD || p.reserveUSD,
+      }));
+>>>>>>> theirs
+    }
+    if (Array.isArray(pairs)) {
+      pairs = pairs.map((p) => ({
+        id: p.id,
+        token0: { id: p.inputTokens[0].id, symbol: p.inputTokens[0].symbol },
+        token1: { id: p.inputTokens[1].id, symbol: p.inputTokens[1].symbol },
+        reserve0: p.reserve0 || "0",
+        reserve1: p.reserve1 || "0",
+        reserveUSD: p.totalValueLockedUSD || p.reserveUSD,
+      }));
+    }
+  }
+  if (!Array.isArray(pairs)) {
+    const legacyQuery = `
+      {
+        pairs(
           first: ${topN}
           orderBy: reserveUSD
           orderDirection: desc
@@ -369,43 +467,36 @@ async function fetchSushiV2TopPairs(
         }
       }
     `;
-    data = await graphqlRequest(subgraphUrl, altQuery, {}, fallbackUrl);
-    pairs = data && data.data && data.data.liquidityPools;
-<<<<<<< ours
-=======
-    if (!Array.isArray(pairs)) {
-      const altQuery2 = `
-        {
-          liquidityPools(
-            first: ${topN}
-            orderBy: totalValueLockedUSD
-            orderDirection: desc
-            where: { totalValueLockedUSD_gt: ${minLiquidityUSD} }
-          ) {
-            id
-            inputTokens { id symbol }
-            totalValueLockedUSD
-          }
+    data = await graphqlRequest(subgraphUrl, legacyQuery, {}, fallbackUrl);
+    pairs = data && data.data && data.data.pairs;
+  }
+  if (!Array.isArray(pairs)) {
+    const legacyQuery = `
+      {
+        pairs(
+          first: ${topN}
+          orderBy: reserveUSD
+          orderDirection: desc
+          where: { reserveUSD_gt: ${minLiquidityUSD} }
+        ) {
+          id
+          token0 { id symbol }
+          token1 { id symbol }
+          reserve0
+          reserve1
+          reserveUSD
         }
-      `;
-      data = await graphqlRequest(subgraphUrl, altQuery2, {}, fallbackUrl);
-      pairs = data && data.data && data.data.liquidityPools;
-      if (Array.isArray(pairs)) {
-        pairs = pairs.map((p) => ({
-          id: p.id,
-          token0: { id: p.inputTokens[0].id, symbol: p.inputTokens[0].symbol },
-          token1: { id: p.inputTokens[1].id, symbol: p.inputTokens[1].symbol },
-          reserve0: "0",
-          reserve1: "0",
-          reserveUSD: p.totalValueLockedUSD,
-        }));
       }
-    }
->>>>>>> theirs
+    `;
+    data = await graphqlRequest(subgraphUrl, legacyQuery, {}, fallbackUrl);
+    pairs = data && data.data && data.data.pairs;
   }
   if (!Array.isArray(pairs)) {
     console.warn(
       `SushiSwapV2 query returned no pairs for ${subgraphUrl}. Check the response.`
+    );
+    console.warn(
+      "Verify that your SUSHISWAP_*_SUBGRAPH_ID variable points to the SushiSwap V2 subgraph."
     );
     return [];
   }
@@ -426,27 +517,78 @@ async function fetchSushiV2TopPairs(
 async function fetchUniswapV3TopPools(chainConfig, topN = DEFAULT_TOP_N) {
   if (!chainConfig.uniswapV3 || !chainConfig.uniswapV3.subgraphUrl) return [];
   const url = chainConfig.uniswapV3.subgraphUrl;
-  const queryPools = `
-    {
-      pools(
-        first: ${topN}
-        orderBy: liquidity
-        orderDirection: desc
-      ) {
-        id
-        token0 { id symbol }
-        token1 { id symbol }
-        feeTier
-        liquidity
-      }
-    }
-  `;
-  let data = await graphqlRequest(url, queryPools);
-  let pools = data && data.data && data.data.pools;
-  if (!Array.isArray(pools)) {
-    const altQuery = `
+<<<<<<< ours
+  const useLiquidityPools = await hasField(url, "liquidityPools");
+=======
+  const fallbackUrl = chainConfig.uniswapV3.fallbackUrl;
+  const useLiquidityPools = await hasField(url, "liquidityPools", fallbackUrl);
+>>>>>>> theirs
+  let data;
+  let pools;
+
+  if (useLiquidityPools) {
+    const query = `
       {
         liquidityPools(
+          first: ${topN}
+          orderBy: totalValueLockedUSD
+          orderDirection: desc
+        ) {
+          id
+          inputTokens { id symbol }
+          feeTier
+          liquidity
+          totalValueLockedUSD
+        }
+      }
+    `;
+    data = await graphqlRequest(url, query);
+    pools = data && data.data && data.data.liquidityPools;
+    if (!Array.isArray(pools)) {
+      const altQuery = `
+        {
+          liquidityPools(
+            first: ${topN}
+            orderBy: liquidity
+            orderDirection: desc
+          ) {
+            id
+            token0 { id symbol }
+            token1 { id symbol }
+            feeTier
+            liquidity
+          }
+        }
+      `;
+      data = await graphqlRequest(url, altQuery);
+      pools = data && data.data && data.data.liquidityPools;
+<<<<<<< ours
+=======
+    }
+    if (Array.isArray(pools)) {
+      pools = pools.map((p) => ({
+        id: p.id,
+        token0: { id: p.inputTokens[0].id, symbol: p.inputTokens[0].symbol },
+        token1: { id: p.inputTokens[1].id, symbol: p.inputTokens[1].symbol },
+        feeTier: p.feeTier,
+        liquidity: p.liquidity,
+      }));
+>>>>>>> theirs
+    }
+    if (Array.isArray(pools)) {
+      pools = pools.map((p) => ({
+        id: p.id,
+        token0: { id: p.inputTokens[0].id, symbol: p.inputTokens[0].symbol },
+        token1: { id: p.inputTokens[1].id, symbol: p.inputTokens[1].symbol },
+        feeTier: p.feeTier,
+        liquidity: p.liquidity,
+      }));
+    }
+  }
+  if (!Array.isArray(pools)) {
+    const legacyQuery = `
+      {
+        pools(
           first: ${topN}
           orderBy: liquidity
           orderDirection: desc
@@ -459,39 +601,27 @@ async function fetchUniswapV3TopPools(chainConfig, topN = DEFAULT_TOP_N) {
         }
       }
     `;
-    data = await graphqlRequest(url, altQuery);
-    pools = data && data.data && data.data.liquidityPools;
-<<<<<<< ours
-=======
-    if (!Array.isArray(pools)) {
-      const altQuery2 = `
-        {
-          liquidityPools(
-            first: ${topN}
-            orderBy: totalValueLockedUSD
-            orderDirection: desc
-          ) {
-            id
-            inputTokens { id symbol }
-            feeTier
-            liquidity
-            totalValueLockedUSD
-          }
+    data = await graphqlRequest(url, legacyQuery);
+    pools = data && data.data && data.data.pools;
+  }
+  if (!Array.isArray(pools)) {
+    const legacyQuery = `
+      {
+        pools(
+          first: ${topN}
+          orderBy: liquidity
+          orderDirection: desc
+        ) {
+          id
+          token0 { id symbol }
+          token1 { id symbol }
+          feeTier
+          liquidity
         }
-      `;
-      data = await graphqlRequest(url, altQuery2);
-      pools = data && data.data && data.data.liquidityPools;
-      if (Array.isArray(pools)) {
-        pools = pools.map((p) => ({
-          id: p.id,
-          token0: { id: p.inputTokens[0].id, symbol: p.inputTokens[0].symbol },
-          token1: { id: p.inputTokens[1].id, symbol: p.inputTokens[1].symbol },
-          feeTier: p.feeTier,
-          liquidity: p.liquidity,
-        }));
       }
-    }
->>>>>>> theirs
+    `;
+    data = await graphqlRequest(url, legacyQuery);
+    pools = data && data.data && data.data.pools;
   }
   if (!Array.isArray(pools)) {
     console.warn(
@@ -515,52 +645,66 @@ async function fetchUniswapV3TopPools(chainConfig, topN = DEFAULT_TOP_N) {
 async function fetchBalancerV2TopPools(chainConfig, topN = DEFAULT_TOP_N) {
   if (!chainConfig.balancerV2 || !chainConfig.balancerV2.subgraphUrl) return [];
   const url = chainConfig.balancerV2.subgraphUrl;
-  const queryPools = `
-    {
-      pools(first: ${topN}, orderBy: totalLiquidity, orderDirection: desc) {
-        id
-        tokens { address }
-        totalLiquidity
-      }
-    }
-  `;
-  let data = await graphqlRequest(url, queryPools);
-  let pools = data && data.data && data.data.pools;
-  if (!Array.isArray(pools)) {
-    const altQuery = `
+<<<<<<< ours
+  const useLiquidityPools = await hasField(url, "liquidityPools");
+=======
+  const fallbackUrl = chainConfig.balancerV2.fallbackUrl;
+  const useLiquidityPools = await hasField(url, "liquidityPools", fallbackUrl);
+>>>>>>> theirs
+  let data;
+  let pools;
+
+  if (useLiquidityPools) {
+    const query = `
       {
-        liquidityPools(first: ${topN}, orderBy: totalLiquidity, orderDirection: desc) {
+        liquidityPools(first: ${topN}, orderBy: totalLiquidityUSD, orderDirection: desc) {
+          id
+          inputTokens { id }
+          totalLiquidityUSD
+        }
+      }
+    `;
+    data = await graphqlRequest(url, query);
+    pools = data && data.data && data.data.liquidityPools;
+    if (!Array.isArray(pools)) {
+      const altQuery = `
+        {
+          liquidityPools(first: ${topN}, orderBy: totalLiquidity, orderDirection: desc) {
+            id
+            tokens { address }
+            totalLiquidity
+          }
+        }
+      `;
+      data = await graphqlRequest(url, altQuery);
+      pools = data && data.data && data.data.liquidityPools;
+    }
+    if (Array.isArray(pools)) {
+      pools = pools.map((p) => ({
+        id: p.id,
+<<<<<<< ours
+        tokens: (p.inputTokens || p.tokens).map((t) => ({
+          address: t.id || t.address,
+        })),
+=======
+        tokens: (p.inputTokens || p.tokens).map((t) => ({ address: t.id || t.address })),
+>>>>>>> theirs
+        totalLiquidity: p.totalLiquidityUSD || p.totalLiquidity,
+      }));
+    }
+  }
+  if (!Array.isArray(pools)) {
+    const legacyQuery = `
+      {
+        pools(first: ${topN}, orderBy: totalLiquidity, orderDirection: desc) {
           id
           tokens { address }
           totalLiquidity
         }
       }
     `;
-    data = await graphqlRequest(url, altQuery);
-    pools = data && data.data && data.data.liquidityPools;
-<<<<<<< ours
-=======
-    if (!Array.isArray(pools)) {
-      const altQuery2 = `
-        {
-          liquidityPools(first: ${topN}, orderBy: totalLiquidityUSD, orderDirection: desc) {
-            id
-            inputTokens { id }
-            totalLiquidityUSD
-          }
-        }
-      `;
-      data = await graphqlRequest(url, altQuery2);
-      pools = data && data.data && data.data.liquidityPools;
-      if (Array.isArray(pools)) {
-        pools = pools.map((p) => ({
-          id: p.id,
-          tokens: p.inputTokens.map((t) => ({ address: t.id })),
-          totalLiquidity: p.totalLiquidityUSD,
-        }));
-      }
-    }
->>>>>>> theirs
+    data = await graphqlRequest(url, legacyQuery);
+    pools = data && data.data && data.data.pools;
   }
   if (!Array.isArray(pools)) {
     console.warn(
@@ -582,52 +726,83 @@ async function fetchBalancerV2TopPools(chainConfig, topN = DEFAULT_TOP_N) {
 async function fetchCurveV2TopPools(chainConfig, topN = DEFAULT_TOP_N) {
   if (!chainConfig.curveV2 || !chainConfig.curveV2.subgraphUrl) return [];
   const url = chainConfig.curveV2.subgraphUrl;
-  const queryPools = `
-    {
-      pools(first: ${topN}, orderBy: totalLiquidityUSD, orderDirection: desc) {
-        id
-        tokens { id }
-        totalLiquidityUSD
-      }
-    }
-  `;
-  let data = await graphqlRequest(url, queryPools);
-  let pools = data && data.data && data.data.pools;
-  if (!Array.isArray(pools)) {
-    const altQuery = `
+<<<<<<< ours
+  const useLiquidityPools = await hasField(url, "liquidityPools");
+=======
+  const fallbackUrl = chainConfig.curveV2.fallbackUrl;
+  const useLiquidityPools = await hasField(url, "liquidityPools", fallbackUrl);
+>>>>>>> theirs
+  let data;
+  let pools;
+
+  if (useLiquidityPools) {
+    const query = `
       {
-        liquidityPools(first: ${topN}, orderBy: totalLiquidityUSD, orderDirection: desc) {
+        liquidityPools(first: ${topN}, orderBy: totalValueLockedUSD, orderDirection: desc) {
+          id
+          inputTokens { id }
+          totalValueLockedUSD
+        }
+      }
+    `;
+    data = await graphqlRequest(url, query);
+    pools = data && data.data && data.data.liquidityPools;
+    if (!Array.isArray(pools)) {
+      const altQuery = `
+        {
+          liquidityPools(first: ${topN}, orderBy: totalLiquidityUSD, orderDirection: desc) {
+            id
+            tokens { id }
+            totalLiquidityUSD
+          }
+        }
+      `;
+      data = await graphqlRequest(url, altQuery);
+      pools = data && data.data && data.data.liquidityPools;
+<<<<<<< ours
+=======
+    }
+    if (Array.isArray(pools)) {
+      pools = pools.map((p) => ({
+        id: p.id,
+        tokens: (p.inputTokens || p.tokens).map((t) => ({ id: t.id })),
+        totalLiquidityUSD: p.totalValueLockedUSD || p.totalLiquidityUSD,
+      }));
+>>>>>>> theirs
+    }
+    if (Array.isArray(pools)) {
+      pools = pools.map((p) => ({
+        id: p.id,
+        tokens: (p.inputTokens || p.tokens).map((t) => ({ id: t.id })),
+        totalLiquidityUSD: p.totalValueLockedUSD || p.totalLiquidityUSD,
+      }));
+    }
+  }
+  if (!Array.isArray(pools)) {
+    const legacyQuery = `
+      {
+        pools(first: ${topN}, orderBy: totalLiquidityUSD, orderDirection: desc) {
           id
           tokens { id }
           totalLiquidityUSD
         }
       }
     `;
-    data = await graphqlRequest(url, altQuery);
-    pools = data && data.data && data.data.liquidityPools;
-<<<<<<< ours
-=======
-    if (!Array.isArray(pools)) {
-      const altQuery2 = `
-        {
-          liquidityPools(first: ${topN}, orderBy: totalValueLockedUSD, orderDirection: desc) {
-            id
-            inputTokens { id }
-            totalValueLockedUSD
-          }
+    data = await graphqlRequest(url, legacyQuery);
+    pools = data && data.data && data.data.pools;
+  }
+  if (!Array.isArray(pools)) {
+    const legacyQuery = `
+      {
+        pools(first: ${topN}, orderBy: totalLiquidityUSD, orderDirection: desc) {
+          id
+          tokens { id }
+          totalLiquidityUSD
         }
-      `;
-      data = await graphqlRequest(url, altQuery2);
-      pools = data && data.data && data.data.liquidityPools;
-      if (Array.isArray(pools)) {
-        pools = pools.map((p) => ({
-          id: p.id,
-          tokens: p.inputTokens.map((t) => ({ id: t.id })),
-          totalLiquidityUSD: p.totalValueLockedUSD,
-        }));
       }
-    }
->>>>>>> theirs
+    `;
+    data = await graphqlRequest(url, legacyQuery);
+    pools = data && data.data && data.data.pools;
   }
   if (!Array.isArray(pools)) {
     console.warn(
@@ -651,7 +826,11 @@ const CACHE_KEY_PREFIX = "adjacency_graph";
 // ────────────────────────────────────────────────────────────────────────────────
 // Build adjacency graph once per interval and cache in Redis for 300s
 // ────────────────────────────────────────────────────────────────────────────────
-async function buildAdjacencyGraph(chain = "ethereum") {
+async function buildAdjacencyGraph(
+  chain = "ethereum",
+  topN = DEFAULT_TOP_N,
+  minLiquidityUSD = DEFAULT_MIN_LIQUIDITY_USD
+) {
   const cacheKey = `${CACHE_KEY_PREFIX}_${chain}`;
   const cached = await redis.get(cacheKey);
   if (cached) {
@@ -663,34 +842,27 @@ async function buildAdjacencyGraph(chain = "ethereum") {
   }
   // Fetch V2 pairs
   const [uniV2, sushiV2] = await Promise.all([
-    fetchUniswapV2TopPairs(
-      chainConfig,
-      DEFAULT_TOP_N,
-      DEFAULT_MIN_LIQUIDITY_USD
-    ),
-    fetchSushiV2TopPairs(chainConfig, DEFAULT_TOP_N, DEFAULT_MIN_LIQUIDITY_USD),
+    fetchUniswapV2TopPairs(chainConfig, topN, minLiquidityUSD),
+    fetchSushiV2TopPairs(chainConfig, topN, minLiquidityUSD),
   ]);
 
   let merged = [...uniV2, ...sushiV2];
 
   // Include V3 pools if enabled
   if (process.env.INCLUDE_V3 === "true") {
-    const v3Pools = await fetchUniswapV3TopPools(chainConfig, DEFAULT_TOP_N);
+    const v3Pools = await fetchUniswapV3TopPools(chainConfig, topN);
     merged = merged.concat(v3Pools);
   }
 
   // Include Balancer V2 if enabled
   if (process.env.INCLUDE_BALANCER === "true") {
-    const balancerPools = await fetchBalancerV2TopPools(
-      chainConfig,
-      DEFAULT_TOP_N
-    );
+    const balancerPools = await fetchBalancerV2TopPools(chainConfig, topN);
     merged = merged.concat(balancerPools);
   }
 
   // Include Curve V2 if enabled
   if (process.env.INCLUDE_CURVE === "true") {
-    const curvePools = await fetchCurveV2TopPools(chainConfig, DEFAULT_TOP_N);
+    const curvePools = await fetchCurveV2TopPools(chainConfig, topN);
     merged = merged.concat(curvePools);
   }
 
@@ -766,7 +938,11 @@ async function getTopLiquidityPairs(
   chain = "ethereum",
   { topN = DEFAULT_TOP_N, minLiquidityUSD = DEFAULT_MIN_LIQUIDITY_USD } = {}
 ) {
-  const adjacencyGraph = await buildAdjacencyGraph(chain);
+  const adjacencyGraph = await buildAdjacencyGraph(
+    chain,
+    topN,
+    minLiquidityUSD
+  );
   const entries = [];
 
   // Flatten adjacency entries into array of unique pools
