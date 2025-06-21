@@ -849,4 +849,4 @@ async function getTopLiquidityPairs(
   return uniqueEntries.slice(0, topN);
 }
 
-module.exports = { getTopLiquidityPairs };
+module.exports = { getTopLiquidityPairs, CHAIN_CONFIGS };

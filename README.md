@@ -46,13 +46,12 @@ IDs and ensure your API key has access. When an ID is invalid, the scanner
 falls back to the public subgraphs, but no pools may be returned.
 The liquidity scanner will also retry queries using `liquidityPools` and
 `inputTokens` for subgraphs following the community DeFi standard schema.
-<<<<<<< ours
-=======
 Be sure to map V2 and V3 subgraph IDs to the correct environment variables;
 using a V3 ID for `UNISWAP_ARBITRUM_SUBGRAPH_ID` will cause `pairs` queries to
 fail.
 
-> > > > > > > theirs
+You can run `node scripts/checkSubgraphs.js` to quickly verify that each
+configured subgraph responds to queries.
 
 4. Start the services:
 
