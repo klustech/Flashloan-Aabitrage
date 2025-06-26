@@ -48554,3 +48554,13 @@
 [2025-06-21T10:21:56.558Z] [INFO] [optimism] Current gas price: 0.001004946 Gwei.
 [2025-06-21T10:21:56.561Z] [INFO] [optimism] routeFinder returned 0 routes (topN=20, minLiq=0).
 [2025-06-21T10:21:56.561Z] [INFO] [optimism] getAllRoutes returned 0 routes.
+[2025-06-26T08:41:32.821Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-06-26T08:41:33.542Z] [INFO] [ethereum] Current gas price: 1.626186731 Gwei.
+[2025-06-26T08:41:39.726Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=20, minLiq=0).
+[2025-06-26T08:41:39.727Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-06-26T08:41:39.729Z] [INFO] [arbitrum] === Arbitrage Cycle Start ===
+[2025-06-26T08:41:39.986Z] [INFO] [arbitrum] Current gas price: 0.01 Gwei.
+[2025-06-26T08:42:03.933Z] [INFO] [arbitrum] routeFinder returned 0 routes (topN=20, minLiq=0).
+[2025-06-26T08:42:03.933Z] [INFO] [arbitrum] getAllRoutes returned 0 routes.
+[2025-06-26T08:42:03.935Z] [INFO] [optimism] === Arbitrage Cycle Start ===
+[2025-06-26T08:42:04.052Z] [INFO] [optimism] Current gas price: 0.001010005 Gwei.

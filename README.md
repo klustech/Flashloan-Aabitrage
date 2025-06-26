@@ -119,10 +119,15 @@ This diagram shows how the React front-end communicates with the Express API. Th
 
 ## ML Model Training
 
-The ML service loads a LightGBM model from `ml/lightgbm_model.txt`. To train this file yourself, ensure `ml/ml_training_data.csv` is populated and run:
+The ML service loads a LightGBM model from `ml/lightgbm_model.txt`. The
+repository already contains a trained model, so running the training step is
+optional. If you wish to retrain using your own dataset in
+`ml/ml_training_data.csv`, run the provided Python helper script:
 
 ```bash
-node ml/trainModel.js
+python ml/train_model.py
 ```
 
-The script trains a LightGBM classifier on the provided dataset and outputs `lightgbm_model.txt`. Copy this file alongside `server/mlScorer.js` so the scoring service can load it at startup.
+This script trains a LightGBM classifier using the `lightgbm` Python package and
+writes the resulting `lightgbm_model.txt`. Copy this file alongside
+`server/mlScorer.js` so the scoring service can load it at startup.

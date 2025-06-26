@@ -15,7 +15,8 @@
     "docker:up": "docker-compose up --build",
     "coverage": "solidity-coverage",
     "clean": "hardhat clean",
-    "check:subgraphs": "node scripts/checkSubgraphs.js"
+    "check:subgraphs": "node scripts/checkSubgraphs.js",
+    "train": "python3 ml/train_model.py"
   },
   "keywords": [],
   "author": "",
