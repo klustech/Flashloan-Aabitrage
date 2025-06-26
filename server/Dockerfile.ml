@@ -1,12 +1,14 @@
-FROM node:16-alpine
+FROM python:3.10-slim
 
-WORKDIR /usr/src/ml
-COPY mlScorer.js package.json yarn.lock ./
-RUN yarn install --production
+WORKDIR /usr/src/app
 
-COPY ml/lightgbm_model.txt ./ml/lightgbm_model.txt
+# Install minimal runtime dependencies
+RUN pip install --no-cache-dir flask joblib lightgbm
 
-ENV NODE_ENV=production
-EXPOSE 3002
+# Copy scorer and model
+COPY ml/ml_scorer.py ./ml_scorer.py
+COPY ml/lightgbm_model.txt ./lightgbm_model.txt
 
-CMD ["node", "mlScorer.js"]
+EXPOSE 4000
+
+CMD ["python", "ml_scorer.py"]

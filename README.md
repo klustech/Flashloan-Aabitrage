@@ -129,5 +129,6 @@ python ml/train_model.py
 ```
 
 This script trains a LightGBM classifier using the `lightgbm` Python package and
-writes the resulting `lightgbm_model.txt`. Copy this file alongside
-`server/mlScorer.js` so the scoring service can load it at startup.
+writes the resulting `lightgbm_model.txt`. The inference microservice
+`ml/ml_scorer.py` loads this model at startup. Run it locally with
+`npm run ml:serve` and point `ML_MODEL_ENDPOINT` to the service URL.
