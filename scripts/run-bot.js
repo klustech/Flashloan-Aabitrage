@@ -7,7 +7,7 @@
  */
 
 require("dotenv").config();
-const { simulateAndExecuteArb } = require("../server/scripts/botLogic");
+const { simulateAndExecuteArb } = require("../server/botLogic");
 
 async function runBot() {
   console.log("🤖  Starting arbitrage bot...");
@@ -39,7 +39,7 @@ runBot().catch((err) => {
 
 require("dotenv").config();
 const { backtestArbitrage } = require("../server/scripts/backtestArbitrage");
-const { ROUTES } = require("../server/scripts/botLogic");
+const { ROUTES } = require("../server/botLogic");
 const { ethers } = require("ethers");
 
 (async () => {

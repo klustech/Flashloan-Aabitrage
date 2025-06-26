@@ -118,18 +118,26 @@ async function main() {
 
     // 5) Score & prune with ML
     const scores = await Promise.all(
-      routes.map((r) =>
-        fetch(`http://localhost:${process.env.ML_PORT}/score`, {
+      routes.map((r) => {
+        const feats = [
+          r.hops.length,
+          r.liquidity || 0,
+          r.fee || 3000,
+          r.volatility || 0,
+          r.estimatedGasCost || 0,
+          r.historicalSuccessCount || 0,
+        ];
+        return fetch(process.env.ML_MODEL_ENDPOINT, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(r),
+          body: JSON.stringify({ features: [feats] }),
         })
           .then((res) => res.json())
-          .catch(() => ({ score: 0 }))
-      )
+          .catch(() => ({ probabilities: [0] }));
+      })
     );
     const topRoutes = routes
-      .map((r, idx) => ({ route: r, score: scores[idx].score }))
+      .map((r, idx) => ({ route: r, score: scores[idx].probabilities[0] }))
       .filter((x) => x.score > parseFloat(process.env.ML_THRESHOLD))
       .sort((a, b) => b.score - a.score)
       .slice(0, parseInt(process.env.ML_TOPK, 10))

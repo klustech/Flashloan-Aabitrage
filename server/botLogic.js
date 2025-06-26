@@ -429,18 +429,17 @@ function computeZScore(values) {
 // ─────────────────────────────────────────────────────────────────────────────
 async function scoreRoutesWithML(routeDefs) {
   try {
-    const features = routeDefs.map((r) => ({
-      routeLength: r.steps.length,
-      liquidityUSD: r.liquidity || 0,
-      feeTier: r.fee || 3000,
-      volatility: r.volatility || 0,
-      estimatedGasCost: r.estimatedGasCost || 0,
-      historicalSuccess: r.historicalSuccessCount || 0,
-    }));
-    const mlRes = await axios.post(
-      `http://localhost:${process.env.ML_PORT}/score`,
-      features
-    );
+    const features = routeDefs.map((r) => [
+      r.steps.length,
+      r.liquidity || 0,
+      r.fee || 3000,
+      r.volatility || 0,
+      r.estimatedGasCost || 0,
+      r.historicalSuccessCount || 0,
+    ]);
+    const mlRes = await axios.post(process.env.ML_MODEL_ENDPOINT, {
+      features,
+    });
     const probabilities = mlRes.data.probabilities;
     routeDefs.forEach((r, i) => {
       r.score = probabilities[i];
