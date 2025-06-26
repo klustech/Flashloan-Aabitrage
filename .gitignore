@@ -41,3 +41,4 @@ coverage/
 # Patch files
 *.patch
 *.diff
+*.bak

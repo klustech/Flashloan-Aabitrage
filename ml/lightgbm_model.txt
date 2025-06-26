@@ -1,0 +1,5 @@
+num_class=1
+num_tree_per_iteration=1
+label_index=0
+max_feature_idx=3
+feature_names=route_length,liquidity_usd,z_score,profit_usd
