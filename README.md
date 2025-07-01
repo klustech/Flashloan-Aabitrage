@@ -132,3 +132,28 @@ This script trains a LightGBM classifier using the `lightgbm` Python package and
 writes the resulting `lightgbm_model.txt`. The inference microservice
 `ml/ml_scorer.py` loads this model at startup. Run it locally with
 `npm run ml:serve` and point `ML_MODEL_ENDPOINT` to the service URL.
+
+## AI Trading Bot
+
+The repository includes `scripts/ai_trading_bot.js`, an example implementation of a
+VWAP and mean-reversion strategy using the `ccxt` and `technicalindicators` libraries.
+The bot polls Binance once per minute, calculates VWAP bands, a 50-period EMA and
+ATR-based stop-loss and take-profit levels, then submits market orders with dynamic
+exits.
+
+Configure credentials and optional parameters in your `.env`:
+
+```bash
+BINANCE_API_KEY=<your_key>
+BINANCE_SECRET=<your_secret>
+SYMBOL=BTC/USDT
+ORDER_SIZE=0.001
+```
+
+Run the bot with:
+
+```bash
+npm run ai-bot
+```
+
+Always test with paper trading before risking real funds.
