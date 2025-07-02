@@ -21,9 +21,9 @@ THEGRAPH_API_KEY=<your_key>
 
 # Uniswap/SushiSwap V2 subgraphs
 UNISWAP_ARBITRUM_SUBGRAPH_ID=<id>
-SUSHISWAP_ARBITRUM_SUBGRAPH_ID=<id>
+SUSHISWAP_ARBITRUM_SUBGRAPH_ID=<id>   # optional
 UNISWAP_OPTIMISM_SUBGRAPH_ID=<id>
-SUSHISWAP_OPTIMISM_SUBGRAPH_ID=<id>
+SUSHISWAP_OPTIMISM_SUBGRAPH_ID=<id>   # optional
 
 # Uniswap V3 subgraphs
 UNISWAP_V3_SUBGRAPH_ID=<id>
@@ -32,23 +32,23 @@ UNISWAP_V3_OPTIMISM_SUBGRAPH_ID=<id>
 
 # Balancer V2 subgraphs
 BALANCER_V2_SUBGRAPH_ID=<id>
-BALANCER_ARBITRUM_SUBGRAPH_ID=<id>
-BALANCER_OPTIMISM_SUBGRAPH_ID=<id>
+BALANCER_ARBITRUM_SUBGRAPH_ID=<id>   # optional
+BALANCER_OPTIMISM_SUBGRAPH_ID=<id>   # optional
 
 # Curve V2 subgraphs
-CURVE_V2_SUBGRAPH_ID=<id>
-CURVE_ARBITRUM_SUBGRAPH_ID=<id>
-CURVE_OPTIMISM_SUBGRAPH_ID=<id>
+CURVE_V2_SUBGRAPH_ID=<id>   # optional
+CURVE_ARBITRUM_SUBGRAPH_ID=<id>   # optional
+CURVE_OPTIMISM_SUBGRAPH_ID=<id>   # optional
 ```
 
 If the bot logs `routeFinder returned 0 routes`, double-check these subgraph
-IDs and ensure your API key has access. When an ID is invalid, the scanner
-falls back to the public subgraphs, but no pools may be returned.
-The liquidity scanner will also retry queries using `liquidityPools` and
+IDs and ensure your API key has access. Some legacy endpoints such as
+SushiSwap on Arbitrum/Optimism or Curve V2 on Ethereum are disabled unless you
+provide a custom subgraph deployment ID. Leaving the variable blank skips that
+DEX entirely. The liquidity scanner also retries using `liquidityPools` and
 `inputTokens` for subgraphs following the community DeFi standard schema.
-Be sure to map V2 and V3 subgraph IDs to the correct environment variables;
-using a V3 ID for `UNISWAP_ARBITRUM_SUBGRAPH_ID` will cause `pairs` queries to
-fail.
+Be sure to map V2 and V3 subgraph IDs to the correct environment variables; a
+V3 ID for `UNISWAP_ARBITRUM_SUBGRAPH_ID` will cause `pairs` queries to fail.
 
 You can run `node scripts/checkSubgraphs.js` to quickly verify that each
 configured subgraph responds to queries.

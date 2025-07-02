@@ -71,14 +71,12 @@ const CHAIN_CONFIGS = {
       fallbackUrl:
         "https://api.thegraph.com/subgraphs/name/balancer-labs/balancer-v2",
     },
-    curveV2: {
-      subgraphUrl: CURVE_V2_SUBGRAPH_ID
-        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${CURVE_V2_SUBGRAPH_ID}`
-        : THEGRAPH_API_KEY
-        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/curvefi/curve`
-        : "https://api.thegraph.com/subgraphs/name/curvefi/curve",
-      fallbackUrl: "https://api.thegraph.com/subgraphs/name/curvefi/curve",
-    },
+    curveV2: CURVE_V2_SUBGRAPH_ID
+      ? {
+          subgraphUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${CURVE_V2_SUBGRAPH_ID}`,
+          fallbackUrl: null,
+        }
+      : undefined,
   },
   arbitrum: {
     // Uniswap V2 on Arbitrum was shut down in May 2025.
@@ -89,13 +87,12 @@ const CHAIN_CONFIGS = {
           fallbackUrl: null,
         }
       : undefined,
-    sushiV2: {
-      subgraphUrl: SUSHISWAP_ARBITRUM_SUBGRAPH_ID
-        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${SUSHISWAP_ARBITRUM_SUBGRAPH_ID}`
-        : "https://api.thegraph.com/subgraphs/name/sushiswap/arbitrum-exchange",
-      fallbackUrl:
-        "https://api.thegraph.com/subgraphs/name/sushiswap/arbitrum-exchange",
-    },
+    sushiV2: SUSHISWAP_ARBITRUM_SUBGRAPH_ID
+      ? {
+          subgraphUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${SUSHISWAP_ARBITRUM_SUBGRAPH_ID}`,
+          fallbackUrl: null,
+        }
+      : undefined,
     uniswapV3: {
       subgraphUrl: UNISWAP_V3_ARBITRUM_SUBGRAPH_ID
         ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${UNISWAP_V3_ARBITRUM_SUBGRAPH_ID}`
@@ -105,24 +102,18 @@ const CHAIN_CONFIGS = {
       fallbackUrl:
         "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3-arbitrum",
     },
-    balancerV2: {
-      subgraphUrl: BALANCER_ARBITRUM_SUBGRAPH_ID
-        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${BALANCER_ARBITRUM_SUBGRAPH_ID}`
-        : THEGRAPH_API_KEY
-        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/balancer-labs/balancer-arbitrum-v2`
-        : "https://api.thegraph.com/subgraphs/name/balancer-labs/balancer-arbitrum-v2",
-      fallbackUrl:
-        "https://api.thegraph.com/subgraphs/name/balancer-labs/balancer-arbitrum-v2",
-    },
-    curveV2: {
-      subgraphUrl: CURVE_ARBITRUM_SUBGRAPH_ID
-        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${CURVE_ARBITRUM_SUBGRAPH_ID}`
-        : THEGRAPH_API_KEY
-        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/curvefi/curve-arbitrum`
-        : "https://api.thegraph.com/subgraphs/name/curvefi/curve-arbitrum",
-      fallbackUrl:
-        "https://api.thegraph.com/subgraphs/name/curvefi/curve-arbitrum",
-    },
+    balancerV2: BALANCER_ARBITRUM_SUBGRAPH_ID
+      ? {
+          subgraphUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${BALANCER_ARBITRUM_SUBGRAPH_ID}`,
+          fallbackUrl: null,
+        }
+      : undefined,
+    curveV2: CURVE_ARBITRUM_SUBGRAPH_ID
+      ? {
+          subgraphUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${CURVE_ARBITRUM_SUBGRAPH_ID}`,
+          fallbackUrl: null,
+        }
+      : undefined,
   },
   optimism: {
     // Uniswap V2 on Optimism no longer has a maintained subgraph.
@@ -133,13 +124,12 @@ const CHAIN_CONFIGS = {
           fallbackUrl: null,
         }
       : undefined,
-    sushiV2: {
-      subgraphUrl: SUSHISWAP_OPTIMISM_SUBGRAPH_ID
-        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${SUSHISWAP_OPTIMISM_SUBGRAPH_ID}`
-        : "https://api.thegraph.com/subgraphs/name/sushiswap/optimism-exchange",
-      fallbackUrl:
-        "https://api.thegraph.com/subgraphs/name/sushiswap/optimism-exchange",
-    },
+    sushiV2: SUSHISWAP_OPTIMISM_SUBGRAPH_ID
+      ? {
+          subgraphUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${SUSHISWAP_OPTIMISM_SUBGRAPH_ID}`,
+          fallbackUrl: null,
+        }
+      : undefined,
     uniswapV3: {
       subgraphUrl: UNISWAP_V3_OPTIMISM_SUBGRAPH_ID
         ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${UNISWAP_V3_OPTIMISM_SUBGRAPH_ID}`
@@ -149,24 +139,18 @@ const CHAIN_CONFIGS = {
       fallbackUrl:
         "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3-optimism",
     },
-    balancerV2: {
-      subgraphUrl: BALANCER_OPTIMISM_SUBGRAPH_ID
-        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${BALANCER_OPTIMISM_SUBGRAPH_ID}`
-        : THEGRAPH_API_KEY
-        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/balancer-labs/balancer-optimism-v2`
-        : "https://api.thegraph.com/subgraphs/name/balancer-labs/balancer-optimism-v2",
-      fallbackUrl:
-        "https://api.thegraph.com/subgraphs/name/balancer-labs/balancer-optimism-v2",
-    },
-    curveV2: {
-      subgraphUrl: CURVE_OPTIMISM_SUBGRAPH_ID
-        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${CURVE_OPTIMISM_SUBGRAPH_ID}`
-        : THEGRAPH_API_KEY
-        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/curvefi/curve-optimism`
-        : "https://api.thegraph.com/subgraphs/name/curvefi/curve-optimism",
-      fallbackUrl:
-        "https://api.thegraph.com/subgraphs/name/curvefi/curve-optimism",
-    },
+    balancerV2: BALANCER_OPTIMISM_SUBGRAPH_ID
+      ? {
+          subgraphUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${BALANCER_OPTIMISM_SUBGRAPH_ID}`,
+          fallbackUrl: null,
+        }
+      : undefined,
+    curveV2: CURVE_OPTIMISM_SUBGRAPH_ID
+      ? {
+          subgraphUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${CURVE_OPTIMISM_SUBGRAPH_ID}`,
+          fallbackUrl: null,
+        }
+      : undefined,
   },
 };
 // ────────────────────────────────────────────────────────────────────────────────
