@@ -42,18 +42,6 @@ if (!THEGRAPH_API_KEY) {
 // ────────────────────────────────────────────────────────────────────────────────
 const CHAIN_CONFIGS = {
   ethereum: {
-    uniswapV2: {
-      subgraphUrl: THEGRAPH_API_KEY
-        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/EYCKATKGBKLWvSfwvBjzfCBmGwYNdVkduYXVivCsLRFu`
-        : "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v2",
-      fallbackUrl: "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v2",
-    },
-    sushiV2: {
-      subgraphUrl: THEGRAPH_API_KEY
-        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/A4JrrMwrEXsYNAiYw7rWwbHhQZdj6YZg1uVy5wa6g821`
-        : "https://api.thegraph.com/subgraphs/name/sushiswap/exchange",
-      fallbackUrl: "https://api.thegraph.com/subgraphs/name/sushiswap/exchange",
-    },
     uniswapV3: {
       subgraphUrl: UNISWAP_V3_SUBGRAPH_ID
         ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${UNISWAP_V3_SUBGRAPH_ID}`
@@ -79,20 +67,6 @@ const CHAIN_CONFIGS = {
       : undefined,
   },
   arbitrum: {
-    // Uniswap V2 on Arbitrum was shut down in May 2025.
-    // Only enable if a custom subgraph ID is provided.
-    uniswapV2: UNISWAP_ARBITRUM_SUBGRAPH_ID
-      ? {
-          subgraphUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${UNISWAP_ARBITRUM_SUBGRAPH_ID}`,
-          fallbackUrl: null,
-        }
-      : undefined,
-    sushiV2: SUSHISWAP_ARBITRUM_SUBGRAPH_ID
-      ? {
-          subgraphUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${SUSHISWAP_ARBITRUM_SUBGRAPH_ID}`,
-          fallbackUrl: null,
-        }
-      : undefined,
     uniswapV3: {
       subgraphUrl: UNISWAP_V3_ARBITRUM_SUBGRAPH_ID
         ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${UNISWAP_V3_ARBITRUM_SUBGRAPH_ID}`
@@ -116,20 +90,6 @@ const CHAIN_CONFIGS = {
       : undefined,
   },
   optimism: {
-    // Uniswap V2 on Optimism no longer has a maintained subgraph.
-    // Skip unless a custom deployment ID is supplied.
-    uniswapV2: UNISWAP_OPTIMISM_SUBGRAPH_ID
-      ? {
-          subgraphUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${UNISWAP_OPTIMISM_SUBGRAPH_ID}`,
-          fallbackUrl: null,
-        }
-      : undefined,
-    sushiV2: SUSHISWAP_OPTIMISM_SUBGRAPH_ID
-      ? {
-          subgraphUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${SUSHISWAP_OPTIMISM_SUBGRAPH_ID}`,
-          fallbackUrl: null,
-        }
-      : undefined,
     uniswapV3: {
       subgraphUrl: UNISWAP_V3_OPTIMISM_SUBGRAPH_ID
         ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${UNISWAP_V3_OPTIMISM_SUBGRAPH_ID}`
@@ -235,218 +195,6 @@ async function graphqlRequest(url, query, variables = {}, fallbackUrl) {
     }
     return null;
   }
-}
-
-// ────────────────────────────────────────────────────────────────────────────────
-// 1) Uniswap V2: fetch top N pairs by reserveUSD
-// ────────────────────────────────────────────────────────────────────────────────
-async function fetchUniswapV2TopPairs(
-  chainConfig,
-  topN = DEFAULT_TOP_N,
-  minLiquidityUSD = DEFAULT_MIN_LIQUIDITY_USD
-) {
-  if (!chainConfig.uniswapV2 || !chainConfig.uniswapV2.subgraphUrl) {
-    return [];
-  }
-  const { subgraphUrl, fallbackUrl } = chainConfig.uniswapV2;
-  const useLiquidityPools = await hasField(subgraphUrl, "liquidityPools");
-  let data;
-  let pairs;
-
-  if (useLiquidityPools) {
-    const query = `
-      {
-        liquidityPools(
-          first: ${topN}
-          orderBy: totalValueLockedUSD
-          orderDirection: desc
-          where: { totalValueLockedUSD_gt: ${minLiquidityUSD} }
-        ) {
-          id
-          inputTokens { id symbol }
-          totalValueLockedUSD
-        }
-      }
-    `;
-    data = await graphqlRequest(subgraphUrl, query, {}, fallbackUrl);
-    pairs = data && data.data && data.data.liquidityPools;
-    if (!Array.isArray(pairs)) {
-      const altQuery = `
-        {
-          liquidityPools(
-            first: ${topN}
-            orderBy: reserveUSD
-            orderDirection: desc
-            where: { reserveUSD_gt: ${minLiquidityUSD} }
-          ) {
-            id
-            token0 { id symbol }
-            token1 { id symbol }
-            reserve0
-            reserve1
-            reserveUSD
-          }
-        }
-      `;
-      data = await graphqlRequest(subgraphUrl, altQuery, {}, fallbackUrl);
-      pairs = data && data.data && data.data.liquidityPools;
-    }
-    if (Array.isArray(pairs)) {
-      pairs = pairs.map((p) => ({
-        id: p.id,
-        token0: { id: p.inputTokens[0].id, symbol: p.inputTokens[0].symbol },
-        token1: { id: p.inputTokens[1].id, symbol: p.inputTokens[1].symbol },
-        reserve0: p.reserve0 || "0",
-        reserve1: p.reserve1 || "0",
-        reserveUSD: p.totalValueLockedUSD || p.reserveUSD,
-      }));
-    }
-  }
-  if (!Array.isArray(pairs)) {
-    const legacyQuery = `
-      {
-        pairs(
-          first: ${topN}
-          orderBy: reserveUSD
-          orderDirection: desc
-          where: { reserveUSD_gt: ${minLiquidityUSD} }
-        ) {
-          id
-          token0 { id symbol }
-          token1 { id symbol }
-          reserve0
-          reserve1
-          reserveUSD
-        }
-      }
-    `;
-    data = await graphqlRequest(subgraphUrl, legacyQuery, {}, fallbackUrl);
-    pairs = data && data.data && data.data.pairs;
-  }
-  if (!Array.isArray(pairs)) {
-    console.warn(
-      `UniswapV2 query returned no pairs for ${subgraphUrl}. Check the response.`
-    );
-    console.warn(
-      "Verify that your UNISWAP_*_SUBGRAPH_ID variable points to a Uniswap V2 subgraph."
-    );
-    return [];
-  }
-  return pairs.map((p) => ({
-    pairAddress: p.id,
-    token0: p.token0.id,
-    token1: p.token1.id,
-    reserve0: p.reserve0, // string
-    reserve1: p.reserve1, // string
-    reserveUSD: parseFloat(p.reserveUSD), // Number
-    dex: "UniswapV2",
-  }));
-}
-
-// ────────────────────────────────────────────────────────────────────────────────
-// 2) SushiSwap V2: fetch top N pairs by reserveUSD
-// ────────────────────────────────────────────────────────────────────────────────
-async function fetchSushiV2TopPairs(
-  chainConfig,
-  topN = DEFAULT_TOP_N,
-  minLiquidityUSD = DEFAULT_MIN_LIQUIDITY_USD
-) {
-  if (!chainConfig.sushiV2 || !chainConfig.sushiV2.subgraphUrl) {
-    return [];
-  }
-  const { subgraphUrl, fallbackUrl } = chainConfig.sushiV2;
-  const useLiquidityPools = await hasField(subgraphUrl, "liquidityPools");
-  let data;
-  let pairs;
-
-  if (useLiquidityPools) {
-    const query = `
-      {
-        liquidityPools(
-          first: ${topN}
-          orderBy: totalValueLockedUSD
-          orderDirection: desc
-          where: { totalValueLockedUSD_gt: ${minLiquidityUSD} }
-        ) {
-          id
-          inputTokens { id symbol }
-          totalValueLockedUSD
-        }
-      }
-    `;
-    data = await graphqlRequest(subgraphUrl, query, {}, fallbackUrl);
-    pairs = data && data.data && data.data.liquidityPools;
-    if (!Array.isArray(pairs)) {
-      const altQuery = `
-        {
-          liquidityPools(
-            first: ${topN}
-            orderBy: reserveUSD
-            orderDirection: desc
-            where: { reserveUSD_gt: ${minLiquidityUSD} }
-          ) {
-            id
-            token0 { id symbol }
-            token1 { id symbol }
-            reserve0
-            reserve1
-            reserveUSD
-          }
-        }
-      `;
-      data = await graphqlRequest(subgraphUrl, altQuery, {}, fallbackUrl);
-      pairs = data && data.data && data.data.liquidityPools;
-    }
-    if (Array.isArray(pairs)) {
-      pairs = pairs.map((p) => ({
-        id: p.id,
-        token0: { id: p.inputTokens[0].id, symbol: p.inputTokens[0].symbol },
-        token1: { id: p.inputTokens[1].id, symbol: p.inputTokens[1].symbol },
-        reserve0: p.reserve0 || "0",
-        reserve1: p.reserve1 || "0",
-        reserveUSD: p.totalValueLockedUSD || p.reserveUSD,
-      }));
-    }
-  }
-  if (!Array.isArray(pairs)) {
-    const legacyQuery = `
-      {
-        pairs(
-          first: ${topN}
-          orderBy: reserveUSD
-          orderDirection: desc
-          where: { reserveUSD_gt: ${minLiquidityUSD} }
-        ) {
-          id
-          token0 { id symbol }
-          token1 { id symbol }
-          reserve0
-          reserve1
-          reserveUSD
-        }
-      }
-    `;
-    data = await graphqlRequest(subgraphUrl, legacyQuery, {}, fallbackUrl);
-    pairs = data && data.data && data.data.pairs;
-  }
-  if (!Array.isArray(pairs)) {
-    console.warn(
-      `SushiSwapV2 query returned no pairs for ${subgraphUrl}. Check the response.`
-    );
-    console.warn(
-      "Verify that your SUSHISWAP_*_SUBGRAPH_ID variable points to the SushiSwap V2 subgraph."
-    );
-    return [];
-  }
-  return pairs.map((p) => ({
-    pairAddress: p.id,
-    token0: p.token0.id,
-    token1: p.token1.id,
-    reserve0: p.reserve0, // string
-    reserve1: p.reserve1, // string
-    reserveUSD: parseFloat(p.reserveUSD), // Number
-    dex: "SushiSwapV2",
-  }));
 }
 
 // ────────────────────────────────────────────────────────────────────────────────
@@ -678,13 +426,7 @@ async function buildAdjacencyGraph(
   if (!chainConfig) {
     throw new Error(`Unsupported chain: ${chain}`);
   }
-  // Fetch V2 pairs
-  const [uniV2, sushiV2] = await Promise.all([
-    fetchUniswapV2TopPairs(chainConfig, topN, minLiquidityUSD),
-    fetchSushiV2TopPairs(chainConfig, topN, minLiquidityUSD),
-  ]);
-
-  let merged = [...uniV2, ...sushiV2];
+  let merged = [];
 
   // Include V3 pools if enabled
   if (process.env.INCLUDE_V3 === "true") {
@@ -709,13 +451,8 @@ async function buildAdjacencyGraph(
 
   merged.forEach((p) => {
     if (p.token0 && p.token1) {
-      // For Uniswap V2 / Sushi V2 / Uniswap V3 entries
-      const reserveUSD =
-        p.dex === "UniswapV2" || p.dex === "SushiSwapV2"
-          ? p.reserveUSD
-          : p.dex === "UniswapV3"
-          ? parseFloat(p.liquidity)
-          : 0;
+      // For Uniswap V3 entries
+      const reserveUSD = p.dex === "UniswapV3" ? parseFloat(p.liquidity) : 0;
       if (!adjacencyGraph[p.token0]) adjacencyGraph[p.token0] = [];
       if (!adjacencyGraph[p.token1]) adjacencyGraph[p.token1] = [];
       adjacencyGraph[p.token0].push({

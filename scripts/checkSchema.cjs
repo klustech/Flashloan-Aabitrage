@@ -14,19 +14,15 @@ if (!API_KEY) {
 /* Map label → env-var that holds the subgraph ID (null = hard-coded) */
 /* ------------------------------------------------------------------ */
 const MAP = {
-  "eth:uniswapV2": null, // legacy IDs hard-coded below
-  "eth:sushiV2": null,
   "eth:uniswapV3": "UNISWAP_V3_SUBGRAPH_ID",
   "eth:balancerV2": "BALANCER_V2_SUBGRAPH_ID",
   "eth:curveV2": "CURVE_V2_SUBGRAPH_ID",
 
-  "arb:uniswapV2": null, // endpoint removed → expect FAIL
   "arb:sushiV2": "SUSHISWAP_ARBITRUM_SUBGRAPH_ID",
   "arb:uniswapV3": "UNISWAP_V3_ARBITRUM_SUBGRAPH_ID",
   "arb:balancerV2": "BALANCER_ARBITRUM_SUBGRAPH_ID",
   "arb:curveV2": "CURVE_ARBITRUM_SUBGRAPH_ID",
 
-  "op:uniswapV2": null, // endpoint removed
   "op:sushiV2": "SUSHISWAP_OPTIMISM_SUBGRAPH_ID", // hosted name → expect 404
   "op:uniswapV3": "UNISWAP_V3_OPTIMISM_SUBGRAPH_ID",
   "op:balancerV2": "BALANCER_OPTIMISM_SUBGRAPH_ID",
@@ -34,10 +30,7 @@ const MAP = {
 };
 
 /* legacy Uniswap/Sushi main-net v2 hashes (still work) */
-const LEGACY = {
-  "eth:uniswapV2": "EYCKATKGBKLWvSfwvBjzfCBmGwYNdVkduYXVivCsLRFu",
-  "eth:sushiV2": "A4JrrMwrEXsYNAiYw7rWwbHhQZdj6YZg1uVy5wa6g821",
-};
+const LEGACY = {};
 
 const Q_ROOT = '{ __type(name:"Query"){ fields{name} } }';
 const Q_TYPE = (t) => `{ __type(name:"${t}"){ fields{name} } }`;
