@@ -29,7 +29,7 @@ async function check(url, name) {
 (async () => {
   for (const [chain, cfg] of Object.entries(CHAIN_CONFIGS)) {
     for (const [dex, sub] of Object.entries(cfg)) {
-      if (sub.subgraphUrl) {
+      if (sub && sub.subgraphUrl) {
         await check(sub.subgraphUrl, `${chain}:${dex}`);
       }
     }
