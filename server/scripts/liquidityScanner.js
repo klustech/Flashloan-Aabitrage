@@ -658,7 +658,9 @@ async function fetchCurveV2TopPools(chainConfig, topN = DEFAULT_TOP_N) {
   }
 
   if (!Array.isArray(pools)) {
-    console.warn(`CurveV2 query returned no pools for ${url}. Check the response.`);
+    console.warn(
+      `CurveV2 query returned no pools for ${url}. Check the response.`
+    );
     return [];
   }
 
