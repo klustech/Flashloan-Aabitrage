@@ -81,13 +81,14 @@ const CHAIN_CONFIGS = {
     },
   },
   arbitrum: {
-    uniswapV2: {
-      subgraphUrl: UNISWAP_ARBITRUM_SUBGRAPH_ID
-        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${UNISWAP_ARBITRUM_SUBGRAPH_ID}`
-        : "https://api.thegraph.com/subgraphs/name/ianlapham/uniswap-arbitrum-one",
-      fallbackUrl:
-        "https://api.thegraph.com/subgraphs/name/ianlapham/uniswap-arbitrum-one",
-    },
+    // Uniswap V2 on Arbitrum was shut down in May 2025.
+    // Only enable if a custom subgraph ID is provided.
+    uniswapV2: UNISWAP_ARBITRUM_SUBGRAPH_ID
+      ? {
+          subgraphUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${UNISWAP_ARBITRUM_SUBGRAPH_ID}`,
+          fallbackUrl: null,
+        }
+      : undefined,
     sushiV2: {
       subgraphUrl: SUSHISWAP_ARBITRUM_SUBGRAPH_ID
         ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${SUSHISWAP_ARBITRUM_SUBGRAPH_ID}`
@@ -124,13 +125,14 @@ const CHAIN_CONFIGS = {
     },
   },
   optimism: {
-    uniswapV2: {
-      subgraphUrl: UNISWAP_OPTIMISM_SUBGRAPH_ID
-        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${UNISWAP_OPTIMISM_SUBGRAPH_ID}`
-        : "https://api.thegraph.com/subgraphs/name/ianlapham/optimism-post-regenesis",
-      fallbackUrl:
-        "https://api.thegraph.com/subgraphs/name/ianlapham/optimism-post-regenesis",
-    },
+    // Uniswap V2 on Optimism no longer has a maintained subgraph.
+    // Skip unless a custom deployment ID is supplied.
+    uniswapV2: UNISWAP_OPTIMISM_SUBGRAPH_ID
+      ? {
+          subgraphUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${UNISWAP_OPTIMISM_SUBGRAPH_ID}`,
+          fallbackUrl: null,
+        }
+      : undefined,
     sushiV2: {
       subgraphUrl: SUSHISWAP_OPTIMISM_SUBGRAPH_ID
         ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${SUSHISWAP_OPTIMISM_SUBGRAPH_ID}`
@@ -259,6 +261,9 @@ async function fetchUniswapV2TopPairs(
   topN = DEFAULT_TOP_N,
   minLiquidityUSD = DEFAULT_MIN_LIQUIDITY_USD
 ) {
+  if (!chainConfig.uniswapV2 || !chainConfig.uniswapV2.subgraphUrl) {
+    return [];
+  }
   const { subgraphUrl, fallbackUrl } = chainConfig.uniswapV2;
   const useLiquidityPools = await hasField(subgraphUrl, "liquidityPools");
   let data;
@@ -362,6 +367,9 @@ async function fetchSushiV2TopPairs(
   topN = DEFAULT_TOP_N,
   minLiquidityUSD = DEFAULT_MIN_LIQUIDITY_USD
 ) {
+  if (!chainConfig.sushiV2 || !chainConfig.sushiV2.subgraphUrl) {
+    return [];
+  }
   const { subgraphUrl, fallbackUrl } = chainConfig.sushiV2;
   const useLiquidityPools = await hasField(subgraphUrl, "liquidityPools");
   let data;
