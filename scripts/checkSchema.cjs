@@ -34,7 +34,14 @@ const LEGACY = {};
 
 const Q_ROOT = '{ __type(name:"Query"){ fields{name} } }';
 const Q_TYPE = (t) => `{ __type(name:"${t}"){ fields{name} } }`;
-const NEEDS = ["token0", "token1", "reserveUSD", "feeTier", "liquidity"];
+// Different subgraph schemas expose pool fields under various names. Map the
+// expected root query field to the list of required pool fields for that schema
+// so we validate against whatever the subgraph actually uses.
+const NEEDS_BY_ROOT = {
+  pools: ["token0", "token1", "reserveUSD", "feeTier", "liquidity"],
+  liquidityPools: ["inputTokens", "totalValueLockedUSD"],
+  pairs: ["token0", "token1", "reserveUSD"],
+};
 
 async function fetch(url, query) {
   const { data } = await axios.post(url, { query }, { timeout: 15000 });
@@ -81,7 +88,8 @@ async function fetch(url, query) {
           (f) => f.name
         ) ?? [];
 
-      const missing = NEEDS.filter((x) => !poolFields.includes(x));
+      const needs = NEEDS_BY_ROOT[entry.field] || NEEDS_BY_ROOT.pools;
+      const missing = needs.filter((x) => !poolFields.includes(x));
       const status = missing.length ? chalk.yellow("WARN") : chalk.green("OK");
 
       console.log(
