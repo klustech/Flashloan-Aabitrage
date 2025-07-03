@@ -230,8 +230,7 @@ async function fetchUniswapV3TopPools(chainConfig, topN = DEFAULT_TOP_N) {
         liquidityPools(first: ${topN}, orderBy: totalValueLockedUSD, orderDirection: desc) {
           id
           inputTokens { id symbol }
-          feeTier
-          liquidity
+          fees { feePercentage }
           totalValueLockedUSD
         }
       }
@@ -243,8 +242,8 @@ async function fetchUniswapV3TopPools(chainConfig, topN = DEFAULT_TOP_N) {
         id: p.id,
         token0: { id: p.inputTokens[0].id, symbol: p.inputTokens[0].symbol },
         token1: { id: p.inputTokens[1].id, symbol: p.inputTokens[1].symbol },
-        feeTier: p.feeTier,
-        liquidity: p.liquidity,
+        feeTier: p.fees && p.fees[0] ? p.fees[0].feePercentage : "0",
+        liquidity: p.totalValueLockedUSD,
       }));
     }
   }
@@ -276,7 +275,10 @@ async function fetchUniswapV3TopPools(chainConfig, topN = DEFAULT_TOP_N) {
     poolAddress: p.id,
     token0: p.token0.id,
     token1: p.token1.id,
-    fee: parseInt(p.feeTier, 10),
+    fee:
+      parseFloat(p.feeTier) < 1
+        ? Math.round(parseFloat(p.feeTier) * 10000)
+        : Math.round(parseFloat(p.feeTier)),
     liquidity: p.totalValueLockedUSD || p.liquidity || "0",
     dex: "UniswapV3",
   }));
