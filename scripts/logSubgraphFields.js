@@ -27,7 +27,6 @@ const {
   CURVE_V2_SUBGRAPH_ID,
   UNISWAP_V3_ARBITRUM_SUBGRAPH_ID,
   BALANCER_ARBITRUM_SUBGRAPH_ID,
-  CURVE_ARBITRUM_SUBGRAPH_ID,
   UNISWAP_V3_OPTIMISM_SUBGRAPH_ID,
   BALANCER_OPTIMISM_SUBGRAPH_ID,
   SUSHISWAP_OPTIMISM_SUBGRAPH_ID,
@@ -37,18 +36,6 @@ const {
 // Build CHAIN_CONFIGS just like your liquidityScanner
 const CHAIN_CONFIGS = {
   ethereum: {
-    uniswapV2: {
-      subgraphUrl: THEGRAPH_API_KEY
-        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/uniswap/uniswap-v2`
-        : "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v2",
-      fallbackUrl: "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v2",
-    },
-    sushiV2: {
-      subgraphUrl: THEGRAPH_API_KEY
-        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/sushiswap/exchange`
-        : "https://api.thegraph.com/subgraphs/name/sushiswap/exchange",
-      fallbackUrl: "https://api.thegraph.com/subgraphs/name/sushiswap/exchange",
-    },
     uniswapV3: {
       subgraphUrl: UNISWAP_V3_SUBGRAPH_ID
         ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${UNISWAP_V3_SUBGRAPH_ID}`
@@ -86,12 +73,6 @@ const CHAIN_CONFIGS = {
     balancerV2: BALANCER_ARBITRUM_SUBGRAPH_ID
       ? {
           subgraphUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${BALANCER_ARBITRUM_SUBGRAPH_ID}`,
-          fallbackUrl: null,
-        }
-      : undefined,
-    curveV2: CURVE_ARBITRUM_SUBGRAPH_ID
-      ? {
-          subgraphUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${CURVE_ARBITRUM_SUBGRAPH_ID}`,
           fallbackUrl: null,
         }
       : undefined,

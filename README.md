@@ -37,7 +37,6 @@ BALANCER_OPTIMISM_SUBGRAPH_ID=<id>   # optional
 
 # Curve V2 subgraphs
 CURVE_V2_SUBGRAPH_ID=<id>   # optional
-CURVE_ARBITRUM_SUBGRAPH_ID=<id>   # optional
 CURVE_OPTIMISM_SUBGRAPH_ID=<id>   # optional
 ```
 

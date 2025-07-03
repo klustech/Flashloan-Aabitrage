@@ -21,7 +21,6 @@ const MAP = {
   "arb:sushiV2": "SUSHISWAP_ARBITRUM_SUBGRAPH_ID",
   "arb:uniswapV3": "UNISWAP_V3_ARBITRUM_SUBGRAPH_ID",
   "arb:balancerV2": "BALANCER_ARBITRUM_SUBGRAPH_ID",
-  "arb:curveV2": "CURVE_ARBITRUM_SUBGRAPH_ID",
 
   "op:sushiV2": "SUSHISWAP_OPTIMISM_SUBGRAPH_ID", // hosted name → expect 404
   "op:uniswapV3": "UNISWAP_V3_OPTIMISM_SUBGRAPH_ID",
