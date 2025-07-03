@@ -203,28 +203,11 @@ async function graphqlRequest(url, query, variables = {}, fallbackUrl) {
 async function fetchUniswapV3TopPools(chainConfig, topN = DEFAULT_TOP_N) {
   if (!chainConfig.uniswapV3 || !chainConfig.uniswapV3.subgraphUrl) return [];
   const url = chainConfig.uniswapV3.subgraphUrl;
-  const hasPools = await hasField(url, "pools");
-  const hasLiquidityPools = await hasField(url, "liquidityPools");
   let data;
   let pools;
 
-  if (hasPools) {
-    const query = `
-      {
-        pools(first: ${topN}, orderBy: totalValueLockedUSD, orderDirection: desc) {
-          id
-          token0 { id symbol }
-          token1 { id symbol }
-          feeTier
-          totalValueLockedUSD
-        }
-      }
-    `;
-    data = await graphqlRequest(url, query);
-    pools = data && data.data && data.data.pools;
-  }
-
-  if (!Array.isArray(pools) && hasLiquidityPools) {
+  // Prefer the new liquidityPools-based schema
+  try {
     const query = `
       {
         liquidityPools(first: ${topN}, orderBy: totalValueLockedUSD, orderDirection: desc) {
@@ -244,6 +227,47 @@ async function fetchUniswapV3TopPools(chainConfig, topN = DEFAULT_TOP_N) {
         token1: { id: p.inputTokens[1].id, symbol: p.inputTokens[1].symbol },
         feeTier: p.fees && p.fees[0] ? p.fees[0].feePercentage : "0",
         liquidity: p.totalValueLockedUSD,
+      }));
+    }
+  } catch (err) {
+    // ignore and fall back to legacy schema
+  }
+
+  // Legacy pools-based schema
+  if (!Array.isArray(pools)) {
+    const query = `
+      {
+        pools(first: ${topN}, orderBy: liquidity, orderDirection: desc) {
+          id
+<<<<<<< ours
+          inputTokens { id symbol }
+          fees { feePercentage }
+          totalValueLockedUSD
+=======
+          token0 { id symbol }
+          token1 { id symbol }
+          feeTier
+          liquidity
+>>>>>>> theirs
+        }
+      }
+    `;
+    data = await graphqlRequest(url, query);
+    pools = data && data.data && data.data.pools;
+    if (Array.isArray(pools)) {
+      pools = pools.map((p) => ({
+        id: p.id,
+<<<<<<< ours
+        token0: { id: p.inputTokens[0].id, symbol: p.inputTokens[0].symbol },
+        token1: { id: p.inputTokens[1].id, symbol: p.inputTokens[1].symbol },
+        feeTier: p.fees && p.fees[0] ? p.fees[0].feePercentage : "0",
+        liquidity: p.totalValueLockedUSD,
+=======
+        token0: { id: p.token0.id, symbol: p.token0.symbol },
+        token1: { id: p.token1.id, symbol: p.token1.symbol },
+        feeTier: p.feeTier,
+        liquidity: p.liquidity,
+>>>>>>> theirs
       }));
     }
   }
