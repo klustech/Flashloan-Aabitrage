@@ -3,6 +3,7 @@ require("dotenv").config({
 });
 const redis = require("../utils/redisClient");
 const axios = require("axios");
+const fs = require("fs");
 
 // ────────────────────────────────────────────────────────────────────────────────
 // DEFAULTS (override via .env)
@@ -34,6 +35,18 @@ if (!THEGRAPH_API_KEY) {
   console.warn(
     "Warning: THEGRAPH_API_KEY is not set. Using public subgraph URLs."
   );
+}
+
+// Optional offline mode for restricted environments
+const OFFLINE_POOLS_FILE = process.env.OFFLINE_POOLS_FILE;
+let OFFLINE_POOLS = null;
+if (OFFLINE_POOLS_FILE && fs.existsSync(OFFLINE_POOLS_FILE)) {
+  try {
+    OFFLINE_POOLS = JSON.parse(fs.readFileSync(OFFLINE_POOLS_FILE, "utf8"));
+    console.warn(`Using offline pools from ${OFFLINE_POOLS_FILE}`);
+  } catch (err) {
+    console.error(`Failed to load offline pools: ${err.message}`);
+  }
 }
 
 // ────────────────────────────────────────────────────────────────────────────────
@@ -412,6 +425,31 @@ async function buildAdjacencyGraph(
   topN = DEFAULT_TOP_N,
   minLiquidityUSD = DEFAULT_MIN_LIQUIDITY_USD
 ) {
+  if (OFFLINE_POOLS && OFFLINE_POOLS[chain]) {
+    // Build adjacency directly from offline data, skipping network calls
+    const offlineData = OFFLINE_POOLS[chain];
+    const adj = {};
+    offlineData.forEach((p) => {
+      if (!adj[p.token0]) adj[p.token0] = [];
+      if (!adj[p.token1]) adj[p.token1] = [];
+      adj[p.token0].push({
+        token: p.token1,
+        pool: p.pairAddress,
+        dex: p.dex,
+        fee: p.fee,
+        reserveUSD: p.reserveUSD,
+      });
+      adj[p.token1].push({
+        token: p.token0,
+        pool: p.pairAddress,
+        dex: p.dex,
+        fee: p.fee,
+        reserveUSD: p.reserveUSD,
+      });
+    });
+    return adj;
+  }
+
   const cacheKey = `${CACHE_KEY_PREFIX}_${chain}`;
   const cached = await redis.get(cacheKey);
   if (cached) {
@@ -508,6 +546,13 @@ async function getTopLiquidityPairs(
   chain = "ethereum",
   { topN = DEFAULT_TOP_N, minLiquidityUSD = DEFAULT_MIN_LIQUIDITY_USD } = {}
 ) {
+  if (OFFLINE_POOLS && OFFLINE_POOLS[chain]) {
+    // Simply return the offline pool data trimmed to topN
+    const pools = OFFLINE_POOLS[chain]
+      .filter((p) => p.reserveUSD >= minLiquidityUSD)
+      .sort((a, b) => b.reserveUSD - a.reserveUSD);
+    return pools.slice(0, topN);
+  }
   const adjacencyGraph = await buildAdjacencyGraph(
     chain,
     topN,

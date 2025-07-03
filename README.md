@@ -79,6 +79,18 @@ SLIPPAGE_BIPS=50
 MIN_PROFIT_DAI=0.1
 ```
 
+### Offline Pool Data
+
+If subgraph endpoints are blocked, provide pool information from a local JSON
+file and set `OFFLINE_POOLS_FILE` in your `.env`:
+
+```bash
+OFFLINE_POOLS_FILE=./docs/offline_pools_sample.json
+```
+
+The file should contain an object keyed by chain with arrays of pool entries.
+See `docs/offline_pools_sample.json` for an example structure.
+
 ## Testing
 
 Running the Hardhat test suite downloads compiler binaries. If you are behind a
