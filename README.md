@@ -40,6 +40,17 @@ CURVE_V2_SUBGRAPH_ID=<id>   # optional
 CURVE_OPTIMISM_SUBGRAPH_ID=<id>   # optional
 ```
 
+By default the bot queries Uniswap V3, Balancer V2 and Curve V2 pools. You can
+disable any of these integrations by setting the corresponding `INCLUDE_*`
+variable to `false`:
+
+```bash
+# Optional DEX toggles (defaults to true)
+INCLUDE_V3=true
+INCLUDE_BALANCER=true
+INCLUDE_CURVE=true
+```
+
 If the bot logs `routeFinder returned 0 routes`, double-check these subgraph
 IDs and ensure your API key has access. Some legacy endpoints such as
 SushiSwap on Arbitrum/Optimism or Curve V2 on Ethereum are disabled unless you
