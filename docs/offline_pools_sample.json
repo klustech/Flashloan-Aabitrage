@@ -1,0 +1,28 @@
+{
+  "ethereum": [
+    {
+      "pairAddress": "0x1111111111111111111111111111111111111111",
+      "token0": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+      "token1": "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+      "dex": "UniswapV3",
+      "fee": 500,
+      "reserveUSD": 80000000
+    },
+    {
+      "pairAddress": "0x2222222222222222222222222222222222222222",
+      "token0": "0xA0b86991C6218b36c1d19D4a2e9Eb0cE3606EB48",
+      "token1": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+      "dex": "UniswapV3",
+      "fee": 3000,
+      "reserveUSD": 90000000
+    },
+    {
+      "pairAddress": "0x3333333333333333333333333333333333333333",
+      "token0": "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+      "token1": "0xA0b86991C6218b36c1d19D4a2e9Eb0cE3606EB48",
+      "dex": "UniswapV3",
+      "fee": 100,
+      "reserveUSD": 70000000
+    }
+  ]
+}

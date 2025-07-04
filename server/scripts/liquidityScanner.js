@@ -144,6 +144,32 @@ async function hasField(url, field) {
   return fields.includes(field);
 }
 
+// -----------------------------------------------------------------------------
+// Introspection helper for specific type fields
+// -----------------------------------------------------------------------------
+const TYPE_FIELD_CACHE = {};
+
+async function getTypeFields(url, typeName) {
+  const key = `${url}:${typeName}`;
+  if (TYPE_FIELD_CACHE[key]) return TYPE_FIELD_CACHE[key];
+  const q = `{ __type(name:"${typeName}") { fields { name } } }`;
+  const data = await graphqlRequest(url, q);
+  const fields =
+    data &&
+    data.data &&
+    data.data.__type &&
+    Array.isArray(data.data.__type.fields)
+      ? data.data.__type.fields.map((f) => f.name)
+      : [];
+  TYPE_FIELD_CACHE[key] = fields;
+  return fields;
+}
+
+async function typeHasField(url, typeName, field) {
+  const fields = await getTypeFields(url, typeName);
+  return fields.includes(field);
+}
+
 // ────────────────────────────────────────────────────────────────────────────────
 // UTILITY: Perform a GraphQL POST to the given URL with retries.
 // ────────────────────────────────────────────────────────────────────────────────
@@ -211,65 +237,57 @@ async function fetchUniswapV3TopPools(chainConfig, topN = DEFAULT_TOP_N) {
   const url = chainConfig.uniswapV3.subgraphUrl;
   const hasPools = await hasField(url, "pools");
   const hasLiquidityPools = await hasField(url, "liquidityPools");
-  let data;
-  let pools;
+  const rootField = hasPools
+    ? "pools"
+    : hasLiquidityPools
+    ? "liquidityPools"
+    : null;
+  if (!rootField) return [];
 
-  if (hasPools) {
-    const query = `
-      {
-        pools(first: ${topN}, orderBy: totalValueLockedUSD, orderDirection: desc) {
-          id
-          token0 { id symbol }
-          token1 { id symbol }
-          feeTier
-          totalValueLockedUSD
-        }
-      }
-    `;
-    data = await graphqlRequest(url, query);
-    pools = data && data.data && data.data.pools;
+  const typeName = rootField === "pools" ? "Pool" : "LiquidityPool";
+  const poolFields = await getTypeFields(url, typeName);
+
+  // determine token fields
+  let tokenSnippet = "";
+  if (poolFields.includes("token0") && poolFields.includes("token1")) {
+    tokenSnippet = "token0 { id symbol } token1 { id symbol }";
+  } else if (poolFields.includes("inputTokens")) {
+    tokenSnippet = "inputTokens { id symbol }";
+  } else if (poolFields.includes("tokens")) {
+    tokenSnippet = "tokens { id symbol }";
+  } else {
+    console.warn(`UniswapV3: no token fields found in ${typeName}`);
+    return [];
   }
 
-  if (!Array.isArray(pools) && hasLiquidityPools) {
-    const query = `
-      {
-        liquidityPools(first: ${topN}, orderBy: totalValueLockedUSD, orderDirection: desc) {
-          id
-          inputTokens { id symbol }
-          fees { feePercentage }
-          totalValueLockedUSD
-        }
+  // determine fee field
+  let feeSnippet = "";
+  if (poolFields.includes("feeTier")) feeSnippet = "feeTier";
+  else if (poolFields.includes("fees")) feeSnippet = "fees { feePercentage }";
+
+  // determine liquidity field
+  let liqField = null;
+  if (poolFields.includes("totalValueLockedUSD"))
+    liqField = "totalValueLockedUSD";
+  else if (poolFields.includes("totalLiquidityUSD"))
+    liqField = "totalLiquidityUSD";
+  else if (poolFields.includes("totalLiquidity")) liqField = "totalLiquidity";
+  else if (poolFields.includes("liquidity")) liqField = "liquidity";
+
+  const query = `
+    {
+      ${rootField}(first: ${topN}, orderBy: ${
+    liqField || "id"
+  }, orderDirection: desc) {
+        id
+        ${tokenSnippet}
+        ${feeSnippet}
+        ${liqField || ""}
       }
-    `;
-    data = await graphqlRequest(url, query);
-    pools = data && data.data && data.data.liquidityPools;
-    if (Array.isArray(pools)) {
-      pools = pools.map((p) => ({
-        id: p.id,
-        token0: { id: p.inputTokens[0].id, symbol: p.inputTokens[0].symbol },
-        token1: { id: p.inputTokens[1].id, symbol: p.inputTokens[1].symbol },
-        feeTier: p.fees && p.fees[0] ? p.fees[0].feePercentage : "0",
-        liquidity: p.totalValueLockedUSD,
-      }));
     }
-  }
-
-  if (!Array.isArray(pools)) {
-    const legacyQuery = `
-      {
-        pools(first: ${topN}, orderBy: liquidity, orderDirection: desc) {
-          id
-          token0 { id symbol }
-          token1 { id symbol }
-          feeTier
-          liquidity
-        }
-      }
-    `;
-    data = await graphqlRequest(url, legacyQuery);
-    pools = data && data.data && data.data.pools;
-  }
-
+  `;
+  const data = await graphqlRequest(url, query);
+  let pools = data && data.data && data.data[rootField];
   if (!Array.isArray(pools)) {
     console.warn(
       `UniswapV3 query returned no pools for ${url}. Check the response.`
@@ -277,17 +295,37 @@ async function fetchUniswapV3TopPools(chainConfig, topN = DEFAULT_TOP_N) {
     return [];
   }
 
-  return pools.map((p) => ({
-    poolAddress: p.id,
-    token0: p.token0.id,
-    token1: p.token1.id,
-    fee:
-      parseFloat(p.feeTier) < 1
-        ? Math.round(parseFloat(p.feeTier) * 10000)
-        : Math.round(parseFloat(p.feeTier)),
-    liquidity: p.totalValueLockedUSD || p.liquidity || "0",
-    dex: "UniswapV3",
-  }));
+  return pools.map((p) => {
+    const tok0 =
+      p.token0?.id ||
+      p.inputTokens?.[0]?.id ||
+      p.tokens?.[0]?.id ||
+      p.tokens?.[0];
+    const tok1 =
+      p.token1?.id ||
+      p.inputTokens?.[1]?.id ||
+      p.tokens?.[1]?.id ||
+      p.tokens?.[1];
+    const feeTier =
+      p.feeTier || (p.fees && p.fees[0] ? p.fees[0].feePercentage : "0");
+    const liq =
+      p.totalValueLockedUSD ||
+      p.totalLiquidityUSD ||
+      p.totalLiquidity ||
+      p.liquidity ||
+      "0";
+    return {
+      poolAddress: p.id,
+      token0: tok0,
+      token1: tok1,
+      fee:
+        parseFloat(feeTier) < 1
+          ? Math.round(parseFloat(feeTier) * 10000)
+          : Math.round(parseFloat(feeTier)),
+      liquidity: liq,
+      dex: "UniswapV3",
+    };
+  });
 }
 
 // ────────────────────────────────────────────────────────────────────────────────
@@ -298,44 +336,45 @@ async function fetchBalancerV2TopPools(chainConfig, topN = DEFAULT_TOP_N) {
   const url = chainConfig.balancerV2.subgraphUrl;
   const hasPools = await hasField(url, "pools");
   const hasLiquidityPools = await hasField(url, "liquidityPools");
-  let data;
-  let pools;
+  const rootField = hasPools
+    ? "pools"
+    : hasLiquidityPools
+    ? "liquidityPools"
+    : null;
+  if (!rootField) return [];
 
-  if (hasPools) {
-    const query = `
-      {
-        pools(first: ${topN}, orderBy: totalLiquidity, orderDirection: desc) {
-          id
-          tokens { address }
-          totalLiquidity
-        }
-      }
-    `;
-    data = await graphqlRequest(url, query);
-    pools = data && data.data && data.data.pools;
+  const typeName = rootField === "pools" ? "Pool" : "LiquidityPool";
+  const fields = await getTypeFields(url, typeName);
+
+  let tokenSnippet = "";
+  if (fields.includes("tokens")) {
+    tokenSnippet = "tokens { address }";
+  } else if (fields.includes("inputTokens")) {
+    tokenSnippet = "inputTokens { id }";
+  } else {
+    console.warn(`BalancerV2: no token fields found in ${typeName}`);
+    return [];
   }
 
-  if (!Array.isArray(pools) && hasLiquidityPools) {
-    const query = `
-      {
-        liquidityPools(first: ${topN}, orderBy: totalLiquidityUSD, orderDirection: desc) {
-          id
-          inputTokens { id }
-          totalLiquidityUSD
-        }
+  let liqField = null;
+  if (fields.includes("totalLiquidityUSD")) liqField = "totalLiquidityUSD";
+  else if (fields.includes("totalLiquidity")) liqField = "totalLiquidity";
+  else if (fields.includes("totalValueLockedUSD"))
+    liqField = "totalValueLockedUSD";
+
+  const query = `
+    {
+      ${rootField}(first: ${topN}, orderBy: ${
+    liqField || "id"
+  }, orderDirection: desc) {
+        id
+        ${tokenSnippet}
+        ${liqField || ""}
       }
-    `;
-    data = await graphqlRequest(url, query);
-    pools = data && data.data && data.data.liquidityPools;
-    if (Array.isArray(pools)) {
-      pools = pools.map((p) => ({
-        id: p.id,
-        tokens: p.inputTokens.map((t) => ({ address: t.id })),
-        totalLiquidity: p.totalLiquidityUSD,
-      }));
     }
-  }
-
+  `;
+  const data = await graphqlRequest(url, query);
+  let pools = data && data.data && data.data[rootField];
   if (!Array.isArray(pools)) {
     console.warn(
       `BalancerV2 query returned no pools for ${url}. Check the response.`
@@ -343,12 +382,18 @@ async function fetchBalancerV2TopPools(chainConfig, topN = DEFAULT_TOP_N) {
     return [];
   }
 
-  return pools.map((p) => ({
-    poolAddress: p.id,
-    tokens: p.tokens.map((t) => t.address),
-    totalLiquidityUSD: parseFloat(p.totalLiquidity),
-    dex: "BalancerV2",
-  }));
+  return pools.map((p) => {
+    const toks = p.tokens || p.inputTokens || [];
+    const outTokens = toks.map((t) => t.address || t.id || t);
+    const liq =
+      p.totalLiquidityUSD || p.totalLiquidity || p.totalValueLockedUSD || "0";
+    return {
+      poolAddress: p.id,
+      tokens: outTokens,
+      totalLiquidityUSD: parseFloat(liq),
+      dex: "BalancerV2",
+    };
+  });
 }
 
 // ────────────────────────────────────────────────────────────────────────────────
@@ -359,44 +404,43 @@ async function fetchCurveV2TopPools(chainConfig, topN = DEFAULT_TOP_N) {
   const url = chainConfig.curveV2.subgraphUrl;
   const hasPools = await hasField(url, "pools");
   const hasLiquidityPools = await hasField(url, "liquidityPools");
-  let data;
-  let pools;
+  const rootField = hasPools
+    ? "pools"
+    : hasLiquidityPools
+    ? "liquidityPools"
+    : null;
+  if (!rootField) return [];
 
-  if (hasPools) {
-    const query = `
-      {
-        pools(first: ${topN}, orderBy: totalLiquidityUSD, orderDirection: desc) {
-          id
-          coins { id symbol }
-          totalLiquidityUSD
-        }
-      }
-    `;
-    data = await graphqlRequest(url, query);
-    pools = data && data.data && data.data.pools;
+  const typeName = rootField === "pools" ? "Pool" : "LiquidityPool";
+  const fields = await getTypeFields(url, typeName);
+
+  let tokenSnippet = "";
+  if (fields.includes("coins")) tokenSnippet = "coins { id symbol }";
+  else if (fields.includes("tokens")) tokenSnippet = "tokens { id }";
+  else if (fields.includes("inputTokens")) tokenSnippet = "inputTokens { id }";
+  else {
+    console.warn(`CurveV2: no token fields found in ${typeName}`);
+    return [];
   }
 
-  if (!Array.isArray(pools) && hasLiquidityPools) {
-    const query = `
-      {
-        liquidityPools(first: ${topN}, orderBy: totalValueLockedUSD, orderDirection: desc) {
-          id
-          inputTokens { id }
-          totalValueLockedUSD
-        }
+  let liqField = null;
+  if (fields.includes("totalLiquidityUSD")) liqField = "totalLiquidityUSD";
+  else if (fields.includes("totalValueLockedUSD"))
+    liqField = "totalValueLockedUSD";
+
+  const query = `
+    {
+      ${rootField}(first: ${topN}, orderBy: ${
+    liqField || "id"
+  }, orderDirection: desc) {
+        id
+        ${tokenSnippet}
+        ${liqField || ""}
       }
-    `;
-    data = await graphqlRequest(url, query);
-    pools = data && data.data && data.data.liquidityPools;
-    if (Array.isArray(pools)) {
-      pools = pools.map((p) => ({
-        id: p.id,
-        tokens: p.inputTokens.map((t) => ({ id: t.id })),
-        totalLiquidityUSD: p.totalValueLockedUSD,
-      }));
     }
-  }
-
+  `;
+  const data = await graphqlRequest(url, query);
+  let pools = data && data.data && data.data[rootField];
   if (!Array.isArray(pools)) {
     console.warn(
       `CurveV2 query returned no pools for ${url}. Check the response.`
@@ -404,12 +448,17 @@ async function fetchCurveV2TopPools(chainConfig, topN = DEFAULT_TOP_N) {
     return [];
   }
 
-  return pools.map((p) => ({
-    poolAddress: p.id,
-    tokens: (p.tokens || p.coins || []).map((t) => t.id || t),
-    totalLiquidityUSD: parseFloat(p.totalLiquidityUSD),
-    dex: "CurveV2",
-  }));
+  return pools.map((p) => {
+    const toks = p.coins || p.tokens || p.inputTokens || [];
+    const outTokens = toks.map((t) => t.id || t);
+    const liq = p.totalLiquidityUSD || p.totalValueLockedUSD || "0";
+    return {
+      poolAddress: p.id,
+      tokens: outTokens,
+      totalLiquidityUSD: parseFloat(liq),
+      dex: "CurveV2",
+    };
+  });
 }
 
 // ────────────────────────────────────────────────────────────────────────────────
