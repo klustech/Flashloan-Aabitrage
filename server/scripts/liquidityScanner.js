@@ -595,6 +595,9 @@ async function buildAdjacencyGraph(
   // Build adjacency map: tokenA -> [{ token, pool, dex, fee, reserveUSD }, ...]
   const adjacencyGraph = {};
 
+  // --- normalise to lower-case so look-ups are case-insensitive ------------
+  const lc = (addr) => (addr ? addr.toLowerCase() : addr);
+
   merged.forEach((p) => {
     if (p.token0 && p.token1) {
       const reserveUSD =
@@ -603,17 +606,17 @@ async function buildAdjacencyGraph(
           : p.liquidity !== undefined
           ? parseFloat(p.liquidity)
           : 0;
-      if (!adjacencyGraph[p.token0]) adjacencyGraph[p.token0] = [];
-      if (!adjacencyGraph[p.token1]) adjacencyGraph[p.token1] = [];
-      adjacencyGraph[p.token0].push({
-        token: p.token1,
+      if (!adjacencyGraph[lc(p.token0)]) adjacencyGraph[lc(p.token0)] = [];
+      if (!adjacencyGraph[lc(p.token1)]) adjacencyGraph[lc(p.token1)] = [];
+      adjacencyGraph[lc(p.token0)].push({
+        token: lc(p.token1),
         pool: p.pairAddress || p.poolAddress,
         dex: p.dex,
         fee: p.fee || 0,
         reserveUSD,
       });
-      adjacencyGraph[p.token1].push({
-        token: p.token0,
+      adjacencyGraph[lc(p.token1)].push({
+        token: lc(p.token0),
         pool: p.pairAddress || p.poolAddress,
         dex: p.dex,
         fee: p.fee || 0,
@@ -625,8 +628,8 @@ async function buildAdjacencyGraph(
       const totalLiquidityUSD = p.totalLiquidityUSD || 0;
       for (let i = 0; i < tokens.length; i++) {
         for (let j = i + 1; j < tokens.length; j++) {
-          const t0 = tokens[i];
-          const t1 = tokens[j];
+          const t0 = lc(tokens[i]);
+          const t1 = lc(tokens[j]);
           if (!adjacencyGraph[t0]) adjacencyGraph[t0] = [];
           if (!adjacencyGraph[t1]) adjacencyGraph[t1] = [];
           adjacencyGraph[t0].push({
