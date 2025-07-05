@@ -277,11 +277,11 @@ const DAILY_DD_LIMIT_FLOAT = DAILY_DRAWDOWN_LIMIT
 // Token & DEX Setup (addresses must be in .env)
 // ─────────────────────────────────────────────────────────────────────────────
 const tokenAddresses = {
-  DAI: TOKENS_DAI,
-  WETH: TOKENS_WETH,
-  USDC: TOKENS_USDC,
-  USDT: TOKENS_USDT,
-  UNI: TOKENS_UNI,
+  DAI: (TOKENS_DAI || "").toLowerCase(),
+  WETH: (TOKENS_WETH || "").toLowerCase(),
+  USDC: (TOKENS_USDC || "").toLowerCase(),
+  USDT: (TOKENS_USDT || "").toLowerCase(),
+  UNI: (TOKENS_UNI || "").toLowerCase(),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
