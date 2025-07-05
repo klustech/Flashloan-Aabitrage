@@ -606,17 +606,19 @@ async function buildAdjacencyGraph(
           : p.liquidity !== undefined
           ? parseFloat(p.liquidity)
           : 0;
-      if (!adjacencyGraph[lc(p.token0)]) adjacencyGraph[lc(p.token0)] = [];
-      if (!adjacencyGraph[lc(p.token1)]) adjacencyGraph[lc(p.token1)] = [];
-      adjacencyGraph[lc(p.token0)].push({
-        token: lc(p.token1),
+      const t0 = lc(p.token0);
+      const t1 = lc(p.token1);
+      if (!adjacencyGraph[t0]) adjacencyGraph[t0] = [];
+      if (!adjacencyGraph[t1]) adjacencyGraph[t1] = [];
+      adjacencyGraph[t0].push({
+        token: t1,
         pool: p.pairAddress || p.poolAddress,
         dex: p.dex,
         fee: p.fee || 0,
         reserveUSD,
       });
-      adjacencyGraph[lc(p.token1)].push({
-        token: lc(p.token0),
+      adjacencyGraph[t1].push({
+        token: t0,
         pool: p.pairAddress || p.poolAddress,
         dex: p.dex,
         fee: p.fee || 0,
