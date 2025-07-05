@@ -173,8 +173,6 @@ const logger = winston.createLogger({
 const {
   PRIVATE_KEY,
   MAINNET_RPC_URL,
-  ARB_RPC_URL,
-  OP_RPC_URL,
   ETH_ARB_CONTRACT,
   AAVE_LENDING_POOL_ADDRESS_PROVIDER,
   SLIPPAGE_BIPS,
@@ -239,18 +237,6 @@ const providers = {
     url: MAINNET_RPC_URL,
     timeout: 120_000,
   }),
-  arbitrum: ARB_RPC_URL
-    ? new ethers.providers.JsonRpcProvider({
-        url: ARB_RPC_URL,
-        timeout: 120_000,
-      })
-    : null,
-  optimism: OP_RPC_URL
-    ? new ethers.providers.JsonRpcProvider({
-        url: OP_RPC_URL,
-        timeout: 120_000,
-      })
-    : null,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -258,12 +244,6 @@ const providers = {
 // ─────────────────────────────────────────────────────────────────────────────
 const wallets = {
   ethereum: new ethers.Wallet(PRIVATE_KEY, providers.ethereum),
-  arbitrum: providers.arbitrum
-    ? new ethers.Wallet(PRIVATE_KEY, providers.arbitrum)
-    : null,
-  optimism: providers.optimism
-    ? new ethers.Wallet(PRIVATE_KEY, providers.optimism)
-    : null,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -271,8 +251,6 @@ const wallets = {
 // ─────────────────────────────────────────────────────────────────────────────
 const arbContractAddresses = {
   ethereum: ETH_ARB_CONTRACT,
-  arbitrum: process.env.ARB_ARB_CONTRACT,
-  optimism: process.env.OP_ARB_CONTRACT,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1042,8 +1020,6 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
 // ─────────────────────────────────────────────────────────────────────────────
 async function simulateAndExecuteArb() {
   const chains = ["ethereum"];
-  if (providers.arbitrum) chains.push("arbitrum");
-  if (providers.optimism) chains.push("optimism");
 
   for (const chain of chains) {
     try {

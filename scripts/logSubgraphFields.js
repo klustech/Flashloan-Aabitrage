@@ -11,12 +11,6 @@ const HOSTED_SUBGRAPHS = {
     subgraphUrl: "https://api.thegraph.com/subgraphs/name/curvefi/curve-v2",
     fallbackUrl: "https://api.thegraph.com/subgraphs/name/curvefi/curve-v2",
   },
-  "optimism:sushiV2": {
-    subgraphUrl:
-      "https://api.thegraph.com/subgraphs/name/sushiswap/exchange-optimism",
-    fallbackUrl:
-      "https://api.thegraph.com/subgraphs/name/sushiswap/exchange-optimism",
-  },
 };
 
 // Pull your IDs from .env
@@ -25,12 +19,6 @@ const {
   UNISWAP_V3_SUBGRAPH_ID,
   BALANCER_V2_SUBGRAPH_ID,
   CURVE_V2_SUBGRAPH_ID,
-  UNISWAP_V3_ARBITRUM_SUBGRAPH_ID,
-  BALANCER_ARBITRUM_SUBGRAPH_ID,
-  UNISWAP_V3_OPTIMISM_SUBGRAPH_ID,
-  BALANCER_OPTIMISM_SUBGRAPH_ID,
-  SUSHISWAP_OPTIMISM_SUBGRAPH_ID,
-  CURVE_OPTIMISM_SUBGRAPH_ID,
 } = process.env;
 
 // Build CHAIN_CONFIGS just like your liquidityScanner
@@ -56,52 +44,6 @@ const CHAIN_CONFIGS = {
     curveV2: CURVE_V2_SUBGRAPH_ID
       ? {
           subgraphUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${CURVE_V2_SUBGRAPH_ID}`,
-          fallbackUrl: null,
-        }
-      : undefined,
-  },
-  arbitrum: {
-    uniswapV3: {
-      subgraphUrl: UNISWAP_V3_ARBITRUM_SUBGRAPH_ID
-        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${UNISWAP_V3_ARBITRUM_SUBGRAPH_ID}`
-        : THEGRAPH_API_KEY
-        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/uniswap/uniswap-v3-arbitrum`
-        : "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3-arbitrum",
-      fallbackUrl:
-        "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3-arbitrum",
-    },
-    balancerV2: BALANCER_ARBITRUM_SUBGRAPH_ID
-      ? {
-          subgraphUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${BALANCER_ARBITRUM_SUBGRAPH_ID}`,
-          fallbackUrl: null,
-        }
-      : undefined,
-  },
-  optimism: {
-    sushiV2: SUSHISWAP_OPTIMISM_SUBGRAPH_ID
-      ? {
-          subgraphUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${SUSHISWAP_OPTIMISM_SUBGRAPH_ID}`,
-          fallbackUrl: null,
-        }
-      : undefined,
-    uniswapV3: {
-      subgraphUrl: UNISWAP_V3_OPTIMISM_SUBGRAPH_ID
-        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${UNISWAP_V3_OPTIMISM_SUBGRAPH_ID}`
-        : THEGRAPH_API_KEY
-        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/uniswap/uniswap-v3-optimism`
-        : "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3-optimism",
-      fallbackUrl:
-        "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3-optimism",
-    },
-    balancerV2: BALANCER_OPTIMISM_SUBGRAPH_ID
-      ? {
-          subgraphUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${BALANCER_OPTIMISM_SUBGRAPH_ID}`,
-          fallbackUrl: null,
-        }
-      : undefined,
-    curveV2: CURVE_OPTIMISM_SUBGRAPH_ID
-      ? {
-          subgraphUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${CURVE_OPTIMISM_SUBGRAPH_ID}`,
           fallbackUrl: null,
         }
       : undefined,
