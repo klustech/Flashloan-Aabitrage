@@ -10,6 +10,9 @@ const fs = require("fs");
 // ────────────────────────────────────────────────────────────────────────────────
 const envTopN = process.env.DYNAMIC_ROUTE_TOPN;
 const DEFAULT_TOP_N = envTopN !== undefined ? parseInt(envTopN, 10) : 20;
+// When forcing a start token, fetch a larger pool set so that token pairs
+// involving the focus asset are always included
+const EXTRA_FETCH_LIMIT = process.env.FORCE_START_TOKEN ? 1000 : DEFAULT_TOP_N;
 
 const envMinLiq = process.env.DYNAMIC_ROUTE_MIN_LIQUIDITY_USD;
 const DEFAULT_MIN_LIQUIDITY_USD =
@@ -564,31 +567,46 @@ async function buildAdjacencyGraph(
 
   // Include Uniswap V2 pools if enabled (default true)
   if (process.env.INCLUDE_UNISWAP_V2 !== "false") {
-    const uniV2Pools = await fetchUniswapV2TopPools(chainConfig, topN);
+    const uniV2Pools = await fetchUniswapV2TopPools(
+      chainConfig,
+      EXTRA_FETCH_LIMIT
+    );
     merged = merged.concat(uniV2Pools);
   }
 
   // Include SushiSwap V2 pools if enabled (default true)
   if (process.env.INCLUDE_SUSHISWAP_V2 !== "false") {
-    const sushiPools = await fetchSushiV2TopPools(chainConfig, topN);
+    const sushiPools = await fetchSushiV2TopPools(
+      chainConfig,
+      EXTRA_FETCH_LIMIT
+    );
     merged = merged.concat(sushiPools);
   }
 
   // Include V3 pools if enabled
   if (process.env.INCLUDE_V3 === "true") {
-    const v3Pools = await fetchUniswapV3TopPools(chainConfig, topN);
+    const v3Pools = await fetchUniswapV3TopPools(
+      chainConfig,
+      EXTRA_FETCH_LIMIT
+    );
     merged = merged.concat(v3Pools);
   }
 
   // Include Balancer V2 if enabled
   if (process.env.INCLUDE_BALANCER === "true") {
-    const balancerPools = await fetchBalancerV2TopPools(chainConfig, topN);
+    const balancerPools = await fetchBalancerV2TopPools(
+      chainConfig,
+      EXTRA_FETCH_LIMIT
+    );
     merged = merged.concat(balancerPools);
   }
 
   // Include Curve V2 if enabled
   if (process.env.INCLUDE_CURVE === "true") {
-    const curvePools = await fetchCurveV2TopPools(chainConfig, topN);
+    const curvePools = await fetchCurveV2TopPools(
+      chainConfig,
+      EXTRA_FETCH_LIMIT
+    );
     merged = merged.concat(curvePools);
   }
 
