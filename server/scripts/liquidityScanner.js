@@ -18,6 +18,8 @@ const DEFAULT_MIN_LIQUIDITY_USD =
 // The Graph Gateway API key (for Uniswap V2 & SushiSwap V2)
 const THEGRAPH_API_KEY = process.env.THEGRAPH_API_KEY;
 const {
+  UNISWAP_V2_SUBGRAPH_ID,
+  SUSHISWAP_V2_SUBGRAPH_ID,
   UNISWAP_ARBITRUM_SUBGRAPH_ID,
   SUSHISWAP_ARBITRUM_SUBGRAPH_ID,
   UNISWAP_OPTIMISM_SUBGRAPH_ID,
@@ -54,6 +56,26 @@ if (OFFLINE_POOLS_FILE && fs.existsSync(OFFLINE_POOLS_FILE)) {
 // ────────────────────────────────────────────────────────────────────────────────
 const CHAIN_CONFIGS = {
   ethereum: {
+    uniswapV2: {
+      subgraphUrl: UNISWAP_V2_SUBGRAPH_ID
+        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${UNISWAP_V2_SUBGRAPH_ID}`
+        : THEGRAPH_API_KEY
+        ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/uniswap/uniswap-v2`
+        : "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v2",
+      fallbackUrl: "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v2",
+    },
+    sushiswapV2: SUSHISWAP_V2_SUBGRAPH_ID
+      ? {
+          subgraphUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${SUSHISWAP_V2_SUBGRAPH_ID}`,
+          fallbackUrl: null,
+        }
+      : {
+          subgraphUrl: THEGRAPH_API_KEY
+            ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/sushiswap/exchange`
+            : "https://api.thegraph.com/subgraphs/name/sushiswap/exchange",
+          fallbackUrl:
+            "https://api.thegraph.com/subgraphs/name/sushiswap/exchange",
+        },
     uniswapV3: {
       subgraphUrl: UNISWAP_V3_SUBGRAPH_ID
         ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${UNISWAP_V3_SUBGRAPH_ID}`
@@ -79,6 +101,24 @@ const CHAIN_CONFIGS = {
       : undefined,
   },
   arbitrum: {
+    uniswapV2: UNISWAP_ARBITRUM_SUBGRAPH_ID
+      ? {
+          subgraphUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${UNISWAP_ARBITRUM_SUBGRAPH_ID}`,
+          fallbackUrl: null,
+        }
+      : {
+          subgraphUrl: THEGRAPH_API_KEY
+            ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/name/ianlapham/uniswap-arbitrum-one`
+            : "https://api.thegraph.com/subgraphs/name/ianlapham/uniswap-arbitrum-one",
+          fallbackUrl:
+            "https://api.thegraph.com/subgraphs/name/ianlapham/uniswap-arbitrum-one",
+        },
+    sushiswapV2: SUSHISWAP_ARBITRUM_SUBGRAPH_ID
+      ? {
+          subgraphUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${SUSHISWAP_ARBITRUM_SUBGRAPH_ID}`,
+          fallbackUrl: null,
+        }
+      : undefined,
     uniswapV3: {
       subgraphUrl: UNISWAP_V3_ARBITRUM_SUBGRAPH_ID
         ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${UNISWAP_V3_ARBITRUM_SUBGRAPH_ID}`
@@ -96,6 +136,18 @@ const CHAIN_CONFIGS = {
       : undefined,
   },
   optimism: {
+    uniswapV2: UNISWAP_OPTIMISM_SUBGRAPH_ID
+      ? {
+          subgraphUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${UNISWAP_OPTIMISM_SUBGRAPH_ID}`,
+          fallbackUrl: null,
+        }
+      : undefined,
+    sushiswapV2: SUSHISWAP_OPTIMISM_SUBGRAPH_ID
+      ? {
+          subgraphUrl: `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${SUSHISWAP_OPTIMISM_SUBGRAPH_ID}`,
+          fallbackUrl: null,
+        }
+      : undefined,
     uniswapV3: {
       subgraphUrl: UNISWAP_V3_OPTIMISM_SUBGRAPH_ID
         ? `https://gateway.thegraph.com/api/${THEGRAPH_API_KEY}/subgraphs/id/${UNISWAP_V3_OPTIMISM_SUBGRAPH_ID}`
@@ -228,6 +280,85 @@ async function graphqlRequest(url, query, variables = {}, fallbackUrl) {
     return null;
   }
 }
+
+// ────────────────────────────────────────────────────────────────────────────────
+// 1) Uniswap V2 / SushiSwap V2: fetch top N pairs by reserveUSD
+// ────────────────────────────────────────────────────────────────────────────────
+async function fetchV2TopPairs(chainConfigDex, topN = DEFAULT_TOP_N, dexName) {
+  if (!chainConfigDex || !chainConfigDex.subgraphUrl) return [];
+  const url = chainConfigDex.subgraphUrl;
+  const hasPairs = await hasField(url, "pairs");
+  const hasLiquidityPools = await hasField(url, "liquidityPools");
+  const rootField = hasPairs
+    ? "pairs"
+    : hasLiquidityPools
+    ? "liquidityPools"
+    : null;
+  if (!rootField) return [];
+
+  const typeName = rootField === "pairs" ? "Pair" : "LiquidityPool";
+  const fields = await getTypeFields(url, typeName);
+
+  let tokenSnippet = "";
+  if (fields.includes("token0") && fields.includes("token1")) {
+    tokenSnippet = "token0 { id symbol } token1 { id symbol }";
+  } else if (fields.includes("inputTokens")) {
+    tokenSnippet = "inputTokens { id symbol }";
+  } else if (fields.includes("tokens")) {
+    tokenSnippet = "tokens { id symbol }";
+  } else {
+    console.warn(`${dexName}: no token fields found in ${typeName}`);
+    return [];
+  }
+
+  const liqField = (await typeHasField(url, typeName, "reserveUSD"))
+    ? "reserveUSD"
+    : null;
+
+  const query = `
+    {
+      ${rootField}(first: ${topN}, orderBy: ${
+    liqField || "id"
+  }, orderDirection: desc) {
+        id
+        ${tokenSnippet}
+        ${liqField || ""}
+      }
+    }
+  `;
+  const data = await graphqlRequest(url, query, {}, chainConfigDex.fallbackUrl);
+  let pairs = data && data.data && data.data[rootField];
+  if (!Array.isArray(pairs)) {
+    console.warn(`${dexName} query returned no pairs for ${url}.`);
+    return [];
+  }
+
+  return pairs.map((p) => {
+    const tok0 =
+      p.token0?.id ||
+      p.inputTokens?.[0]?.id ||
+      p.tokens?.[0]?.id ||
+      p.tokens?.[0];
+    const tok1 =
+      p.token1?.id ||
+      p.inputTokens?.[1]?.id ||
+      p.tokens?.[1]?.id ||
+      p.tokens?.[1];
+    const liq = p.reserveUSD || 0;
+    return {
+      pairAddress: p.id,
+      token0: tok0,
+      token1: tok1,
+      reserveUSD: parseFloat(liq),
+      dex: dexName,
+    };
+  });
+}
+
+const fetchUniswapV2TopPools = (chainConfig, topN) =>
+  fetchV2TopPairs(chainConfig.uniswapV2, topN, "uniswap_v2");
+const fetchSushiV2TopPools = (chainConfig, topN) =>
+  fetchV2TopPairs(chainConfig.sushiswapV2, topN, "sushiswap_v2");
 
 // ────────────────────────────────────────────────────────────────────────────────
 // 3) Uniswap V3: fetch top N pools by liquidity
@@ -510,6 +641,18 @@ async function buildAdjacencyGraph(
   }
   let merged = [];
 
+  // Include Uniswap V2 pools if enabled (default true)
+  if (process.env.INCLUDE_UNISWAP_V2 !== "false") {
+    const uniV2Pools = await fetchUniswapV2TopPools(chainConfig, topN);
+    merged = merged.concat(uniV2Pools);
+  }
+
+  // Include SushiSwap V2 pools if enabled (default true)
+  if (process.env.INCLUDE_SUSHISWAP_V2 !== "false") {
+    const sushiPools = await fetchSushiV2TopPools(chainConfig, topN);
+    merged = merged.concat(sushiPools);
+  }
+
   // Include V3 pools if enabled
   if (process.env.INCLUDE_V3 === "true") {
     const v3Pools = await fetchUniswapV3TopPools(chainConfig, topN);
@@ -533,8 +676,12 @@ async function buildAdjacencyGraph(
 
   merged.forEach((p) => {
     if (p.token0 && p.token1) {
-      // For Uniswap V3 entries
-      const reserveUSD = p.dex === "UniswapV3" ? parseFloat(p.liquidity) : 0;
+      const reserveUSD =
+        p.reserveUSD !== undefined
+          ? parseFloat(p.reserveUSD)
+          : p.liquidity !== undefined
+          ? parseFloat(p.liquidity)
+          : 0;
       if (!adjacencyGraph[p.token0]) adjacencyGraph[p.token0] = [];
       if (!adjacencyGraph[p.token1]) adjacencyGraph[p.token1] = [];
       adjacencyGraph[p.token0].push({
@@ -553,24 +700,30 @@ async function buildAdjacencyGraph(
       });
     } else if (p.tokens && p.tokens.length >= 2) {
       // For BalancerV2 / CurveV2 entries
-      const [t0, t1] = p.tokens;
+      const tokens = p.tokens;
       const totalLiquidityUSD = p.totalLiquidityUSD || 0;
-      if (!adjacencyGraph[t0]) adjacencyGraph[t0] = [];
-      if (!adjacencyGraph[t1]) adjacencyGraph[t1] = [];
-      adjacencyGraph[t0].push({
-        token: t1,
-        pool: p.poolAddress,
-        dex: p.dex,
-        fee: 0,
-        reserveUSD: totalLiquidityUSD,
-      });
-      adjacencyGraph[t1].push({
-        token: t0,
-        pool: p.poolAddress,
-        dex: p.dex,
-        fee: 0,
-        reserveUSD: totalLiquidityUSD,
-      });
+      for (let i = 0; i < tokens.length; i++) {
+        for (let j = i + 1; j < tokens.length; j++) {
+          const t0 = tokens[i];
+          const t1 = tokens[j];
+          if (!adjacencyGraph[t0]) adjacencyGraph[t0] = [];
+          if (!adjacencyGraph[t1]) adjacencyGraph[t1] = [];
+          adjacencyGraph[t0].push({
+            token: t1,
+            pool: p.poolAddress,
+            dex: p.dex,
+            fee: 0,
+            reserveUSD: totalLiquidityUSD,
+          });
+          adjacencyGraph[t1].push({
+            token: t0,
+            pool: p.poolAddress,
+            dex: p.dex,
+            fee: 0,
+            reserveUSD: totalLiquidityUSD,
+          });
+        }
+      }
     }
   });
 

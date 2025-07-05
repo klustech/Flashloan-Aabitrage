@@ -33,14 +33,24 @@ const LEGACY = {};
 
 const Q_ROOT = '{ __type(name:"Query"){ fields{name} } }';
 const Q_TYPE = (t) => `{ __type(name:"${t}"){ fields{name} } }`;
-// Different subgraph schemas expose pool fields under various names. Map the
-// expected root query field to the list of required pool fields for that schema
-// so we validate against whatever the subgraph actually uses.
-const NEEDS_BY_ROOT = {
-  pools: ["token0", "token1", "reserveUSD", "feeTier", "liquidity"],
-  liquidityPools: ["inputTokens", "totalValueLockedUSD"],
-  pairs: ["token0", "token1", "reserveUSD"],
-};
+// Some subgraphs expose pool data under slightly different schemas. Instead of
+// hard coding one exact layout, verify that each ID provides *some* token and
+// liquidity fields so the liquidity scanner can adapt at runtime. This avoids
+// false negatives when the pool type doesn't use `token0/token1` or
+// `reserveUSD`.
+const TOKEN_FIELDS = [
+  ["token0", "token1"],
+  ["inputTokens"],
+  ["tokens"],
+  ["coins"],
+];
+const LIQ_FIELDS = [
+  "reserveUSD",
+  "totalValueLockedUSD",
+  "totalLiquidityUSD",
+  "totalLiquidity",
+  "liquidity",
+];
 
 async function fetch(url, query) {
   const { data } = await axios.post(url, { query }, { timeout: 15000 });
@@ -87,8 +97,16 @@ async function fetch(url, query) {
           (f) => f.name
         ) ?? [];
 
-      const needs = NEEDS_BY_ROOT[entry.field] || NEEDS_BY_ROOT.pools;
-      const missing = needs.filter((x) => !poolFields.includes(x));
+      // Validate presence of at least one recognised token field and one
+      // liquidity-related field. This mirrors the dynamic logic used by the bot
+      // at runtime.
+      const tokenOk = TOKEN_FIELDS.some((req) =>
+        req.every((f) => poolFields.includes(f))
+      );
+      const liqOk = LIQ_FIELDS.some((f) => poolFields.includes(f));
+      const missing = [];
+      if (!tokenOk) missing.push("token field(s)");
+      if (!liqOk) missing.push("liquidity field");
       const status = missing.length ? chalk.yellow("WARN") : chalk.green("OK");
 
       console.log(

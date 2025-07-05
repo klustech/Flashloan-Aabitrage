@@ -20,6 +20,8 @@ npm ci
 THEGRAPH_API_KEY=<your_key>
 
 # Uniswap/SushiSwap V2 subgraphs
+# UNISWAP_V2_SUBGRAPH_ID=<id>
+# SUSHISWAP_V2_SUBGRAPH_ID=<id>
 # UNISWAP_ARBITRUM_SUBGRAPH_ID=<id>
 # SUSHISWAP_ARBITRUM_SUBGRAPH_ID=<id>   # optional
 # UNISWAP_OPTIMISM_SUBGRAPH_ID=<id>
@@ -46,6 +48,8 @@ variable to `false`:
 
 ```bash
 # Optional DEX toggles (defaults to true)
+INCLUDE_UNISWAP_V2=true
+INCLUDE_SUSHISWAP_V2=true
 INCLUDE_V3=true
 INCLUDE_BALANCER=true
 INCLUDE_CURVE=true
