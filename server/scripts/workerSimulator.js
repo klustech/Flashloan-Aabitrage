@@ -36,20 +36,13 @@ function isValidRoute(route) {
       throw new Error("buildStepsFromHops produced no steps");
     }
 
-    const rawOut = simulateRoute(workerData.route, workerData.amountIn);
+    const rawOut = simulateRoute(workerData.route, workerData.amountIn); // JS number
 
-    /* ---------------------------------------------
-       Always return a 18-dec BigNumber *string*
-       --------------------------------------------- */
-    const { ethers, BigNumber } = require("ethers");
-    const outBN = BigNumber.isBigNumber(rawOut)
-      ? rawOut
-      : ethers.utils.parseUnits(rawOut.toString(), 18); // 99.1026 → 9910… wei
+    // convert to a wei BigNumber, then to a plain integer string
+    const { ethers } = require("ethers");
+    const weiStr = ethers.utils.parseUnits(rawOut.toString(), 18).toString();
 
-    parentPort.postMessage({
-      routeId: workerData.route.id,
-      result: outBN.toString(), // safe to Structured-Clone
-    });
+    parentPort.postMessage({ routeId: workerData.route.id, result: weiStr });
   } catch (err) {
     parentPort.postMessage({
       routeId: workerData.route?.id ?? "unknown",

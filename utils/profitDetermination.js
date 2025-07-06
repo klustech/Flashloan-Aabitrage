@@ -125,8 +125,10 @@ function convertEthToDai(eth, rate) {
 /* ────────────────────────────────────────────────
    Helper: apply flash-loan premium (in bips)
    ────────────────────────────────────────────────*/
-function applyPremium(amount, bips) {
-  return amount * (1 + bips / 10_000);
+function applyPremium(amountBN, bipsInt) {
+  // amountBN and the return value are BigNumbers (wei)
+  // bipsInt is an integer, e.g. 9  (= 0.09 %)
+  return amountBN.mul(10_000 + bipsInt).div(10_000);
 }
 
 /* ────────────────────────────────────────────────
