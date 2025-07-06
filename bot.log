@@ -49956,3 +49956,63 @@
 [2025-07-06T09:04:09.804Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
 [2025-07-06T09:04:19.807Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
 [2025-07-06T09:04:20.332Z] [INFO] [ethereum] Current gas price: 0.262586559 Gwei.
+[2025-07-06T09:26:48.968Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T09:26:49.665Z] [INFO] [ethereum] Current gas price: 0.278786958 Gwei.
+[2025-07-06T09:28:36.828Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=500, minLiq=0).
+[2025-07-06T09:28:36.829Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-07-06T09:28:46.834Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T09:28:47.318Z] [INFO] [ethereum] Current gas price: 0.249097414 Gwei.
+[2025-07-06T09:32:49.961Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T09:32:50.656Z] [INFO] [ethereum] Current gas price: 0.247590642 Gwei.
+[2025-07-06T09:34:24.271Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=500, minLiq=0).
+[2025-07-06T09:34:24.272Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-07-06T09:34:34.275Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T09:34:34.754Z] [INFO] [ethereum] Current gas price: 0.229505607 Gwei.
+[2025-07-06T09:36:07.451Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=500, minLiq=0).
+[2025-07-06T09:36:07.452Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-07-06T09:36:17.453Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T09:36:17.935Z] [INFO] [ethereum] Current gas price: 0.231097399 Gwei.
+[2025-07-06T09:38:01.463Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=500, minLiq=0).
+[2025-07-06T09:38:01.464Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-07-06T09:38:11.465Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T09:38:11.945Z] [INFO] [ethereum] Current gas price: 0.26542164 Gwei.
+[2025-07-06T09:46:24.549Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T09:46:25.254Z] [INFO] [ethereum] Current gas price: 0.259617228 Gwei.
+[2025-07-06T09:48:07.342Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=500, minLiq=0).
+[2025-07-06T09:48:07.343Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-07-06T09:48:17.344Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T09:48:17.826Z] [INFO] [ethereum] Current gas price: 0.265099137 Gwei.
+[2025-07-06T09:49:51.041Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=500, minLiq=0).
+[2025-07-06T09:49:51.041Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-07-06T09:53:05.800Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T09:53:06.489Z] [INFO] [ethereum] Current gas price: 0.243287226 Gwei.
+[2025-07-06T09:54:40.988Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=500, minLiq=0).
+[2025-07-06T09:54:41.000Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-07-06T09:54:51.003Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T09:54:51.509Z] [INFO] [ethereum] Current gas price: 0.242287497 Gwei.
+[2025-07-06T09:56:25.502Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=500, minLiq=0).
+[2025-07-06T09:56:25.503Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-07-06T10:05:23.267Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T10:05:23.995Z] [INFO] [ethereum] Current gas price: 0.270593023 Gwei.
+[2025-07-06T10:05:24.497Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-06T10:05:24.498Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-06T10:05:24.499Z] [INFO] [ethereum] Subscribing to 100 pools for reserve updates.
+[2025-07-06T10:05:24.501Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
+[2025-07-06T10:05:34.502Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T10:05:35.032Z] [INFO] [ethereum] Current gas price: 0.26514679 Gwei.
+[2025-07-06T10:05:35.634Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-06T10:05:35.635Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-06T10:05:35.635Z] [INFO] [ethereum] Subscribing to 100 pools for reserve updates.
+[2025-07-06T10:05:35.636Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
+[2025-07-06T10:05:45.638Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T10:05:46.121Z] [INFO] [ethereum] Current gas price: 0.250284938 Gwei.
+[2025-07-06T10:05:46.588Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-06T10:05:46.589Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-06T10:05:46.589Z] [INFO] [ethereum] Subscribing to 100 pools for reserve updates.
+[2025-07-06T10:05:46.590Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
+[2025-07-06T10:05:54.213Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T10:05:54.877Z] [INFO] [ethereum] Current gas price: 0.243818045 Gwei.
+[2025-07-06T10:05:55.398Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-06T10:05:55.399Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-06T10:05:55.400Z] [INFO] [ethereum] Subscribing to 100 pools for reserve updates.
+[2025-07-06T10:05:55.402Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
