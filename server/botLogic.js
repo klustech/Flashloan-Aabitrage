@@ -640,9 +640,9 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
   }
 
   // 3. Ensure reserveCache is up to date
-  const topPools = ROUTES_TO_CHECK.slice(0, REALTIME_POOL_COUNT || 100).map(
-    (r) => r.poolAddress
-  );
+  const topPools = ROUTES_TO_CHECK.slice(0, REALTIME_POOL_COUNT || 100)
+    .map((r) => r.poolAddress)
+    .filter((addr) => addr && ethers.utils.isAddress(addr));
   logger.info(
     `[${chain}] Subscribing to ${topPools.length} pools for reserve updates.`
   );
