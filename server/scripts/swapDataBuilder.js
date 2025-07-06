@@ -53,6 +53,21 @@ async function buildSwapDataFromDynamic(
   routeDef,
   { slippageBips, minProfit, borrowToken, borrowAmount }
 ) {
+  // Allow callers to pass just the hops array
+  if (Array.isArray(routeDef)) {
+    const hops = routeDef;
+    routeDef = {
+      steps: hops.map((h) => ({
+        dex: h.dex,
+        path: [h.tokenA, h.tokenB],
+        fee: h.fee || null,
+        poolAddress: h.poolAddress,
+        curveIndices: h.curveIndices || null,
+      })),
+      routeTokens: [hops[0].tokenA, ...hops.map((h) => h.tokenB)],
+    };
+  }
+
   if (!Array.isArray(routeDef.steps) || routeDef.steps.length !== 3) {
     throw new Error("Expected exactly 3 hops in routeDef.steps");
   }

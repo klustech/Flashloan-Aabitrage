@@ -786,7 +786,7 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
 
   // 8. Re-fetch fresh reserves for bestRoute
   try {
-    await fetchMulticallReservesForRoute(bestRoute);
+    await fetchMulticallReservesForRoute(bestRoute.hops);
     logger.info(`[${chain}] Fetched fresh reserves for best route.`);
   } catch {
     logger.warn(`[${chain}] Failed to fetch fresh reserves for best route.`);
@@ -795,20 +795,12 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
   // 9. Build SwapData via swapDataBuilder
   let swapData;
   try {
-    swapData = await buildSwapDataFromDynamic(
-      {
-        steps: bestRoute.steps,
-        routeTokens: bestRoute.routeTokens,
-        fees: bestRoute.fees || [],
-        curveIndices: bestRoute.curveIndices || {},
-      },
-      {
-        slippageBips: SLIPPAGE_DEFAULT_INT,
-        minProfit: BigNumber.from(MIN_PROFIT_DAI || "1"),
-        borrowToken: tokenAddresses.DAI,
-        borrowAmount: borrowDAI.toString(),
-      }
-    );
+    swapData = await buildSwapDataFromDynamic(bestRoute.hops, {
+      slippageBips: SLIPPAGE_DEFAULT_INT,
+      minProfit: BigNumber.from(MIN_PROFIT_DAI || "1"),
+      borrowToken: tokenAddresses.DAI,
+      borrowAmount: borrowDAI.toString(),
+    });
     logger.info(`[${chain}] swapDataBuilder returned SwapData successfully.`);
   } catch (err) {
     logger.error(`[${chain}] swapDataBuilder error: ${err.message}`);

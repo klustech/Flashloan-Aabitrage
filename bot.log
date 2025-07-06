@@ -53154,3 +53154,105 @@
 [2025-07-06T20:58:56.617Z] [INFO] [ethereum] potentialProfitDAI (after premium): 99102697299999999899.91 DAI.
 [2025-07-06T20:58:56.629Z] [INFO] [ethereum] Fetched fresh reserves for best route.
 [2025-07-06T20:58:56.630Z] [ERROR] [ethereum] swapDataBuilder error: Cannot read properties of undefined (reading '1')
+[2025-07-06T22:50:58.543Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T22:50:59.312Z] [INFO] [ethereum] Current gas price: 0.274254107 Gwei.
+[2025-07-06T22:51:29.186Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-06T22:51:29.187Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-06T22:51:29.187Z] [INFO] [ethereum] Subscribing to 0 pools for reserve updates.
+[2025-07-06T22:51:29.387Z] [INFO] Dynamic Slippage determined: 78 bips
+[2025-07-06T22:51:30.085Z] [INFO] [ethereum] Aave available liquidity for DAI: 1185156156.728865734677237658
+[2025-07-06T22:51:30.087Z] [INFO] [ethereum] Optimal borrow amount for DAI: 100.0
+[2025-07-06T22:51:30.088Z] [INFO] Filtered 1152 routes down to 0 by Z-score threshold 3.
+[2025-07-06T22:51:30.089Z] [INFO] No routes exceeded Z-score threshold; using all 1152 as candidates.
+[2025-07-06T22:51:30.099Z] [WARN] ML scoring error: Request failed with status code 404. Proceeding without ML ranking.
+[2025-07-06T22:51:30.099Z] [INFO] After ML scoring, retaining top 50 routes for simulation.
+[2025-07-06T22:52:01.601Z] [INFO] Parallel simulation completed for 50 routes.
+[2025-07-06T22:52:01.601Z] [INFO] Simulation took 31502 ms.
+[2025-07-06T22:52:01.605Z] [INFO] Best route chosen: id=3hop_14, estimatedOut=99102697300000000000.0 DAI.
+[2025-07-06T22:52:01.615Z] [INFO] [ethereum] Selected best route id=3hop_14, estimatedOut=99102697300000000000.0 DAI.
+[2025-07-06T22:52:01.616Z] [INFO] [ethereum] potentialProfitDAI (after premium): 99102697299999999899.91 DAI.
+[2025-07-06T22:52:01.617Z] [ERROR] [ethereum] Fatal error in cycle: invalid BigNumber string (argument="value", value="0.1", code=INVALID_ARGUMENT, version=bignumber/5.8.0)
+[2025-07-06T22:52:11.619Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T22:52:12.105Z] [INFO] [ethereum] Current gas price: 0.250223006 Gwei.
+[2025-07-06T22:52:12.676Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-06T22:52:12.677Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-06T22:52:12.677Z] [INFO] [ethereum] Subscribing to 0 pools for reserve updates.
+[2025-07-06T22:52:12.678Z] [INFO] Reusing cached slippage: 78 bips
+[2025-07-06T22:52:13.096Z] [INFO] [ethereum] Aave available liquidity for DAI: 1185156156.728865734677237658
+[2025-07-06T22:52:13.097Z] [INFO] [ethereum] Optimal borrow amount for DAI: 100.0
+[2025-07-06T22:52:13.098Z] [INFO] Filtered 1152 routes down to 0 by Z-score threshold 3.
+[2025-07-06T22:52:13.098Z] [INFO] No routes exceeded Z-score threshold; using all 1152 as candidates.
+[2025-07-06T22:52:13.107Z] [WARN] ML scoring error: Request failed with status code 404. Proceeding without ML ranking.
+[2025-07-06T22:52:13.107Z] [INFO] After ML scoring, retaining top 50 routes for simulation.
+[2025-07-06T22:52:40.986Z] [INFO] Parallel simulation completed for 50 routes.
+[2025-07-06T22:52:40.986Z] [INFO] Simulation took 27879 ms.
+[2025-07-06T22:52:40.987Z] [INFO] Best route chosen: id=3hop_25, estimatedOut=99102697300000000000.0 DAI.
+[2025-07-06T22:52:40.987Z] [INFO] [ethereum] Selected best route id=3hop_25, estimatedOut=99102697300000000000.0 DAI.
+[2025-07-06T22:52:40.987Z] [INFO] [ethereum] potentialProfitDAI (after premium): 99102697299999999899.91 DAI.
+[2025-07-06T22:52:40.987Z] [ERROR] [ethereum] Fatal error in cycle: invalid BigNumber string (argument="value", value="0.1", code=INVALID_ARGUMENT, version=bignumber/5.8.0)
+[2025-07-06T22:52:50.989Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T22:52:51.481Z] [INFO] [ethereum] Current gas price: 0.247608722 Gwei.
+[2025-07-06T22:52:52.018Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-06T22:52:52.019Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-06T22:52:52.019Z] [INFO] [ethereum] Subscribing to 0 pools for reserve updates.
+[2025-07-06T22:52:55.695Z] [INFO] Dynamic Slippage determined: 77 bips
+[2025-07-06T22:52:56.105Z] [INFO] [ethereum] Aave available liquidity for DAI: 1185156156.728865734677237658
+[2025-07-06T22:52:56.106Z] [INFO] [ethereum] Optimal borrow amount for DAI: 100.0
+[2025-07-06T22:52:56.108Z] [INFO] Filtered 1152 routes down to 0 by Z-score threshold 3.
+[2025-07-06T22:52:56.108Z] [INFO] No routes exceeded Z-score threshold; using all 1152 as candidates.
+[2025-07-06T22:52:56.114Z] [WARN] ML scoring error: Request failed with status code 404. Proceeding without ML ranking.
+[2025-07-06T22:52:56.115Z] [INFO] After ML scoring, retaining top 50 routes for simulation.
+[2025-07-06T22:53:23.094Z] [INFO] Parallel simulation completed for 50 routes.
+[2025-07-06T22:53:23.094Z] [INFO] Simulation took 26979 ms.
+[2025-07-06T22:53:23.094Z] [INFO] Best route chosen: id=3hop_29, estimatedOut=99102697300000000000.0 DAI.
+[2025-07-06T22:53:23.095Z] [INFO] [ethereum] Selected best route id=3hop_29, estimatedOut=99102697300000000000.0 DAI.
+[2025-07-06T22:53:23.095Z] [INFO] [ethereum] potentialProfitDAI (after premium): 99102697299999999899.91 DAI.
+[2025-07-06T22:53:23.095Z] [ERROR] [ethereum] Fatal error in cycle: invalid BigNumber string (argument="value", value="0.1", code=INVALID_ARGUMENT, version=bignumber/5.8.0)
+[2025-07-06T22:53:33.097Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T22:53:33.587Z] [INFO] [ethereum] Current gas price: 0.255644595 Gwei.
+[2025-07-06T22:53:34.143Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-06T22:53:34.145Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-06T22:53:34.145Z] [INFO] [ethereum] Subscribing to 0 pools for reserve updates.
+[2025-07-06T22:53:34.146Z] [INFO] Reusing cached slippage: 77 bips
+[2025-07-06T22:53:34.575Z] [INFO] [ethereum] Aave available liquidity for DAI: 1185156156.728865734677237658
+[2025-07-06T22:53:34.576Z] [INFO] [ethereum] Optimal borrow amount for DAI: 100.0
+[2025-07-06T22:53:34.577Z] [INFO] Filtered 1152 routes down to 0 by Z-score threshold 3.
+[2025-07-06T22:53:34.577Z] [INFO] No routes exceeded Z-score threshold; using all 1152 as candidates.
+[2025-07-06T22:53:34.584Z] [WARN] ML scoring error: Request failed with status code 404. Proceeding without ML ranking.
+[2025-07-06T22:53:34.584Z] [INFO] After ML scoring, retaining top 50 routes for simulation.
+[2025-07-06T22:54:01.163Z] [INFO] Parallel simulation completed for 50 routes.
+[2025-07-06T22:54:01.164Z] [INFO] Simulation took 26580 ms.
+[2025-07-06T22:54:01.164Z] [INFO] Best route chosen: id=3hop_28, estimatedOut=99102697300000000000.0 DAI.
+[2025-07-06T22:54:01.165Z] [INFO] [ethereum] Selected best route id=3hop_28, estimatedOut=99102697300000000000.0 DAI.
+[2025-07-06T22:54:01.165Z] [INFO] [ethereum] potentialProfitDAI (after premium): 99102697299999999899.91 DAI.
+[2025-07-06T22:54:01.166Z] [ERROR] [ethereum] Fatal error in cycle: invalid BigNumber string (argument="value", value="0.1", code=INVALID_ARGUMENT, version=bignumber/5.8.0)
+[2025-07-06T22:54:11.167Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T22:54:14.829Z] [INFO] [ethereum] Current gas price: 0.265252988 Gwei.
+[2025-07-06T22:54:15.410Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-06T22:54:15.412Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-06T22:54:15.412Z] [INFO] [ethereum] Subscribing to 0 pools for reserve updates.
+[2025-07-06T22:54:15.653Z] [INFO] Dynamic Slippage determined: 77 bips
+[2025-07-06T22:54:16.075Z] [INFO] [ethereum] Aave available liquidity for DAI: 1185156156.728865734677237658
+[2025-07-06T22:54:16.076Z] [INFO] [ethereum] Optimal borrow amount for DAI: 100.0
+[2025-07-06T22:54:16.076Z] [INFO] Filtered 1152 routes down to 0 by Z-score threshold 3.
+[2025-07-06T22:54:16.077Z] [INFO] No routes exceeded Z-score threshold; using all 1152 as candidates.
+[2025-07-06T22:54:16.082Z] [WARN] ML scoring error: Request failed with status code 404. Proceeding without ML ranking.
+[2025-07-06T22:54:16.082Z] [INFO] After ML scoring, retaining top 50 routes for simulation.
+[2025-07-06T22:54:44.620Z] [INFO] Parallel simulation completed for 50 routes.
+[2025-07-06T22:54:44.620Z] [INFO] Simulation took 28538 ms.
+[2025-07-06T22:54:44.621Z] [INFO] Best route chosen: id=3hop_47, estimatedOut=99102697300000000000.0 DAI.
+[2025-07-06T22:54:44.621Z] [INFO] [ethereum] Selected best route id=3hop_47, estimatedOut=99102697300000000000.0 DAI.
+[2025-07-06T22:54:44.621Z] [INFO] [ethereum] potentialProfitDAI (after premium): 99102697299999999899.91 DAI.
+[2025-07-06T22:54:44.621Z] [ERROR] [ethereum] Fatal error in cycle: invalid BigNumber string (argument="value", value="0.1", code=INVALID_ARGUMENT, version=bignumber/5.8.0)
+[2025-07-06T22:54:54.623Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T22:54:55.129Z] [INFO] [ethereum] Current gas price: 0.271622415 Gwei.
+[2025-07-06T22:54:55.678Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-06T22:54:55.678Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-06T22:54:55.678Z] [INFO] [ethereum] Subscribing to 0 pools for reserve updates.
+[2025-07-06T22:54:55.678Z] [INFO] Reusing cached slippage: 77 bips
+[2025-07-06T22:54:56.093Z] [INFO] [ethereum] Aave available liquidity for DAI: 1185156156.728865734677237658
+[2025-07-06T22:54:56.094Z] [INFO] [ethereum] Optimal borrow amount for DAI: 100.0
+[2025-07-06T22:54:56.095Z] [INFO] Filtered 1152 routes down to 0 by Z-score threshold 3.
+[2025-07-06T22:54:56.095Z] [INFO] No routes exceeded Z-score threshold; using all 1152 as candidates.
+[2025-07-06T22:54:56.102Z] [WARN] ML scoring error: Request failed with status code 404. Proceeding without ML ranking.
+[2025-07-06T22:54:56.103Z] [INFO] After ML scoring, retaining top 50 routes for simulation.

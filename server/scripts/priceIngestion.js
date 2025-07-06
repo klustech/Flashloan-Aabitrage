@@ -84,6 +84,14 @@ async function initSubscriptions(pools) {
  * @param {Object} routeOrPoolInfo – Route or pool details (ignored).
  */
 async function fetchMulticallReservesForRoute(routeOrPoolInfo) {
+  // If an array is passed, treat each entry as a hop and recurse
+  if (Array.isArray(routeOrPoolInfo)) {
+    for (const hop of routeOrPoolInfo) {
+      await fetchMulticallReservesForRoute(hop);
+    }
+    return;
+  }
+
   const poolAddress = routeOrPoolInfo.poolAddress || routeOrPoolInfo;
   const pairInterface = new ethers.utils.Interface(PAIR_ABI);
   const callData = pairInterface.encodeFunctionData("getReserves");
