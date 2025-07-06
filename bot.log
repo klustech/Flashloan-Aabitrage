@@ -53009,3 +53009,51 @@
 [2025-07-06T15:32:49.459Z] [INFO] No routes exceeded Z-score threshold; using all 1152 as candidates.
 [2025-07-06T15:32:49.459Z] [WARN] ML scoring error: Cannot read properties of undefined (reading 'length'). Proceeding without ML ranking.
 [2025-07-06T15:32:49.459Z] [INFO] After ML scoring, retaining top 50 routes for simulation.
+[2025-07-06T16:02:40.890Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T16:02:41.602Z] [INFO] [ethereum] Current gas price: 0.58245401 Gwei.
+[2025-07-06T16:02:54.010Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-06T16:02:54.012Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-06T16:02:54.013Z] [INFO] [ethereum] Subscribing to 0 pools for reserve updates.
+[2025-07-06T16:02:54.234Z] [INFO] Dynamic Slippage determined: 69 bips
+[2025-07-06T16:02:54.834Z] [INFO] [ethereum] Aave available liquidity for DAI: 1185152219.826841758781714146
+[2025-07-06T16:02:54.835Z] [INFO] [ethereum] Optimal borrow amount for DAI: 100.0
+[2025-07-06T16:02:54.836Z] [INFO] Filtered 1152 routes down to 0 by Z-score threshold 3.
+[2025-07-06T16:02:54.837Z] [INFO] No routes exceeded Z-score threshold; using all 1152 as candidates.
+[2025-07-06T16:02:54.837Z] [WARN] ML scoring error: Cannot read properties of undefined (reading 'length'). Proceeding without ML ranking.
+[2025-07-06T16:02:54.838Z] [INFO] After ML scoring, retaining top 50 routes for simulation.
+[2025-07-06T16:02:54.845Z] [ERROR] [ethereum] Fatal error in cycle: (amt) => {
+        // amt may be a BigNumber or a number
+        const feeFactor = 1 - feeFraction;
+        if ...<omitted>... } could not be cloned.
+[2025-07-06T16:03:04.847Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T16:03:05.257Z] [INFO] [ethereum] Current gas price: 0.601897627 Gwei.
+[2025-07-06T16:03:05.753Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-06T16:03:05.754Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-06T16:03:05.755Z] [INFO] [ethereum] Subscribing to 0 pools for reserve updates.
+[2025-07-06T16:03:05.755Z] [INFO] Reusing cached slippage: 69 bips
+[2025-07-06T16:03:06.167Z] [INFO] [ethereum] Aave available liquidity for DAI: 1185152219.826841758781714146
+[2025-07-06T16:03:06.168Z] [INFO] [ethereum] Optimal borrow amount for DAI: 100.0
+[2025-07-06T16:03:06.170Z] [INFO] Filtered 1152 routes down to 0 by Z-score threshold 3.
+[2025-07-06T16:03:06.170Z] [INFO] No routes exceeded Z-score threshold; using all 1152 as candidates.
+[2025-07-06T16:03:06.170Z] [WARN] ML scoring error: Cannot read properties of undefined (reading 'length'). Proceeding without ML ranking.
+[2025-07-06T16:03:06.171Z] [INFO] After ML scoring, retaining top 50 routes for simulation.
+[2025-07-06T16:03:06.172Z] [ERROR] [ethereum] Fatal error in cycle: (amt) => {
+        // amt may be a BigNumber or a number
+        const feeFactor = 1 - feeFraction;
+        if ...<omitted>... } could not be cloned.
+[2025-07-06T16:03:16.175Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T16:03:16.581Z] [INFO] [ethereum] Current gas price: 0.592226401 Gwei.
+[2025-07-06T16:03:17.038Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-06T16:03:17.038Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-06T16:03:17.038Z] [INFO] [ethereum] Subscribing to 0 pools for reserve updates.
+[2025-07-06T16:03:17.038Z] [INFO] Reusing cached slippage: 69 bips
+[2025-07-06T16:03:17.443Z] [INFO] [ethereum] Aave available liquidity for DAI: 1185152219.826841758781714146
+[2025-07-06T16:03:17.443Z] [INFO] [ethereum] Optimal borrow amount for DAI: 100.0
+[2025-07-06T16:03:17.444Z] [INFO] Filtered 1152 routes down to 0 by Z-score threshold 3.
+[2025-07-06T16:03:17.444Z] [INFO] No routes exceeded Z-score threshold; using all 1152 as candidates.
+[2025-07-06T16:03:17.444Z] [WARN] ML scoring error: Cannot read properties of undefined (reading 'length'). Proceeding without ML ranking.
+[2025-07-06T16:03:17.444Z] [INFO] After ML scoring, retaining top 50 routes for simulation.
+[2025-07-06T16:03:17.446Z] [ERROR] [ethereum] Fatal error in cycle: (amt) => {
+        // amt may be a BigNumber or a number
+        const feeFactor = 1 - feeFraction;
+        if ...<omitted>... } could not be cloned.

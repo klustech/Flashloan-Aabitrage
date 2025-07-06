@@ -9,14 +9,13 @@
 
 const { parentPort, workerData } = require("worker_threads");
 const { simulateRoute } = require("../../utils/profitDetermination");
+const { buildStepsFromHops } = require("../../utils/buildStepsFromHops");
 
 function isValidRoute(route) {
   return (
     route &&
     Array.isArray(route.hops) &&
-    route.hops.length > 0 /* already checked */ &&
-    Array.isArray(route.steps) &&
-    route.steps.length > 0 /* new guard */ &&
+    route.hops.length > 0 &&
     typeof route.id === "string"
   );
 }
@@ -25,6 +24,16 @@ function isValidRoute(route) {
   try {
     if (!isValidRoute(workerData.route)) {
       throw new Error("Invalid route structure (missing or empty hops array)");
+    }
+
+    // Compile executable steps *inside* the worker
+    buildStepsFromHops(workerData.route);
+
+    if (
+      !Array.isArray(workerData.route.steps) ||
+      workerData.route.steps.length === 0
+    ) {
+      throw new Error("buildStepsFromHops produced no steps");
     }
 
     const result = simulateRoute(workerData.route, workerData.amountIn);

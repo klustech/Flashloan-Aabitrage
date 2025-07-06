@@ -453,7 +453,7 @@ function computeZScore(values) {
 async function scoreRoutesWithML(routeDefs) {
   try {
     const features = routeDefs.map((r) => [
-      r.steps.length,
+      r.hops.length,
       r.liquidity || 0,
       r.fee || 3000,
       r.volatility || 0,
@@ -582,8 +582,7 @@ async function selectBestRoute(amountIn, slippageBips, routeList) {
     `After ML scoring, retaining top ${candidates.length} routes for simulation.`
   );
 
-  // Compile hops into executable steps for the simulator
-  candidates.forEach((r) => buildStepsFromHops(r));
+  // Workers will compile hops into executable steps
 
   const simStart = Date.now();
   const sims = await parallelSimulate(candidates, amountIn, slippageBips);
@@ -762,6 +761,9 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
     }, estimatedOut=${ethers.utils.formatUnits(bestOut, 18)} DAI.`
   );
   consecutiveNegatives = 0;
+
+  // Rebuild executable steps for the chosen route
+  buildStepsFromHops(bestRoute);
 
   // 7. Compute total debt and net profit
   const premBps = parseInt(FLASHLOAN_PREMIUM_BIPS || "9", 10);
