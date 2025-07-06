@@ -70,7 +70,7 @@ async function getDynamicSlippage() {
     const vol = Math.abs(data.ethereum.usd_24h_change) || 0;
     const dynamic = Math.min(
       parseInt(process.env.SLIPPAGE_DEFAULT_BIPS || "50", 10) +
-        Math.round(vol * 5),
+        Math.round(vol * 10),
       200
     );
     cache.dynamicSlippage = { value: dynamic, timestamp: now };
@@ -1045,6 +1045,7 @@ async function simulateAndExecuteArb() {
 // Exports & Standalone Loop
 // ─────────────────────────────────────────────────────────────────────────────
 module.exports.simulateAndExecuteArb = simulateAndExecuteArb;
+module.exports.getDynamicSlippage = getDynamicSlippage;
 
 if (require.main === module) {
   (async () => {

@@ -94,6 +94,11 @@ SLIPPAGE_BIPS=50
 MIN_PROFIT_DAI=0.1
 ```
 
+Slippage tolerance adjusts automatically with market volatility. The bot fetches
+ETH's 24‑hour price change from CoinGecko each minute and adds `10 × |change|`
+bips to `SLIPPAGE_DEFAULT_BIPS` (50 by default). The computed value is cached
+for one minute before it is refreshed.
+
 ### Offline Pool Data
 
 If subgraph endpoints are blocked, provide pool information from a local JSON
