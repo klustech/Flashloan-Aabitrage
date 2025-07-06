@@ -413,6 +413,14 @@ async function getAllRoutes({
     routeDefs = routes;
   }
 
+  /**
+   * Final sanity pass – ensure every route has a non-empty hops array
+   * so the worker never receives malformed data.
+   */
+  routeDefs = routeDefs.filter(
+    (r) => Array.isArray(r.hops) && r.hops.length > 0
+  );
+
   return routeDefs;
 }
 

@@ -33,27 +33,66 @@ const cache = {
   duration: 60_000, // 1 minute
 };
 
+/**
+ *  Shared in-memory single-flight cache for CoinGecko.
+ *  – Only **one** request per key can be in-flight at a time.
+ *  – Successful responses are cached for `cache.duration` ms.
+ *  – 429 responses trigger simple exponential back-off (0.5 s → 1 s → 2 s).
+ */
+const inFlightCG = {};
+
 async function getCachedCoinGeckoPrice(coinId, vsCurrency) {
-  const cacheKey = `${coinId}_${vsCurrency}`;
+  const cacheKey = `${coinId}-${vsCurrency}`;
   const now = Date.now();
+
+  // 1️⃣ Fresh enough?
   if (
     cache.coinGecko[cacheKey] &&
     now - cache.coinGecko[cacheKey].timestamp < cache.duration
   ) {
     return cache.coinGecko[cacheKey].data;
   }
-  const { data } = await axios.get(
-    "https://api.coingecko.com/api/v3/simple/price",
-    {
-      params: {
-        ids: coinId,
-        vs_currencies: vsCurrency,
-        include_24hr_change: "true",
-      },
+
+  // 2️⃣ Someone else already fetching?  Await their promise.
+  if (inFlightCG[cacheKey]) {
+    return inFlightCG[cacheKey];
+  }
+
+  // 3️⃣ Launch the fetch with retry/back-off.
+  inFlightCG[cacheKey] = (async () => {
+    let attempt = 0;
+    /* eslint-disable no-constant-condition */
+    while (true) {
+      try {
+        const { data } = await axios.get(
+          "https://api.coingecko.com/api/v3/simple/price",
+          {
+            params: {
+              ids: coinId,
+              vs_currencies: vsCurrency,
+              include_24hr_change: "true",
+            },
+            timeout: 10_000,
+          }
+        );
+        cache.coinGecko[cacheKey] = { data, timestamp: Date.now() };
+        return data;
+      } catch (err) {
+        const status = err?.response?.status ?? 0;
+        if (status !== 429 || attempt >= 3) {
+          throw err; // non-rate-limit or exhausted retries
+        }
+        const delay = 500 * 2 ** attempt; // 0.5 s, 1 s, 2 s
+        await new Promise((res) => setTimeout(res, delay));
+        attempt += 1;
+      }
     }
-  );
-  cache.coinGecko[cacheKey] = { data, timestamp: now };
-  return data;
+  })().finally(() => {
+    // clear the promise holder no matter what
+    delete inFlightCG[cacheKey];
+  });
+
+  return inFlightCG[cacheKey];
 }
 
 async function getDynamicSlippage() {
