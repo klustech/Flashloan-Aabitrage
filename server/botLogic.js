@@ -503,8 +503,8 @@ function parallelSimulate(routes, amountIn, slippageBips) {
         } else {
           results.push({
             routeId: msg.routeId,
-            // msg.result may be a stringified number from the worker
-            result: BigNumber.from(msg.result.toString()),
+            /* worker guarantees a wei-scaled string → safe BigNumber */
+            result: BigNumber.from(msg.result),
           });
         }
         completed++;
