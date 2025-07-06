@@ -157,6 +157,7 @@ const { insertTrade, query } = require("./dbClient");
 // Imports: Slack Alert Utility (from server/scripts/)
 // ─────────────────────────────────────────────────────────────────────────────
 const { sendSlackAlert } = require("./scripts/slackUtils");
+const { buildStepsFromHops } = require("../utils/buildStepsFromHops");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Prometheus Metrics Setup
@@ -580,6 +581,9 @@ async function selectBestRoute(amountIn, slippageBips, routeList) {
   logger.info(
     `After ML scoring, retaining top ${candidates.length} routes for simulation.`
   );
+
+  // Compile hops into executable steps for the simulator
+  candidates.forEach((r) => buildStepsFromHops(r));
 
   const simStart = Date.now();
   const sims = await parallelSimulate(candidates, amountIn, slippageBips);
