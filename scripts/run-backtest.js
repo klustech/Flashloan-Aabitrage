@@ -6,7 +6,7 @@
  *   node scripts/run-backtest.js
  */
 
-require("dotenv").config();
+require("dotenv").config({ override: true });
 const { backtestArbitrage } = require("../server/scripts/backtestArbitrage");
 const { ROUTES } = require("../server/scripts/botLogic");
 const { ethers } = require("ethers");

@@ -1,5 +1,5 @@
 // test/integration/flashloan.spec.js
-require("dotenv").config();
+require("dotenv").config({ override: true });
 const { expect } = require("chai");
 const { ethers, network } = require("hardhat");
 

@@ -2,7 +2,10 @@
 const path = require("path");
 const axios = require("axios");
 const chalk = require("chalk");
-require("dotenv").config({ path: path.resolve(__dirname, "../.env") });
+require("dotenv").config({
+  path: path.resolve(__dirname, "../.env"),
+  override: true,
+});
 
 const API_KEY = process.env.THEGRAPH_API_KEY;
 if (!API_KEY) {

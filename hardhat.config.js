@@ -5,7 +5,7 @@ require("solidity-coverage");
 require("hardhat-gas-reporter");
 require("hardhat-deploy");
 require("hardhat-contract-sizer");
-require("dotenv").config();
+require("dotenv").config({ override: true });
 
 const {
   PRIVATE_KEY,

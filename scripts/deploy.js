@@ -15,7 +15,7 @@
  *   npx hardhat run scripts/deploy.js --network <network>
  */
 
-require("dotenv").config();
+require("dotenv").config({ override: true });
 const hre = require("hardhat");
 const { ethers, network, run } = hre;
 

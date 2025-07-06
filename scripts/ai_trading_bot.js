@@ -1,6 +1,6 @@
 const ccxt = require("ccxt");
 const { EMA, VWAP, ATR } = require("technicalindicators");
-require("dotenv").config();
+require("dotenv").config({ override: true });
 
 // Exchange configuration
 const exchange = new ccxt.binance({

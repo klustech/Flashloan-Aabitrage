@@ -6,7 +6,7 @@
  * Wrapped contract deployment and gas estimation in try/catch to avoid “baseFee” errors.
  */
 
-require("dotenv").config();
+require("dotenv").config({ override: true });
 const fs = require("fs-extra");
 const { createObjectCsvWriter } = require("csv-writer");
 const hre = require("hardhat");

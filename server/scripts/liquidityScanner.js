@@ -1,5 +1,6 @@
 require("dotenv").config({
   path: require("path").resolve(__dirname, "../../.env"),
+  override: true,
 });
 const redis = require("../utils/redisClient");
 const axios = require("axios");
@@ -538,14 +539,14 @@ async function buildAdjacencyGraph(
       if (!adj[p.token1]) adj[p.token1] = [];
       adj[p.token0].push({
         token: p.token1,
-        pool: p.pairAddress,
+        poolAddress: p.pairAddress,
         dex: p.dex,
         fee: p.fee,
         reserveUSD: p.reserveUSD,
       });
       adj[p.token1].push({
         token: p.token0,
-        pool: p.pairAddress,
+        poolAddress: p.pairAddress,
         dex: p.dex,
         fee: p.fee,
         reserveUSD: p.reserveUSD,
@@ -630,14 +631,14 @@ async function buildAdjacencyGraph(
       if (!adjacencyGraph[t1]) adjacencyGraph[t1] = [];
       adjacencyGraph[t0].push({
         token: t1,
-        pool: p.pairAddress || p.poolAddress,
+        poolAddress: p.pairAddress || p.poolAddress,
         dex: p.dex,
         fee: p.fee || 0,
         reserveUSD,
       });
       adjacencyGraph[t1].push({
         token: t0,
-        pool: p.pairAddress || p.poolAddress,
+        poolAddress: p.pairAddress || p.poolAddress,
         dex: p.dex,
         fee: p.fee || 0,
         reserveUSD,
@@ -654,14 +655,14 @@ async function buildAdjacencyGraph(
           if (!adjacencyGraph[t1]) adjacencyGraph[t1] = [];
           adjacencyGraph[t0].push({
             token: t1,
-            pool: p.poolAddress,
+            poolAddress: p.poolAddress,
             dex: p.dex,
             fee: 0,
             reserveUSD: totalLiquidityUSD,
           });
           adjacencyGraph[t1].push({
             token: t0,
-            pool: p.poolAddress,
+            poolAddress: p.poolAddress,
             dex: p.dex,
             fee: 0,
             reserveUSD: totalLiquidityUSD,
@@ -712,7 +713,7 @@ async function getTopLiquidityPairs(
       entries.push({
         token0: tokenA,
         token1: edge.token,
-        pairAddress: edge.pool,
+        pairAddress: edge.poolAddress,
         dex: edge.dex,
         fee: edge.fee,
         reserveUSD: edge.reserveUSD,

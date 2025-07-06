@@ -6,7 +6,7 @@
  *   node scripts/run-bot.js
  */
 
-require("dotenv").config();
+require("dotenv").config({ override: true });
 const { simulateAndExecuteArb } = require("../server/botLogic");
 
 async function runBot() {
@@ -37,7 +37,7 @@ runBot().catch((err) => {
  *   node scripts/run-backtest.js
  */
 
-require("dotenv").config();
+require("dotenv").config({ override: true });
 const { backtestArbitrage } = require("../server/scripts/backtestArbitrage");
 const { ROUTES } = require("../server/botLogic");
 const { ethers } = require("ethers");

@@ -1,5 +1,5 @@
 // scripts/queryReserveData.js
-require("dotenv").config();
+require("dotenv").config({ override: true });
 const { ethers } = require("ethers");
 
 // Minimal ABI for Aave Lending Pool Address Provider

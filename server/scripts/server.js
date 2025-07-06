@@ -18,7 +18,10 @@ const { ethers } = require("ethers");
 const client = require("../metrics");
 
 try {
-  require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
+  require("dotenv").config({
+    path: path.resolve(__dirname, "../../.env"),
+    override: true,
+  });
 } catch (err) {
   // Allow running without dotenv installed
 }

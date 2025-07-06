@@ -8,7 +8,7 @@
  *   npx hardhat run server/scripts/approve.js --network localhost
  */
 
-require("dotenv").config();
+require("dotenv").config({ override: true });
 const hre = require("hardhat");
 const { ethers, network } = hre;
 

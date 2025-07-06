@@ -1,5 +1,5 @@
 // scripts/queryLiquidity.js
-require("dotenv").config();
+require("dotenv").config({ override: true });
 const { ethers } = require("ethers");
 
 // Minimal ERC20 ABI containing only balanceOf

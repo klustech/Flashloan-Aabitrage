@@ -23,7 +23,7 @@
  */
 
 const { ethers } = require("ethers");
-require("dotenv").config();
+require("dotenv").config({ override: true });
 
 const { getV3Quote } = require("../scripts/v3Utils");
 const { getBalancerQuote } = require("../scripts/balancerUtils");

@@ -1,5 +1,6 @@
 require("dotenv").config({
   path: require("path").resolve(__dirname, "../../.env"),
+  override: true,
 });
 const redis = require("../utils/redisClient");
 const { getTopLiquidityPairs } = require("./liquidityScanner");
@@ -11,7 +12,7 @@ const stats = require("simple-statistics");
 // Helper: turn a flat list of pools into an adjacency graph:
 //   {
 //     [tokenAddress]: [
-//       { token: otherTokenAddress, pool: poolAddress, dex, fee, reserveUSD },
+//       { token: otherTokenAddress, poolAddress: poolAddress, dex, fee, reserveUSD },
 //       …
 //     ],
 //     …
@@ -37,14 +38,14 @@ function makeAdjacencyGraphFromPools(pools) {
 
     adjacency[token0].push({
       token: token1,
-      pool: poolAddress,
+      poolAddress: poolAddress,
       dex,
       fee,
       reserveUSD,
     });
     adjacency[token1].push({
       token: token0,
-      pool: poolAddress,
+      poolAddress: poolAddress,
       dex,
       fee,
       reserveUSD,
@@ -219,19 +220,20 @@ async function findNegativeCycles(adjacencyGraph, allPools) {
   // Build Graph edges with weights = –log(rate * (1 – feeFraction))
   for (const tokenA of Object.keys(adjacencyGraph)) {
     for (const edge of adjacencyGraph[tokenA]) {
-      const poolInfo = allPools.find((p) => p.pairAddress === edge.pool) || {};
+      const poolInfo =
+        allPools.find((p) => p.pairAddress === edge.poolAddress) || {};
       const tA = tokenA;
       const tB = edge.token;
       let rate01 = 1.0;
       let rate10 = 1.0;
       try {
         rate01 = await getCurrentRate(
-          { ...poolInfo, poolAddress: edge.pool },
+          { ...poolInfo, poolAddress: edge.poolAddress },
           tA,
           tB
         );
         rate10 = await getCurrentRate(
-          { ...poolInfo, poolAddress: edge.pool },
+          { ...poolInfo, poolAddress: edge.poolAddress },
           tB,
           tA
         );
