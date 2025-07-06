@@ -503,7 +503,8 @@ function parallelSimulate(routes, amountIn, slippageBips) {
         } else {
           results.push({
             routeId: msg.routeId,
-            result: BigNumber.from(msg.result),
+            // msg.result may be a stringified number from the worker
+            result: BigNumber.from(msg.result.toString()),
           });
         }
         completed++;

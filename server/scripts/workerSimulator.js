@@ -37,7 +37,11 @@ function isValidRoute(route) {
     }
 
     const result = simulateRoute(workerData.route, workerData.amountIn);
-    parentPort.postMessage({ routeId: workerData.route.id, result });
+    // Ensure the result is serialisable without precision loss
+    parentPort.postMessage({
+      routeId: workerData.route.id,
+      result: typeof result === "number" ? result.toString() : result,
+    });
   } catch (err) {
     parentPort.postMessage({
       routeId: workerData.route?.id ?? "unknown",
