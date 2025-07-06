@@ -175,9 +175,19 @@ async function simulateSwapPaths(provider, swapData, borrowAmt) {
    Route simulator (array of steps with .simulate fn)
    ────────────────────────────────────────────────*/
 function simulateRoute(route, input) {
+  /* Defensive guards — never assume `.steps` is present or valid */
+  if (!route || !Array.isArray(route.steps) || route.steps.length === 0) {
+    throw new Error("simulateRoute: route.steps missing or empty");
+  }
+
   let out = input;
-  for (let i = 0; i < route.steps.length; i++) {
-    out = route.steps[i].simulate(out);
+  for (const [idx, step] of route.steps.entries()) {
+    if (!step || typeof step.simulate !== "function") {
+      throw new Error(
+        `simulateRoute: steps[${idx}] lacks a callable .simulate()`
+      );
+    }
+    out = step.simulate(out);
   }
   return out;
 }

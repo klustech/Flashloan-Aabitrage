@@ -14,7 +14,9 @@ function isValidRoute(route) {
   return (
     route &&
     Array.isArray(route.hops) &&
-    route.hops.length > 0 &&
+    route.hops.length > 0 /* already checked */ &&
+    Array.isArray(route.steps) &&
+    route.steps.length > 0 /* new guard */ &&
     typeof route.id === "string"
   );
 }
