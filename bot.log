@@ -50016,3 +50016,64 @@
 [2025-07-06T10:05:55.399Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
 [2025-07-06T10:05:55.400Z] [INFO] [ethereum] Subscribing to 100 pools for reserve updates.
 [2025-07-06T10:05:55.402Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
+[2025-07-06T10:07:26.397Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T10:07:27.115Z] [INFO] [ethereum] Current gas price: 0.263612286 Gwei.
+[2025-07-06T10:07:27.625Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-06T10:07:27.626Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-06T10:07:27.626Z] [INFO] [ethereum] Subscribing to 100 pools for reserve updates.
+[2025-07-06T10:07:27.630Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
+[2025-07-06T10:07:37.632Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T10:07:38.111Z] [INFO] [ethereum] Current gas price: 0.259316891 Gwei.
+[2025-07-06T10:07:38.592Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-06T10:07:38.593Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-06T10:07:38.594Z] [INFO] [ethereum] Subscribing to 100 pools for reserve updates.
+[2025-07-06T10:07:38.595Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
+[2025-07-06T10:07:48.597Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T10:07:49.092Z] [INFO] [ethereum] Current gas price: 0.257951834 Gwei.
+[2025-07-06T10:07:49.557Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-06T10:07:49.557Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-06T10:07:49.557Z] [INFO] [ethereum] Subscribing to 100 pools for reserve updates.
+[2025-07-06T10:07:49.558Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
+[2025-07-06T10:07:59.560Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T10:08:00.072Z] [INFO] [ethereum] Current gas price: 0.249816583 Gwei.
+[2025-07-06T10:08:00.764Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-06T10:08:00.766Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-06T10:08:00.766Z] [INFO] [ethereum] Subscribing to 100 pools for reserve updates.
+[2025-07-06T10:08:00.767Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
+[2025-07-06T10:08:10.769Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T10:08:11.274Z] [INFO] [ethereum] Current gas price: 0.24019749 Gwei.
+[2025-07-06T10:08:11.747Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-06T10:08:11.748Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-06T10:08:11.748Z] [INFO] [ethereum] Subscribing to 100 pools for reserve updates.
+[2025-07-06T10:08:11.749Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
+[2025-07-06T10:08:21.751Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T10:08:22.255Z] [INFO] [ethereum] Current gas price: 0.235054085 Gwei.
+[2025-07-06T10:08:22.717Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-06T10:08:22.719Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-06T10:08:22.719Z] [INFO] [ethereum] Subscribing to 100 pools for reserve updates.
+[2025-07-06T10:08:22.719Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
+[2025-07-06T10:08:32.721Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T10:08:33.206Z] [INFO] [ethereum] Current gas price: 0.229440857 Gwei.
+[2025-07-06T10:08:33.677Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-06T10:08:33.677Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-06T10:08:33.677Z] [INFO] [ethereum] Subscribing to 100 pools for reserve updates.
+[2025-07-06T10:08:33.678Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
+[2025-07-06T10:08:43.681Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T10:08:44.157Z] [INFO] [ethereum] Current gas price: 0.25810284 Gwei.
+[2025-07-06T10:08:44.635Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-06T10:08:44.637Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-06T10:08:44.637Z] [INFO] [ethereum] Subscribing to 100 pools for reserve updates.
+[2025-07-06T10:08:44.638Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
+[2025-07-06T10:08:54.640Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T10:34:04.606Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T10:34:05.566Z] [INFO] [ethereum] Current gas price: 0.254255935 Gwei.
+[2025-07-06T10:34:16.378Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-06T10:34:16.378Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-06T10:34:16.379Z] [INFO] [ethereum] Subscribing to 100 pools for reserve updates.
+[2025-07-06T10:34:16.380Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
+[2025-07-06T10:34:26.382Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T10:34:26.808Z] [INFO] [ethereum] Current gas price: 0.259757953 Gwei.
+[2025-07-06T10:34:27.997Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-06T10:34:27.998Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-06T10:34:27.999Z] [INFO] [ethereum] Subscribing to 100 pools for reserve updates.
+[2025-07-06T10:34:27.999Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)

@@ -30,8 +30,13 @@ const { getBalancerQuote } = require("../scripts/balancerUtils");
 const { getCurveQuote } = require("../scripts/curveUtils");
 
 // Routers (V2) from environment
-const UNISWAP_V2_ROUTER = process.env.UNISWAP_V2_ROUTER; // e.g. "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
-const SUSHISWAP_V2_ROUTER = process.env.SUSHISWAP_V2_ROUTER; // e.g. "0xd9e1CE17f2641f24aE83637ab66a2cca9C378B9F"
+// The README refers to UNISWAP_ROUTER_ADDRESS and SUSHISWAP_ROUTER_ADDRESS.
+// Older revisions of this file expected UNISWAP_V2_ROUTER / SUSHISWAP_V2_ROUTER
+// which caused undefined addresses when only the new variables were provided.
+const UNISWAP_V2_ROUTER =
+  process.env.UNISWAP_ROUTER_ADDRESS || process.env.UNISWAP_V2_ROUTER;
+const SUSHISWAP_V2_ROUTER =
+  process.env.SUSHISWAP_ROUTER_ADDRESS || process.env.SUSHISWAP_V2_ROUTER;
 const provider = new ethers.providers.JsonRpcProvider(
   process.env.MAINNET_RPC_URL
 );
