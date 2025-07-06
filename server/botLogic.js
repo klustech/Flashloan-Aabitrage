@@ -454,10 +454,18 @@ function parallelSimulate(routes, amountIn, slippageBips) {
         }
       );
       worker.on("message", (msg) => {
-        results.push({
-          routeId: msg.routeId,
-          result: BigNumber.from(msg.result),
-        });
+        if (msg.error) {
+          logger.warn(`Worker error for route ${msg.routeId}: ${msg.error}`);
+          results.push({
+            routeId: msg.routeId,
+            result: BigNumber.from(0),
+          });
+        } else {
+          results.push({
+            routeId: msg.routeId,
+            result: BigNumber.from(msg.result),
+          });
+        }
         completed++;
         if (completed === routes.length) {
           logger.info(

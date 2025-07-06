@@ -50089,3 +50089,413 @@
 [2025-07-06T10:52:14.747Z] [INFO] No routes exceeded Z-score threshold; using all 1152 as candidates.
 [2025-07-06T10:52:14.748Z] [WARN] ML scoring error: Cannot read properties of undefined (reading 'length'). Proceeding without ML ranking.
 [2025-07-06T10:52:14.749Z] [INFO] After ML scoring, retaining top 50 routes for simulation.
+[2025-07-06T11:06:44.439Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T11:06:45.183Z] [INFO] [ethereum] Current gas price: 0.235931069 Gwei.
+[2025-07-06T11:06:54.608Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-06T11:06:54.610Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-06T11:06:54.611Z] [INFO] [ethereum] Subscribing to 0 pools for reserve updates.
+[2025-07-06T11:06:54.823Z] [INFO] Dynamic Slippage determined: 52 bips
+[2025-07-06T11:06:55.437Z] [INFO] [ethereum] Aave available liquidity for DAI: 1185146934.20538176950484374
+[2025-07-06T11:06:55.438Z] [INFO] [ethereum] Optimal borrow amount for DAI: 100.0
+[2025-07-06T11:06:55.440Z] [INFO] Filtered 1152 routes down to 0 by Z-score threshold 3.
+[2025-07-06T11:06:55.440Z] [INFO] No routes exceeded Z-score threshold; using all 1152 as candidates.
+[2025-07-06T11:06:55.441Z] [WARN] ML scoring error: Cannot read properties of undefined (reading 'length'). Proceeding without ML ranking.
+[2025-07-06T11:06:55.441Z] [INFO] After ML scoring, retaining top 50 routes for simulation.
+[2025-07-06T11:07:07.633Z] [WARN] Worker error for route 3hop_9: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:07.931Z] [WARN] Worker error for route 3hop_16: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:07.986Z] [WARN] Worker error for route 3hop_33: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:08.068Z] [WARN] Worker error for route 3hop_14: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:08.159Z] [WARN] Worker error for route 3hop_38: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:08.566Z] [WARN] Worker error for route 3hop_34: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:08.772Z] [WARN] Worker error for route 3hop_11: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:08.841Z] [WARN] Worker error for route 3hop_25: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:09.063Z] [WARN] Worker error for route 3hop_15: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:09.118Z] [WARN] Worker error for route 3hop_24: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:09.198Z] [WARN] Worker error for route 3hop_6: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:09.455Z] [WARN] Worker error for route 3hop_30: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:09.605Z] [WARN] Worker error for route 3hop_28: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:09.641Z] [WARN] Worker error for route 3hop_13: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:09.651Z] [WARN] Worker error for route 3hop_46: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:09.965Z] [WARN] Worker error for route 3hop_41: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:10.040Z] [WARN] Worker error for route 3hop_32: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:10.064Z] [WARN] Worker error for route 3hop_17: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:10.129Z] [WARN] Worker error for route 3hop_29: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:10.372Z] [WARN] Worker error for route 3hop_22: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:10.480Z] [WARN] Worker error for route 3hop_43: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:10.588Z] [WARN] Worker error for route 3hop_27: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:10.736Z] [WARN] Worker error for route 3hop_21: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:10.945Z] [WARN] Worker error for route 3hop_31: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:11.009Z] [WARN] Worker error for route 3hop_5: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:11.037Z] [WARN] Worker error for route 3hop_26: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:11.052Z] [WARN] Worker error for route 3hop_48: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:11.375Z] [WARN] Worker error for route 3hop_8: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:11.647Z] [WARN] Worker error for route 3hop_40: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:12.038Z] [WARN] Worker error for route 3hop_19: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:12.299Z] [WARN] Worker error for route 3hop_3: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:12.393Z] [WARN] Worker error for route 3hop_23: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:12.747Z] [WARN] Worker error for route 3hop_45: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:12.968Z] [WARN] Worker error for route 3hop_36: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:13.049Z] [WARN] Worker error for route 3hop_18: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:13.272Z] [WARN] Worker error for route 3hop_44: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:13.292Z] [WARN] Worker error for route 3hop_50: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:13.349Z] [WARN] Worker error for route 3hop_35: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:13.466Z] [WARN] Worker error for route 3hop_20: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:13.546Z] [WARN] Worker error for route 3hop_1: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:13.681Z] [WARN] Worker error for route 3hop_37: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:13.735Z] [WARN] Worker error for route 3hop_12: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:13.888Z] [WARN] Worker error for route 3hop_4: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:13.985Z] [WARN] Worker error for route 3hop_39: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:14.074Z] [WARN] Worker error for route 3hop_2: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:14.086Z] [WARN] Worker error for route 3hop_42: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:14.098Z] [WARN] Worker error for route 3hop_49: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:14.580Z] [WARN] Worker error for route 3hop_47: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:14.580Z] [WARN] Worker error for route 3hop_10: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:14.595Z] [WARN] Worker error for route 3hop_7: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:14.595Z] [INFO] Parallel simulation completed for 50 routes.
+[2025-07-06T11:07:14.596Z] [INFO] Simulation took 19153 ms.
+[2025-07-06T11:07:14.596Z] [INFO] No route yielded positive output after simulation.
+[2025-07-06T11:07:14.596Z] [INFO] [ethereum] No profitable route found after simulation.
+[2025-07-06T11:07:24.598Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T11:07:25.082Z] [INFO] [ethereum] Current gas price: 0.248130934 Gwei.
+[2025-07-06T11:07:25.702Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-06T11:07:25.703Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-06T11:07:25.703Z] [INFO] [ethereum] Subscribing to 0 pools for reserve updates.
+[2025-07-06T11:07:25.703Z] [INFO] Reusing cached slippage: 52 bips
+[2025-07-06T11:07:26.171Z] [INFO] [ethereum] Aave available liquidity for DAI: 1185146934.20538176950484374
+[2025-07-06T11:07:26.174Z] [INFO] [ethereum] Optimal borrow amount for DAI: 100.0
+[2025-07-06T11:07:26.176Z] [INFO] Filtered 1152 routes down to 0 by Z-score threshold 3.
+[2025-07-06T11:07:26.176Z] [INFO] No routes exceeded Z-score threshold; using all 1152 as candidates.
+[2025-07-06T11:07:26.176Z] [WARN] ML scoring error: Cannot read properties of undefined (reading 'length'). Proceeding without ML ranking.
+[2025-07-06T11:07:26.176Z] [INFO] After ML scoring, retaining top 50 routes for simulation.
+[2025-07-06T11:07:37.324Z] [WARN] Worker error for route 3hop_36: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:38.708Z] [WARN] Worker error for route 3hop_23: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:39.217Z] [WARN] Worker error for route 3hop_14: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:39.226Z] [WARN] Worker error for route 3hop_1: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:39.317Z] [WARN] Worker error for route 3hop_12: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:39.373Z] [WARN] Worker error for route 3hop_5: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:39.486Z] [WARN] Worker error for route 3hop_22: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:39.492Z] [WARN] Worker error for route 3hop_8: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:39.496Z] [WARN] Worker error for route 3hop_16: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:39.866Z] [WARN] Worker error for route 3hop_18: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:40.049Z] [WARN] Worker error for route 3hop_21: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:40.342Z] [WARN] Worker error for route 3hop_48: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:40.467Z] [WARN] Worker error for route 3hop_19: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:40.530Z] [WARN] Worker error for route 3hop_15: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:40.635Z] [WARN] Worker error for route 3hop_25: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:41.115Z] [WARN] Worker error for route 3hop_17: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:41.122Z] [WARN] Worker error for route 3hop_24: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:41.409Z] [WARN] Worker error for route 3hop_6: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:41.505Z] [WARN] Worker error for route 3hop_41: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:41.670Z] [WARN] Worker error for route 3hop_45: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:41.871Z] [WARN] Worker error for route 3hop_33: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:41.926Z] [WARN] Worker error for route 3hop_43: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:42.358Z] [WARN] Worker error for route 3hop_42: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:42.527Z] [WARN] Worker error for route 3hop_9: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:42.528Z] [WARN] Worker error for route 3hop_35: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:42.528Z] [WARN] Worker error for route 3hop_37: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:42.531Z] [WARN] Worker error for route 3hop_30: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:42.775Z] [WARN] Worker error for route 3hop_20: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:42.883Z] [WARN] Worker error for route 3hop_40: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:43.031Z] [WARN] Worker error for route 3hop_44: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:43.080Z] [WARN] Worker error for route 3hop_39: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:43.163Z] [WARN] Worker error for route 3hop_2: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:43.209Z] [WARN] Worker error for route 3hop_46: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:43.311Z] [WARN] Worker error for route 3hop_31: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:43.353Z] [WARN] Worker error for route 3hop_11: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:43.433Z] [WARN] Worker error for route 3hop_27: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:43.638Z] [WARN] Worker error for route 3hop_29: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:43.698Z] [WARN] Worker error for route 3hop_3: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:43.949Z] [WARN] Worker error for route 3hop_32: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:44.025Z] [WARN] Worker error for route 3hop_13: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:44.177Z] [WARN] Worker error for route 3hop_10: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:44.185Z] [WARN] Worker error for route 3hop_28: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:44.198Z] [WARN] Worker error for route 3hop_34: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:44.246Z] [WARN] Worker error for route 3hop_38: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:44.260Z] [WARN] Worker error for route 3hop_7: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:44.268Z] [WARN] Worker error for route 3hop_50: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:44.276Z] [WARN] Worker error for route 3hop_47: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:44.289Z] [WARN] Worker error for route 3hop_49: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:44.316Z] [WARN] Worker error for route 3hop_4: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:44.329Z] [WARN] Worker error for route 3hop_26: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:07:44.330Z] [INFO] Parallel simulation completed for 50 routes.
+[2025-07-06T11:07:44.331Z] [INFO] Simulation took 18155 ms.
+[2025-07-06T11:07:44.331Z] [INFO] No route yielded positive output after simulation.
+[2025-07-06T11:07:44.331Z] [INFO] [ethereum] No profitable route found after simulation.
+[2025-07-06T11:07:54.334Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T11:07:54.823Z] [INFO] [ethereum] Current gas price: 0.233022418 Gwei.
+[2025-07-06T11:07:55.427Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-06T11:07:55.428Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-06T11:07:55.428Z] [INFO] [ethereum] Subscribing to 0 pools for reserve updates.
+[2025-07-06T11:07:55.544Z] [WARN] Slippage fetch error (Request failed with status code 429), using default: 50 bips
+[2025-07-06T11:07:55.972Z] [INFO] [ethereum] Aave available liquidity for DAI: 1185146934.20538176950484374
+[2025-07-06T11:07:55.973Z] [INFO] [ethereum] Optimal borrow amount for DAI: 100.0
+[2025-07-06T11:07:55.973Z] [INFO] Filtered 1152 routes down to 0 by Z-score threshold 3.
+[2025-07-06T11:07:55.973Z] [INFO] No routes exceeded Z-score threshold; using all 1152 as candidates.
+[2025-07-06T11:07:55.973Z] [WARN] ML scoring error: Cannot read properties of undefined (reading 'length'). Proceeding without ML ranking.
+[2025-07-06T11:07:55.974Z] [INFO] After ML scoring, retaining top 50 routes for simulation.
+[2025-07-06T11:08:06.049Z] [WARN] Worker error for route 3hop_10: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:07.000Z] [WARN] Worker error for route 3hop_7: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:07.584Z] [WARN] Worker error for route 3hop_20: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:07.863Z] [WARN] Worker error for route 3hop_1: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:08.619Z] [WARN] Worker error for route 3hop_21: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:08.705Z] [WARN] Worker error for route 3hop_48: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:09.614Z] [WARN] Worker error for route 3hop_19: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:09.634Z] [WARN] Worker error for route 3hop_46: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:09.924Z] [WARN] Worker error for route 3hop_15: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:10.328Z] [WARN] Worker error for route 3hop_3: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:10.576Z] [WARN] Worker error for route 3hop_32: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:10.964Z] [WARN] Worker error for route 3hop_49: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:11.040Z] [WARN] Worker error for route 3hop_14: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:11.360Z] [WARN] Worker error for route 3hop_17: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:11.521Z] [WARN] Worker error for route 3hop_24: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:11.603Z] [WARN] Worker error for route 3hop_4: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:11.683Z] [WARN] Worker error for route 3hop_37: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:11.775Z] [WARN] Worker error for route 3hop_23: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:11.907Z] [WARN] Worker error for route 3hop_27: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:11.932Z] [WARN] Worker error for route 3hop_36: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:12.008Z] [WARN] Worker error for route 3hop_5: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:12.017Z] [WARN] Worker error for route 3hop_45: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:12.176Z] [WARN] Worker error for route 3hop_25: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:12.262Z] [WARN] Worker error for route 3hop_16: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:12.533Z] [WARN] Worker error for route 3hop_47: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:12.607Z] [WARN] Worker error for route 3hop_29: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:13.079Z] [WARN] Worker error for route 3hop_8: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:13.125Z] [WARN] Worker error for route 3hop_13: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:13.184Z] [WARN] Worker error for route 3hop_9: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:13.232Z] [WARN] Worker error for route 3hop_38: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:13.324Z] [WARN] Worker error for route 3hop_50: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:13.338Z] [WARN] Worker error for route 3hop_33: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:13.457Z] [WARN] Worker error for route 3hop_11: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:13.496Z] [WARN] Worker error for route 3hop_2: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:13.585Z] [WARN] Worker error for route 3hop_28: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:13.759Z] [WARN] Worker error for route 3hop_18: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:13.943Z] [WARN] Worker error for route 3hop_22: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:13.973Z] [WARN] Worker error for route 3hop_43: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:14.113Z] [WARN] Worker error for route 3hop_12: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:14.246Z] [WARN] Worker error for route 3hop_26: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:14.368Z] [WARN] Worker error for route 3hop_41: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:14.463Z] [WARN] Worker error for route 3hop_40: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:14.588Z] [WARN] Worker error for route 3hop_30: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:14.695Z] [WARN] Worker error for route 3hop_6: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:14.707Z] [WARN] Worker error for route 3hop_34: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:14.946Z] [WARN] Worker error for route 3hop_39: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:15.387Z] [WARN] Worker error for route 3hop_42: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:15.390Z] [WARN] Worker error for route 3hop_44: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:15.409Z] [WARN] Worker error for route 3hop_35: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:15.419Z] [WARN] Worker error for route 3hop_31: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:15.419Z] [INFO] Parallel simulation completed for 50 routes.
+[2025-07-06T11:08:15.420Z] [INFO] Simulation took 19446 ms.
+[2025-07-06T11:08:15.420Z] [INFO] No route yielded positive output after simulation.
+[2025-07-06T11:08:15.420Z] [INFO] [ethereum] No profitable route found after simulation.
+[2025-07-06T11:08:25.421Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T11:08:25.935Z] [INFO] [ethereum] Current gas price: 0.22679106 Gwei.
+[2025-07-06T11:08:26.526Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-06T11:08:26.526Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-06T11:08:26.528Z] [INFO] [ethereum] Subscribing to 0 pools for reserve updates.
+[2025-07-06T11:08:26.616Z] [WARN] Slippage fetch error (Request failed with status code 429), using default: 50 bips
+[2025-07-06T11:08:27.035Z] [INFO] [ethereum] Aave available liquidity for DAI: 1185146934.20538176950484374
+[2025-07-06T11:08:27.035Z] [INFO] [ethereum] Optimal borrow amount for DAI: 100.0
+[2025-07-06T11:08:27.036Z] [INFO] Filtered 1152 routes down to 0 by Z-score threshold 3.
+[2025-07-06T11:08:27.036Z] [INFO] No routes exceeded Z-score threshold; using all 1152 as candidates.
+[2025-07-06T11:08:27.036Z] [WARN] ML scoring error: Cannot read properties of undefined (reading 'length'). Proceeding without ML ranking.
+[2025-07-06T11:08:27.036Z] [INFO] After ML scoring, retaining top 50 routes for simulation.
+[2025-07-06T11:08:36.074Z] [WARN] Worker error for route 3hop_49: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:38.326Z] [WARN] Worker error for route 3hop_13: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:38.750Z] [WARN] Worker error for route 3hop_41: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:39.692Z] [WARN] Worker error for route 3hop_32: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:40.479Z] [WARN] Worker error for route 3hop_11: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:40.878Z] [WARN] Worker error for route 3hop_25: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:40.941Z] [WARN] Worker error for route 3hop_29: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:41.151Z] [WARN] Worker error for route 3hop_34: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:41.242Z] [WARN] Worker error for route 3hop_31: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:41.686Z] [WARN] Worker error for route 3hop_6: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:41.974Z] [WARN] Worker error for route 3hop_4: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:42.013Z] [WARN] Worker error for route 3hop_7: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:42.253Z] [WARN] Worker error for route 3hop_22: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:42.291Z] [WARN] Worker error for route 3hop_23: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:42.356Z] [WARN] Worker error for route 3hop_10: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:42.361Z] [WARN] Worker error for route 3hop_28: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:42.669Z] [WARN] Worker error for route 3hop_30: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:42.684Z] [WARN] Worker error for route 3hop_40: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:42.765Z] [WARN] Worker error for route 3hop_50: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:42.817Z] [WARN] Worker error for route 3hop_19: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:42.861Z] [WARN] Worker error for route 3hop_8: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:42.964Z] [WARN] Worker error for route 3hop_24: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:42.975Z] [WARN] Worker error for route 3hop_42: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:43.196Z] [WARN] Worker error for route 3hop_45: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:43.319Z] [WARN] Worker error for route 3hop_36: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:43.323Z] [WARN] Worker error for route 3hop_15: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:43.501Z] [WARN] Worker error for route 3hop_17: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:43.608Z] [WARN] Worker error for route 3hop_43: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:43.746Z] [WARN] Worker error for route 3hop_20: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:43.956Z] [WARN] Worker error for route 3hop_39: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:44.201Z] [WARN] Worker error for route 3hop_5: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:44.275Z] [WARN] Worker error for route 3hop_14: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:44.529Z] [WARN] Worker error for route 3hop_9: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:44.651Z] [WARN] Worker error for route 3hop_18: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:44.790Z] [WARN] Worker error for route 3hop_16: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:44.797Z] [WARN] Worker error for route 3hop_12: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:44.987Z] [WARN] Worker error for route 3hop_27: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:45.221Z] [WARN] Worker error for route 3hop_3: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:45.236Z] [WARN] Worker error for route 3hop_21: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:45.562Z] [WARN] Worker error for route 3hop_26: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:45.612Z] [WARN] Worker error for route 3hop_38: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:45.831Z] [WARN] Worker error for route 3hop_46: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:45.847Z] [WARN] Worker error for route 3hop_35: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:46.278Z] [WARN] Worker error for route 3hop_33: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:46.310Z] [WARN] Worker error for route 3hop_1: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:46.333Z] [WARN] Worker error for route 3hop_2: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:46.365Z] [WARN] Worker error for route 3hop_48: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:46.423Z] [WARN] Worker error for route 3hop_37: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:46.504Z] [WARN] Worker error for route 3hop_47: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:46.513Z] [WARN] Worker error for route 3hop_44: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:08:46.514Z] [INFO] Parallel simulation completed for 50 routes.
+[2025-07-06T11:08:46.514Z] [INFO] Simulation took 19478 ms.
+[2025-07-06T11:08:46.514Z] [INFO] No route yielded positive output after simulation.
+[2025-07-06T11:08:46.514Z] [INFO] [ethereum] No profitable route found after simulation.
+[2025-07-06T11:08:56.515Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T11:08:57.115Z] [INFO] [ethereum] Current gas price: 0.254694918 Gwei.
+[2025-07-06T11:08:57.724Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-06T11:08:57.725Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-06T11:08:57.725Z] [INFO] [ethereum] Subscribing to 0 pools for reserve updates.
+[2025-07-06T11:08:57.811Z] [WARN] Slippage fetch error (Request failed with status code 429), using default: 50 bips
+[2025-07-06T11:08:58.286Z] [INFO] [ethereum] Aave available liquidity for DAI: 1185146934.20538176950484374
+[2025-07-06T11:08:58.287Z] [INFO] [ethereum] Optimal borrow amount for DAI: 100.0
+[2025-07-06T11:08:58.291Z] [INFO] Filtered 1152 routes down to 0 by Z-score threshold 3.
+[2025-07-06T11:08:58.291Z] [INFO] No routes exceeded Z-score threshold; using all 1152 as candidates.
+[2025-07-06T11:08:58.291Z] [WARN] ML scoring error: Cannot read properties of undefined (reading 'length'). Proceeding without ML ranking.
+[2025-07-06T11:08:58.291Z] [INFO] After ML scoring, retaining top 50 routes for simulation.
+[2025-07-06T11:09:09.566Z] [WARN] Worker error for route 3hop_37: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:09.664Z] [WARN] Worker error for route 3hop_35: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:09.755Z] [WARN] Worker error for route 3hop_22: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:10.029Z] [WARN] Worker error for route 3hop_1: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:11.224Z] [WARN] Worker error for route 3hop_15: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:11.404Z] [WARN] Worker error for route 3hop_47: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:11.546Z] [WARN] Worker error for route 3hop_43: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:11.899Z] [WARN] Worker error for route 3hop_39: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:12.020Z] [WARN] Worker error for route 3hop_23: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:12.093Z] [WARN] Worker error for route 3hop_28: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:12.330Z] [WARN] Worker error for route 3hop_6: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:12.540Z] [WARN] Worker error for route 3hop_30: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:12.581Z] [WARN] Worker error for route 3hop_24: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:12.638Z] [WARN] Worker error for route 3hop_18: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:12.663Z] [WARN] Worker error for route 3hop_32: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:12.847Z] [WARN] Worker error for route 3hop_10: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:13.026Z] [WARN] Worker error for route 3hop_34: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:13.059Z] [WARN] Worker error for route 3hop_14: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:13.217Z] [WARN] Worker error for route 3hop_8: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:13.256Z] [WARN] Worker error for route 3hop_45: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:13.316Z] [WARN] Worker error for route 3hop_3: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:13.375Z] [WARN] Worker error for route 3hop_49: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:13.438Z] [WARN] Worker error for route 3hop_41: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:13.495Z] [WARN] Worker error for route 3hop_2: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:13.569Z] [WARN] Worker error for route 3hop_38: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:13.756Z] [WARN] Worker error for route 3hop_17: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:13.775Z] [WARN] Worker error for route 3hop_44: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:13.823Z] [WARN] Worker error for route 3hop_40: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:13.888Z] [WARN] Worker error for route 3hop_20: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:13.979Z] [WARN] Worker error for route 3hop_16: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:14.070Z] [WARN] Worker error for route 3hop_31: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:14.221Z] [WARN] Worker error for route 3hop_48: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:14.357Z] [WARN] Worker error for route 3hop_21: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:14.573Z] [WARN] Worker error for route 3hop_9: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:14.730Z] [WARN] Worker error for route 3hop_25: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:14.763Z] [WARN] Worker error for route 3hop_4: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:14.984Z] [WARN] Worker error for route 3hop_29: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:15.531Z] [WARN] Worker error for route 3hop_46: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:15.713Z] [WARN] Worker error for route 3hop_36: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:16.030Z] [WARN] Worker error for route 3hop_12: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:16.215Z] [WARN] Worker error for route 3hop_5: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:16.235Z] [WARN] Worker error for route 3hop_11: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:16.252Z] [WARN] Worker error for route 3hop_33: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:16.391Z] [WARN] Worker error for route 3hop_27: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:16.490Z] [WARN] Worker error for route 3hop_26: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:16.537Z] [WARN] Worker error for route 3hop_7: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:16.582Z] [WARN] Worker error for route 3hop_42: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:16.586Z] [WARN] Worker error for route 3hop_50: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:16.588Z] [WARN] Worker error for route 3hop_13: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:16.654Z] [WARN] Worker error for route 3hop_19: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:16.654Z] [INFO] Parallel simulation completed for 50 routes.
+[2025-07-06T11:09:16.654Z] [INFO] Simulation took 18363 ms.
+[2025-07-06T11:09:16.655Z] [INFO] No route yielded positive output after simulation.
+[2025-07-06T11:09:16.655Z] [INFO] [ethereum] No profitable route found after simulation.
+[2025-07-06T11:09:16.656Z] [ERROR] [ethereum] Failed to pause contract: arbContract.pause is not a function
+[2025-07-06T11:09:26.658Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T11:09:27.224Z] [INFO] [ethereum] Current gas price: 0.244000219 Gwei.
+[2025-07-06T11:09:27.813Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-06T11:09:27.814Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-06T11:09:27.814Z] [INFO] [ethereum] Subscribing to 0 pools for reserve updates.
+[2025-07-06T11:09:27.923Z] [WARN] Slippage fetch error (Request failed with status code 429), using default: 50 bips
+[2025-07-06T11:09:28.358Z] [INFO] [ethereum] Aave available liquidity for DAI: 1185146934.20538176950484374
+[2025-07-06T11:09:28.359Z] [INFO] [ethereum] Optimal borrow amount for DAI: 100.0
+[2025-07-06T11:09:28.359Z] [INFO] Filtered 1152 routes down to 0 by Z-score threshold 3.
+[2025-07-06T11:09:28.359Z] [INFO] No routes exceeded Z-score threshold; using all 1152 as candidates.
+[2025-07-06T11:09:28.360Z] [WARN] ML scoring error: Cannot read properties of undefined (reading 'length'). Proceeding without ML ranking.
+[2025-07-06T11:09:28.360Z] [INFO] After ML scoring, retaining top 50 routes for simulation.
+[2025-07-06T11:09:37.990Z] [WARN] Worker error for route 3hop_44: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:39.599Z] [WARN] Worker error for route 3hop_25: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:40.007Z] [WARN] Worker error for route 3hop_23: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:40.329Z] [WARN] Worker error for route 3hop_39: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:40.374Z] [WARN] Worker error for route 3hop_36: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:40.838Z] [WARN] Worker error for route 3hop_8: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:40.883Z] [WARN] Worker error for route 3hop_32: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:41.619Z] [WARN] Worker error for route 3hop_48: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:41.628Z] [WARN] Worker error for route 3hop_50: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:42.130Z] [WARN] Worker error for route 3hop_24: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:42.305Z] [WARN] Worker error for route 3hop_34: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:42.371Z] [WARN] Worker error for route 3hop_2: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:42.858Z] [WARN] Worker error for route 3hop_15: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:42.859Z] [WARN] Worker error for route 3hop_29: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:42.971Z] [WARN] Worker error for route 3hop_21: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:43.359Z] [WARN] Worker error for route 3hop_31: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:43.387Z] [WARN] Worker error for route 3hop_38: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:43.454Z] [WARN] Worker error for route 3hop_41: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:43.660Z] [WARN] Worker error for route 3hop_47: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:43.910Z] [WARN] Worker error for route 3hop_33: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:44.039Z] [WARN] Worker error for route 3hop_19: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:44.116Z] [WARN] Worker error for route 3hop_27: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:44.281Z] [WARN] Worker error for route 3hop_5: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:44.455Z] [WARN] Worker error for route 3hop_37: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:44.457Z] [WARN] Worker error for route 3hop_20: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:44.509Z] [WARN] Worker error for route 3hop_42: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:44.601Z] [WARN] Worker error for route 3hop_6: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:44.649Z] [WARN] Worker error for route 3hop_40: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:44.815Z] [WARN] Worker error for route 3hop_28: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:44.997Z] [WARN] Worker error for route 3hop_1: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:45.399Z] [WARN] Worker error for route 3hop_43: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:45.478Z] [WARN] Worker error for route 3hop_49: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:45.814Z] [WARN] Worker error for route 3hop_14: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:46.097Z] [WARN] Worker error for route 3hop_17: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:46.226Z] [WARN] Worker error for route 3hop_18: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:46.298Z] [WARN] Worker error for route 3hop_30: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:46.387Z] [WARN] Worker error for route 3hop_13: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:46.589Z] [WARN] Worker error for route 3hop_10: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:47.079Z] [WARN] Worker error for route 3hop_26: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:47.437Z] [WARN] Worker error for route 3hop_3: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:47.712Z] [WARN] Worker error for route 3hop_35: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:47.715Z] [WARN] Worker error for route 3hop_9: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:47.735Z] [WARN] Worker error for route 3hop_45: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:47.751Z] [WARN] Worker error for route 3hop_11: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:47.807Z] [WARN] Worker error for route 3hop_16: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:47.869Z] [WARN] Worker error for route 3hop_12: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:47.899Z] [WARN] Worker error for route 3hop_4: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:47.905Z] [WARN] Worker error for route 3hop_46: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:47.977Z] [WARN] Worker error for route 3hop_22: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:48.105Z] [WARN] Worker error for route 3hop_7: Cannot read properties of undefined (reading 'length')
+[2025-07-06T11:09:48.105Z] [INFO] Parallel simulation completed for 50 routes.
+[2025-07-06T11:09:48.105Z] [INFO] Simulation took 19745 ms.
+[2025-07-06T11:09:48.106Z] [INFO] No route yielded positive output after simulation.
+[2025-07-06T11:09:48.106Z] [INFO] [ethereum] No profitable route found after simulation.
+[2025-07-06T11:09:48.106Z] [ERROR] [ethereum] Failed to pause contract: arbContract.pause is not a function
+[2025-07-06T11:09:58.109Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-06T11:09:58.628Z] [INFO] [ethereum] Current gas price: 0.227845718 Gwei.
+[2025-07-06T11:09:59.213Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-06T11:09:59.214Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-06T11:09:59.214Z] [INFO] [ethereum] Subscribing to 0 pools for reserve updates.
+[2025-07-06T11:09:59.296Z] [WARN] Slippage fetch error (Request failed with status code 429), using default: 50 bips
+[2025-07-06T11:09:59.699Z] [INFO] [ethereum] Aave available liquidity for DAI: 1185146934.20538176950484374
+[2025-07-06T11:09:59.699Z] [INFO] [ethereum] Optimal borrow amount for DAI: 100.0
+[2025-07-06T11:09:59.700Z] [INFO] Filtered 1152 routes down to 0 by Z-score threshold 3.
+[2025-07-06T11:09:59.700Z] [INFO] No routes exceeded Z-score threshold; using all 1152 as candidates.
+[2025-07-06T11:09:59.700Z] [WARN] ML scoring error: Cannot read properties of undefined (reading 'length'). Proceeding without ML ranking.
+[2025-07-06T11:09:59.700Z] [INFO] After ML scoring, retaining top 50 routes for simulation.
