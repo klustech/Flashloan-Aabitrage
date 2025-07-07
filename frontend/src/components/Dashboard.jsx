@@ -1,46 +1,72 @@
 import React from "react";
+import {
+  Box,
+  Grid,
+  Paper,
+  Typography,
+  Table,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableBody,
+} from "@mui/material";
 
 const Dashboard = () => {
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div className="bg-white shadow rounded-lg p-6">
-          <h2 className="text-xl font-semibold">Total Profit</h2>
-          <p className="text-3xl font-bold mt-2">$0.00</p>
-        </div>
-        <div className="bg-white shadow rounded-lg p-6">
-          <h2 className="text-xl font-semibold">Open Positions</h2>
-          <p className="text-3xl font-bold mt-2">0</p>
-        </div>
-        <div className="bg-white shadow rounded-lg p-6">
-          <h2 className="text-xl font-semibold">Execution Time</h2>
-          <p className="text-3xl font-bold mt-2">0 ms</p>
-        </div>
-      </div>
-      <div className="mt-8">
-        <h2 className="text-xl font-semibold mb-2">Recent Trades</h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full bg-white shadow rounded-lg">
-            <thead>
-              <tr>
-                <th className="py-2 px-4 border-b">Time</th>
-                <th className="py-2 px-4 border-b">Asset</th>
-                <th className="py-2 px-4 border-b">Profit</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td className="py-2 px-4 border-b">12:00</td>
-                <td className="py-2 px-4 border-b">ETH/BTC</td>
-                <td className="py-2 px-4 border-b">$123.45</td>
-              </tr>
-              {/* Additional rows rendered dynamically */}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+    <Box sx={{ maxWidth: 1200, mx: "auto", p: 2 }}>
+      <Typography variant="h4" color="primary" gutterBottom>
+        Dashboard
+      </Typography>
+      <Grid container spacing={2} mb={4}>
+        <Grid item xs={12} md={4}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="h6" color="primary">
+              Total Profit
+            </Typography>
+            <Typography variant="h4">$0.00</Typography>
+          </Paper>
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="h6" color="primary">
+              Open Positions
+            </Typography>
+            <Typography variant="h4">0</Typography>
+          </Paper>
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="h6" color="primary">
+              Execution Time
+            </Typography>
+            <Typography variant="h4">0 ms</Typography>
+          </Paper>
+        </Grid>
+      </Grid>
+
+      <Typography variant="h6" color="primary" gutterBottom>
+        Recent Trades
+      </Typography>
+      <Paper sx={{ overflowX: "auto" }}>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell sx={{ color: "primary.main" }}>Time</TableCell>
+              <TableCell sx={{ color: "primary.main" }}>Asset</TableCell>
+              <TableCell sx={{ color: "primary.main" }}>Profit</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            <TableRow>
+              <TableCell>12:00</TableCell>
+              <TableCell>ETH/BTC</TableCell>
+              <TableCell>$123.45</TableCell>
+            </TableRow>
+            {/* Additional rows rendered dynamically */}
+          </TableBody>
+        </Table>
+      </Paper>
+    </Box>
   );
 };
 

@@ -21,6 +21,7 @@ import DashboardIcon from "@mui/icons-material/Dashboard";
 import HistoryIcon from "@mui/icons-material/History";
 import SettingsIcon from "@mui/icons-material/Settings";
 import BuildIcon from "@mui/icons-material/Build";
+import ProfitDetermination from "./components/ProfitDetermination";
 
 import {
   getCurrentPrices,
@@ -133,7 +134,10 @@ function Settings({ settings, onSettingsSave, onStart, onStop }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await onSettingsSave(localSettings);
+      const res = await onSettingsSave(localSettings);
+      if (res && res.settings) {
+        setLocalSettings(res.settings);
+      }
     } catch (error) {
       console.error("Error saving settings:", error);
     } finally {
@@ -330,6 +334,14 @@ function App() {
     }
   };
 
+  const handleSaveSettings = async (vals) => {
+    const res = await updateSettings(vals);
+    if (res && res.settings) {
+      setSettings(res.settings);
+    }
+    return res;
+  };
+
   const handleTriggerArbitrage = async () => {
     setArbLoading(true);
     try {
@@ -365,15 +377,18 @@ function App() {
           />
         )}
         {activeTab === 1 && (
-          <BotControl
-            onTrigger={handleTriggerArbitrage}
-            arbLoading={arbLoading}
-          />
+          <>
+            <BotControl
+              onTrigger={handleTriggerArbitrage}
+              arbLoading={arbLoading}
+            />
+            <ProfitDetermination />
+          </>
         )}
         {activeTab === 2 && (
           <Settings
             settings={settings}
-            onSettingsSave={updateSettings}
+            onSettingsSave={handleSaveSettings}
             onStart={startBot}
             onStop={stopBot}
           />
