@@ -53294,3 +53294,42 @@
 [2025-07-07T05:36:38.803Z] [INFO] [ethereum] potentialProfitDAI (after premium): 99102697299999999899.91 DAI.
 [2025-07-07T05:36:38.821Z] [INFO] [ethereum] Fetched fresh reserves for best route.
 [2025-07-07T05:36:39.335Z] [ERROR] [ethereum] swapDataBuilder error: invalid BigNumber value (argument="value", value=undefined, code=INVALID_ARGUMENT, version=bignumber/5.8.0)
+[2025-07-07T06:07:45.346Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-07T06:07:46.049Z] [INFO] [ethereum] Current gas price: 0.281525533 Gwei.
+[2025-07-07T06:07:54.707Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-07T06:07:54.708Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-07T06:07:54.708Z] [INFO] [ethereum] Subscribing to 0 pools for reserve updates.
+[2025-07-07T06:07:55.095Z] [INFO] Dynamic Slippage determined: 73 bips
+[2025-07-07T06:07:55.730Z] [INFO] [ethereum] Aave available liquidity for DAI: 1185175556.627873364772407173
+[2025-07-07T06:07:55.731Z] [INFO] [ethereum] Optimal borrow amount for DAI: 100.0
+[2025-07-07T06:07:55.733Z] [INFO] Filtered 1152 routes down to 0 by Z-score threshold 3.
+[2025-07-07T06:07:55.733Z] [INFO] No routes exceeded Z-score threshold; using all 1152 as candidates.
+[2025-07-07T06:07:55.745Z] [WARN] ML scoring error: Request failed with status code 404. Proceeding without ML ranking.
+[2025-07-07T06:07:55.746Z] [INFO] After ML scoring, retaining top 50 routes for simulation.
+[2025-07-07T06:08:27.776Z] [INFO] Parallel simulation completed for 50 routes.
+[2025-07-07T06:08:27.777Z] [INFO] Simulation took 32030 ms.
+[2025-07-07T06:08:27.778Z] [INFO] Best route chosen: id=3hop_10, estimatedOut=99102697300000000000.0 DAI.
+[2025-07-07T06:08:27.779Z] [INFO] [ethereum] Selected best route id=3hop_10, estimatedOut=99102697300000000000.0 DAI.
+[2025-07-07T06:08:27.779Z] [INFO] [ethereum] potentialProfitDAI (after premium): 99102697299999999899.91 DAI.
+[2025-07-07T06:08:27.781Z] [INFO] [ethereum] Fetched fresh reserves for best route.
+[2025-07-07T06:08:28.310Z] [ERROR] [ethereum] swapDataBuilder error: invalid BigNumber value (argument="value", value=undefined, code=INVALID_ARGUMENT, version=bignumber/5.8.0)
+[2025-07-07T06:55:43.023Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-07T06:55:43.717Z] [INFO] [ethereum] Current gas price: 0.27266767 Gwei.
+[2025-07-07T06:55:53.298Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-07T06:55:53.299Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-07T06:55:53.299Z] [INFO] [ethereum] Subscribing to 0 pools for reserve updates.
+[2025-07-07T06:55:53.426Z] [INFO] Dynamic Slippage determined: 68 bips
+[2025-07-07T06:55:54.138Z] [INFO] [ethereum] Aave available liquidity for DAI: 1185175556.627873364772407173
+[2025-07-07T06:55:54.139Z] [INFO] [ethereum] Optimal borrow amount for DAI: 100.0
+[2025-07-07T06:55:54.141Z] [INFO] Filtered 1152 routes down to 0 by Z-score threshold 3.
+[2025-07-07T06:55:54.141Z] [INFO] No routes exceeded Z-score threshold; using all 1152 as candidates.
+[2025-07-07T06:55:54.151Z] [WARN] ML scoring error: Request failed with status code 404. Proceeding without ML ranking.
+[2025-07-07T06:55:54.151Z] [INFO] After ML scoring, retaining top 50 routes for simulation.
+[2025-07-07T06:56:24.184Z] [INFO] Parallel simulation completed for 50 routes.
+[2025-07-07T06:56:24.190Z] [INFO] Simulation took 30038 ms.
+[2025-07-07T06:56:24.195Z] [INFO] Best route chosen: id=3hop_19, estimatedOut=99102697300000000000.0 DAI.
+[2025-07-07T06:56:24.205Z] [INFO] [ethereum] Selected best route id=3hop_19, estimatedOut=99102697300000000000.0 DAI.
+[2025-07-07T06:56:24.206Z] [INFO] [ethereum] potentialProfitDAI (after premium): 99102697299999999899.91 DAI.
+[2025-07-07T06:56:24.217Z] [INFO] [ethereum] Fetched fresh reserves for best route.
+[2025-07-07T06:56:25.156Z] [INFO] [ethereum] swapDataBuilder returned SwapData successfully.
+[2025-07-07T06:56:25.157Z] [ERROR] [ethereum] Failed to encode SwapData: invalid type (argument="type", value="SwapData", code=INVALID_ARGUMENT, version=abi/5.8.0)

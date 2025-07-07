@@ -105,6 +105,9 @@ async function buildSwapDataFromDynamic(
   const paths = [];
   const minOuts = [];
 
+  // Track the output of each hop so it becomes the input to the next
+  let currentAmtBN = borrowAmtBN;
+
   // We will feed into contract three arrays of [routerAddr, tokenIn, tokenOut]
   for (let idx = 0; idx < 3; idx++) {
     const hop = routeDef.steps[idx];
@@ -127,7 +130,7 @@ async function buildSwapDataFromDynamic(
             ],
             provider
           );
-          const amtIn = idx === 0 ? borrowAmtBN : rawOutBN;
+          const amtIn = currentAmtBN;
           const amounts = await routerContract.getAmountsOut(amtIn, [
             tokenIn,
             tokenOut,
@@ -139,7 +142,7 @@ async function buildSwapDataFromDynamic(
       case "uniswap_v3":
         routerAddr = UNISWAP_V2_ROUTER; // The contract may use a V3-compatible adapter; off-chain we just compute quote
         {
-          const amtIn = idx === 0 ? borrowAmtBN : rawOutBN;
+          const amtIn = currentAmtBN;
           rawOutBN = ethers.BigNumber.from(
             await getV3Quote(provider, tokenIn, tokenOut, hop.fee, amtIn)
           );
@@ -149,7 +152,7 @@ async function buildSwapDataFromDynamic(
       case "balancer_v2":
         routerAddr = hop.poolAddress; // The contract must know to route through Balancer Vault; we pass poolAddress as "router"
         {
-          const amtIn = idx === 0 ? borrowAmtBN : rawOutBN;
+          const amtIn = currentAmtBN;
           rawOutBN = await getBalancerQuote(provider, tokenIn, tokenOut, amtIn);
         }
         break;
@@ -157,7 +160,7 @@ async function buildSwapDataFromDynamic(
       case "curve_v2":
         routerAddr = hop.poolAddress; // pass Curve pool address as "router"
         {
-          const amtIn = idx === 0 ? borrowAmtBN : rawOutBN;
+          const amtIn = currentAmtBN;
           rawOutBN = await getCurveQuote(
             provider,
             hop.poolAddress,
@@ -179,8 +182,8 @@ async function buildSwapDataFromDynamic(
     paths.push([routerAddr, tokenIn, tokenOut]);
     minOuts.push(slippageAdjusted);
 
-    // Prepare rawOutBN for next hop
-    rawOutBN = slippageAdjusted;
+    // Prepare amount for next hop
+    currentAmtBN = slippageAdjusted;
   }
 
   // Human-readable route string
