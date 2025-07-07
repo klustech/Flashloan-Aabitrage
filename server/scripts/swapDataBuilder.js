@@ -51,7 +51,12 @@ const TOKEN_SYMBOL_BY_ADDRESS = {
 
 async function buildSwapDataFromDynamic(
   routeDef,
-  { slippageBips, minProfit, borrowToken, borrowAmount }
+  {
+    slippageBips = parseInt(process.env.DEFAULT_SLIPPAGE_BIPS || "50", 10),
+    minProfit = process.env.MIN_PROFIT_DAI || "1",
+    borrowToken,
+    borrowAmount,
+  } = {}
 ) {
   // Allow callers to pass just the hops array
   if (Array.isArray(routeDef)) {
@@ -79,8 +84,22 @@ async function buildSwapDataFromDynamic(
     throw new Error(`Unsupported V2 dex: ${dex}`);
   }
 
-  // Parse borrow amount
-  const borrowAmtBN = ethers.BigNumber.from(borrowAmount);
+  // Determine borrow token and amount with sane fallbacks
+  const actualBorrowToken = borrowToken || routeDef.steps[0]?.path[0];
+  if (!actualBorrowToken) {
+    throw new Error("No borrowToken provided");
+  }
+
+  if (borrowAmount === undefined || borrowAmount === null) {
+    throw new Error("No borrowAmount provided");
+  }
+
+  let borrowAmtBN;
+  if (typeof borrowAmount === "string" && borrowAmount.includes(".")) {
+    borrowAmtBN = ethers.utils.parseUnits(borrowAmount, 18);
+  } else {
+    borrowAmtBN = ethers.BigNumber.from(borrowAmount.toString());
+  }
 
   // Prepare arrays to collect data for each hop
   const paths = [];
@@ -89,7 +108,8 @@ async function buildSwapDataFromDynamic(
   // We will feed into contract three arrays of [routerAddr, tokenIn, tokenOut]
   for (let idx = 0; idx < 3; idx++) {
     const hop = routeDef.steps[idx];
-    const tokenIn = idx === 0 ? borrowToken : routeDef.steps[idx - 1].path[1];
+    const tokenIn =
+      idx === 0 ? actualBorrowToken : routeDef.steps[idx - 1].path[1];
     const tokenOut = hop.path[1];
     let routerAddr;
     let rawOutBN;
@@ -169,8 +189,8 @@ async function buildSwapDataFromDynamic(
     .join("→");
 
   return {
-    token: borrowToken,
-    paths, // [ [router1, tokenIn, tokenMid], [router2, mid1, mid2], [router3, mid2, borrowToken] ]
+    token: actualBorrowToken,
+    paths, // [ [router1, tokenIn, tokenMid], [router2, mid1, mid2], [router3, mid2, actualBorrowToken] ]
     minOuts, // [minOutHop1, minOutHop2, minOutHop3]
     minProfit: ethers.BigNumber.from(minProfit),
     route: routeString,
