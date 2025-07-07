@@ -254,11 +254,13 @@ function BotLogs({ logs, loadingLogs }) {
           sx={{
             maxHeight: 300,
             overflowY: "auto",
-            border: "1px solid #ccc",
+            border: "1px solid #FFD700",
             borderRadius: 1,
             p: 2,
             fontFamily: "monospace",
             whiteSpace: "pre-line",
+            backgroundColor: "#000",
+            color: "#FFD700",
           }}
         >
           {logs.map((log, idx) => (
@@ -340,7 +342,10 @@ function App() {
 
   return (
     <Box>
-      <AppBar position="static">
+      <AppBar
+        position="static"
+        sx={{ backgroundColor: "#000", color: "#FFD700" }}
+      >
         <Toolbar>
           <Typography variant="h6">Flashloan Arbitrage Bot</Typography>
         </Toolbar>

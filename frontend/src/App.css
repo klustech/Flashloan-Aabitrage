@@ -18,7 +18,7 @@ body {
 }
 
 h1 {
-  color: #ffffff;
+  color: #ffd700;
   font-size: 2em;
   margin: 0;
 }
@@ -26,19 +26,20 @@ h1 {
 .navbar {
   display: flex;
   justify-content: center;
-  background-color: #1a1a1a;
+  background-color: #000;
   padding: 10px 0;
 }
 
 .navbar a {
-  color: #ffffff;
+  color: #ffd700;
   padding: 14px 20px;
   text-decoration: none;
   font-size: 1em;
 }
 
 .navbar a:hover {
-  background-color: #333333;
+  background-color: #ffd700;
+  color: #000;
   border-radius: 5px;
 }
 
@@ -49,9 +50,9 @@ h1 {
 }
 
 .button {
-  background-color: #808080; /* Light grey buttons */
+  background-color: #ffd700;
   border: none;
-  color: white;
+  color: #000;
   padding: 10px 24px;
   text-align: center;
   font-size: 14px;
@@ -62,7 +63,7 @@ h1 {
 }
 
 .button:hover {
-  background-color: #696969; /* Slightly darker grey on hover */
+  background-color: #cfa200;
 }
 
 .input {
@@ -70,8 +71,8 @@ h1 {
   margin: 5px 0;
   border-radius: 5px;
   border: 1px solid #555555;
-  background-color: #333333;
-  color: #ffffff;
+  background-color: #111;
+  color: #ffd700;
   width: 100%;
   max-width: 400px;
   box-sizing: border-box;
@@ -80,20 +81,21 @@ h1 {
 .label {
   display: block;
   margin: 10px 0 5px;
-  color: #ffffff;
+  color: #ffd700;
   font-size: 0.9em;
 }
 
 /* Trades Component */
 .trades {
   padding: 20px;
-  color: #ffffff;
+  color: #ffd700;
   background-color: #000000;
 }
 
 .trades h2 {
   font-size: 1.5em;
   margin-bottom: 10px;
+  color: #ffd700;
 }
 
 .trades-table {
@@ -106,20 +108,22 @@ h1 {
 .trades-table td {
   padding: 10px;
   text-align: left;
-  border: 1px solid #444444;
+  border: 1px solid #ffd700;
 }
 
 .trades-table th {
-  background-color: #333333;
+  background-color: #111;
   text-transform: uppercase;
+  color: #ffd700;
 }
 
 .trades-table td {
-  background-color: #222222;
+  background-color: #000;
+  color: #ffd700;
 }
 
 .trades-table a {
-  color: #61dafb;
+  color: #ffd700;
 }
 
 .trades-table a:hover {
@@ -135,8 +139,8 @@ h1 {
   margin-bottom: 20px;
   font-size: 1.5em;
   text-align: left;
-  color: #ffffff;
-  border-bottom: 2px solid #444444;
+  color: #ffd700;
+  border-bottom: 2px solid #ffd700;
   padding-bottom: 10px;
 }
 
@@ -145,25 +149,26 @@ h1 {
   border-collapse: collapse;
   margin: 20px 0;
   font-size: 1em;
-  background-color: #333333;
-  color: #ffffff;
+  background-color: #000;
+  color: #ffd700;
   text-align: left;
 }
 
 .pairs-table th,
 .pairs-table td {
   padding: 10px;
-  border: 1px solid #444444;
+  border: 1px solid #ffd700;
 }
 
 .pairs-table th {
-  background-color: #444444;
+  background-color: #111;
   text-transform: uppercase;
   font-weight: bold;
+  color: #ffd700;
 }
 
 .pairs-table a {
-  color: #61dafb;
+  color: #ffd700;
   text-decoration: none;
 }
 
@@ -173,18 +178,21 @@ h1 {
 
 .pairs-table td {
   word-wrap: break-word;
+  color: #ffd700;
+  background-color: #000;
 }
 
 /* Settings Component */
 .settings {
   padding: 20px;
-  color: #ffffff;
+  color: #ffd700;
   background-color: #000000;
 }
 
 .settings h2 {
   font-size: 1.5em;
   margin-bottom: 10px;
+  color: #ffd700;
 }
 
 .settings-form {
