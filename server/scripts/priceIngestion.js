@@ -93,6 +93,15 @@ async function fetchMulticallReservesForRoute(routeOrPoolInfo) {
   }
 
   const poolAddress = routeOrPoolInfo.poolAddress || routeOrPoolInfo;
+  if (!poolAddress || !ethers.utils.isAddress(poolAddress)) {
+    console.warn(
+      `Multicall skipped for invalid pool address: ${JSON.stringify(
+        routeOrPoolInfo
+      )}`
+    );
+    return;
+  }
+
   const pairInterface = new ethers.utils.Interface(PAIR_ABI);
   const callData = pairInterface.encodeFunctionData("getReserves");
   try {
