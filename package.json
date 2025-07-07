@@ -18,7 +18,8 @@
     "check:subgraphs": "node scripts/checkSubgraphs.js",
     "train": "python3 ml/train_model.py",
     "ml:serve": "python3 ml/ml_scorer.py",
-    "ai-bot": "node scripts/ai_trading_bot.js"
+    "ai-bot": "node scripts/ai_trading_bot.js",
+    "update-dataset": "node scripts/updateDataset.js"
   },
   "keywords": [],
   "author": "",

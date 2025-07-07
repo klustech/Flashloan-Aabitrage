@@ -164,6 +164,16 @@ writes the resulting `lightgbm_model.txt`. The inference microservice
 `ml/ml_scorer.py` loads this model at startup. Run it locally with
 `npm run ml:serve` and point `ML_MODEL_ENDPOINT` to the service URL.
 
+### Data Collection
+
+Use `npm run update-dataset` to regenerate `ml/ml_training_data.csv` from the
+offline pool list. The script reads `OFFLINE_POOLS_FILE` (defaults to
+`docs/offline_pools_sample.json`) and writes a CSV for model training.
+
+```bash
+npm run update-dataset
+```
+
 ## AI Trading Bot
 
 The repository includes `scripts/ai_trading_bot.js`, an example implementation of a
@@ -188,3 +198,22 @@ npm run ai-bot
 ```
 
 Always test with paper trading before risking real funds.
+
+## Final Recommendations
+
+The following guidelines summarise key steps to improve long-term reliability
+and maintainability of the arbitrage bot:
+
+- **Eliminate Runtime Errors**: prioritise robust error handling across all
+  services and scripts to avoid crashes during live operation.
+- **Refine Slippage Handling**: continuously test and tune slippage logic so
+  trades execute successfully even in volatile markets.
+- **Expand Datasets**: collect additional data for model training and maintain
+  up-to-date pool information for real-time route discovery.
+- **Harden Security**: schedule regular audits, keep monitoring dashboards
+  current and enforce strict operational controls.
+- **Refactor as Needed**: as the codebase grows, break out components and add
+  documentation to keep the project approachable.
+
+Implementing these recommendations holistically can increase the chances of the
+bot finding profitable opportunities in a competitive market.

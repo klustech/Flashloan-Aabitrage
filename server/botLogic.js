@@ -16,6 +16,7 @@ require("dotenv").config({
 const fs = require("fs");
 const axios = require("axios");
 const winston = require("winston");
+const { validateEnv } = require("../utils/validateEnv");
 const { ethers, BigNumber } = require("ethers");
 const {
   FlashbotsBundleProvider,
@@ -210,6 +211,17 @@ const logger = winston.createLogger({
   ],
 });
 
+process.on("unhandledRejection", (reason) => {
+  logger.error(
+    `Unhandled Rejection: ${reason instanceof Error ? reason.message : reason}`
+  );
+});
+
+process.on("uncaughtException", (err) => {
+  logger.error(`Uncaught Exception: ${err.message}`);
+  process.exit(1);
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Environment & Config (adjusted)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -261,16 +273,14 @@ const {
   SUSHISWAP_ROUTER_ADDRESS,
 } = process.env;
 
-if (
-  !PRIVATE_KEY ||
-  !ETH_ARB_CONTRACT ||
-  !AAVE_LENDING_POOL_ADDRESS_PROVIDER ||
-  !MAINNET_RPC_URL ||
-  !TOKENS_DAI ||
-  !TOKENS_WETH
-) {
-  throw new Error("Missing required .env fields.");
-}
+validateEnv([
+  "PRIVATE_KEY",
+  "ETH_ARB_CONTRACT",
+  "AAVE_LENDING_POOL_ADDRESS_PROVIDER",
+  "MAINNET_RPC_URL",
+  "TOKENS_DAI",
+  "TOKENS_WETH",
+]);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Providers for Ethereum, Arbitrum, Optimism

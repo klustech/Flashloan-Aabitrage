@@ -14,6 +14,7 @@ const cron = require("node-cron");
 const fs = require("fs");
 const winston = require("winston");
 const { ethers } = require("ethers");
+const { validateEnv } = require("../../utils/validateEnv");
 // Use prom-client if available; otherwise fall back to a no-op stub
 const client = require("../metrics");
 
@@ -25,6 +26,14 @@ try {
 } catch (err) {
   // Allow running without dotenv installed
 }
+
+validateEnv([
+  "MAINNET_RPC_URL",
+  "UNISWAP_ROUTER_ADDRESS",
+  "SUSHISWAP_ROUTER_ADDRESS",
+  "TOKENS_DAI",
+  "TOKENS_WETH",
+]);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Bot logic & helpers
@@ -48,9 +57,6 @@ const UniswapABI = require("./abis/UniswapV2Router02.json");
 const SushiABI = require("./abis/SushiSwapRouter.json");
 
 const RPC_URL = process.env.MAINNET_RPC_URL;
-if (!RPC_URL) {
-  throw new Error("MAINNET_RPC_URL must be set in .env");
-}
 
 // Single provider with timeout
 const provider = new ethers.providers.JsonRpcProvider({
@@ -137,6 +143,17 @@ const logger = winston.createLogger({
     new winston.transports.Console(),
     new winston.transports.File({ filename: "server.log" }),
   ],
+});
+
+process.on("unhandledRejection", (reason) => {
+  logger.error(
+    `Unhandled Rejection: ${reason instanceof Error ? reason.message : reason}`
+  );
+});
+
+process.on("uncaughtException", (err) => {
+  logger.error(`Uncaught Exception: ${err.message}`);
+  process.exit(1);
 });
 
 // Log each incoming request
