@@ -1,98 +1,27 @@
-// server/scripts/swapDataBuilder.js
-
-/**
- * Given a route definition with heterogeneous DEX hops (UniswapV2, SushiSwap, UniswapV3, BalancerV2, CurveV2),
- * compute slippage-protected minOuts for each hop and assemble the arrays needed for the Solidity contract.
- *
- * The routeDef.steps array must be of length 3, each step having:
- *   {
- *     dex:       string,            // one of "uniswap_v2", "sushiswap_v2", "uniswap_v3", "balancer_v2", "curve_v2"
- *     path:      [string, string],  // [tokenIn, tokenOut] addresses for V2, V3; for Balancer/Curve, these are the two tokens in that hop
- *     fee?:      number,            // only for uniswap_v3 (e.g. 3000)
- *     poolAddress?: string,         // only for balancer_v2 or curve_v2
- *     curveIndices?: { i: number, j: number } // only for curve_v2: indices of tokenIn and tokenOut in pool's token array
- *   }
- *
- * The returned object contains:
- *   { token,                     // borrowToken
- *     paths: [ [routerAddr, tokenIn, tokenOut], ... ],  // three arrays of length 3 each, identifying router & tokens
- *     minOuts: [BigNumber,BigNumber,BigNumber],         // slippage-adjusted outputs
- *     minProfit: BigNumber,      // passed-through from opts.minProfit
- *     route: string              // human-readable route string
- *   }
- */
-
 const { ethers } = require("ethers");
-require("dotenv").config({ override: true });
-
-const { getV3Quote } = require("../scripts/v3Utils");
-const { getBalancerQuote } = require("../scripts/balancerUtils");
-const { getCurveQuote } = require("../scripts/curveUtils");
-
-// Routers (V2) from environment
-// The README refers to UNISWAP_ROUTER_ADDRESS and SUSHISWAP_ROUTER_ADDRESS.
-// Older revisions of this file expected UNISWAP_V2_ROUTER / SUSHISWAP_V2_ROUTER
-// which caused undefined addresses when only the new variables were provided.
 const UNISWAP_V2_ROUTER =
   process.env.UNISWAP_ROUTER_ADDRESS || process.env.UNISWAP_V2_ROUTER;
 const SUSHISWAP_V2_ROUTER =
   process.env.SUSHISWAP_ROUTER_ADDRESS || process.env.SUSHISWAP_V2_ROUTER;
-const provider = new ethers.providers.JsonRpcProvider(
-  process.env.MAINNET_RPC_URL
-);
+const UNISWAP_ROUTER_ABI = require("../abis/uniswapRouter.json");
 
-const TOKEN_SYMBOL_BY_ADDRESS = {
-  [process.env.DAI_ADDRESS]: "DAI",
-  [process.env.WETH_ADDRESS]: "WETH",
-  [process.env.USDC_ADDRESS]: "USDC",
-  [process.env.USDT_ADDRESS]: "USDT",
-  // Add other token mappings if needed
-};
+function getV2Router(dex) {
+  if (dex === "uniswap_v2") return UNISWAP_V2_ROUTER;
+  if (dex === "sushiswap_v2") return SUSHISWAP_V2_ROUTER;
+  throw new Error(`Unsupported V2 dex: ${dex}`);
+}
 
 async function buildSwapDataFromDynamic(
   routeDef,
-  {
-    slippageBips = parseInt(process.env.DEFAULT_SLIPPAGE_BIPS || "50", 10),
-    minProfit = process.env.MIN_PROFIT_DAI || "1",
-    borrowToken,
-    borrowAmount,
-  } = {}
+  borrowToken,
+  borrowAmount,
+  slippageBips,
+  provider
 ) {
-  // Allow callers to pass just the hops array
-  if (Array.isArray(routeDef)) {
-    const hops = routeDef;
-    routeDef = {
-      steps: hops.map((h) => ({
-        dex: h.dex,
-        path: [h.tokenA, h.tokenB],
-        fee: h.fee || null,
-        poolAddress: h.poolAddress,
-        curveIndices: h.curveIndices || null,
-      })),
-      routeTokens: [hops[0].tokenA, ...hops.map((h) => h.tokenB)],
-    };
-  }
-
-  if (!Array.isArray(routeDef.steps) || routeDef.steps.length !== 3) {
-    throw new Error("Expected exactly 3 hops in routeDef.steps");
-  }
-
-  // Helper: choose router address for V2 sw ap
-  function getV2RouterAddr(dex) {
-    if (dex === "uniswap_v2") return UNISWAP_V2_ROUTER;
-    if (dex === "sushiswap_v2") return SUSHISWAP_V2_ROUTER;
-    throw new Error(`Unsupported V2 dex: ${dex}`);
-  }
-
-  // Determine borrow token and amount with sane fallbacks
   const actualBorrowToken = borrowToken || routeDef.steps[0]?.path[0];
-  if (!actualBorrowToken) {
-    throw new Error("No borrowToken provided");
-  }
-
-  if (borrowAmount === undefined || borrowAmount === null) {
+  if (!actualBorrowToken) throw new Error("No borrowToken provided");
+  if (borrowAmount === undefined || borrowAmount === null)
     throw new Error("No borrowAmount provided");
-  }
 
   let borrowAmtBN;
   if (typeof borrowAmount === "string" && borrowAmount.includes(".")) {
@@ -101,103 +30,53 @@ async function buildSwapDataFromDynamic(
     borrowAmtBN = ethers.BigNumber.from(borrowAmount.toString());
   }
 
-  // Prepare arrays to collect data for each hop
-  const paths = [];
-  const minOuts = [];
+  const routers = [];
+  const pathIns = [];
+  const pathOuts = [];
+  const minAmountsOut = [];
 
-  // Track the output of each hop so it becomes the input to the next
   let currentAmtBN = borrowAmtBN;
 
-  // We will feed into contract three arrays of [routerAddr, tokenIn, tokenOut]
-  for (let idx = 0; idx < 3; idx++) {
-    const hop = routeDef.steps[idx];
-    const tokenIn =
-      idx === 0 ? actualBorrowToken : routeDef.steps[idx - 1].path[1];
-    const tokenOut = hop.path[1];
-    let routerAddr;
-    let rawOutBN;
+  for (let idx = 0; idx < routeDef.steps.length; idx++) {
+    const { dex, path } = routeDef.steps[idx];
 
-    switch (hop.dex) {
-      case "uniswap_v2":
-      case "sushiswap_v2":
-        routerAddr = getV2RouterAddr(hop.dex);
-        {
-          // On-chain getAmountsOut for V2
-          const routerContract = new ethers.Contract(
-            routerAddr,
-            [
-              "function getAmountsOut(uint256,address[]) view returns (uint256[])",
-            ],
-            provider
-          );
-          const amtIn = currentAmtBN;
-          const amounts = await routerContract.getAmountsOut(amtIn, [
-            tokenIn,
-            tokenOut,
-          ]);
-          rawOutBN = amounts[amounts.length - 1];
-        }
-        break;
+    const routerAddr = getV2Router(dex);
+    const tokenIn = path[0];
+    const tokenOut = path[path.length - 1];
 
-      case "uniswap_v3":
-        routerAddr = UNISWAP_V2_ROUTER; // The contract may use a V3-compatible adapter; off-chain we just compute quote
-        {
-          const amtIn = currentAmtBN;
-          rawOutBN = ethers.BigNumber.from(
-            await getV3Quote(provider, tokenIn, tokenOut, hop.fee, amtIn)
-          );
-        }
-        break;
+    const router = new ethers.Contract(
+      routerAddr,
+      UNISWAP_ROUTER_ABI,
+      provider
+    );
+    const amountsOut = await router.getAmountsOut(currentAmtBN, path);
+    const outputAmt = amountsOut[amountsOut.length - 1];
 
-      case "balancer_v2":
-        routerAddr = hop.poolAddress; // The contract must know to route through Balancer Vault; we pass poolAddress as "router"
-        {
-          const amtIn = currentAmtBN;
-          rawOutBN = await getBalancerQuote(provider, tokenIn, tokenOut, amtIn);
-        }
-        break;
+    const minOut = outputAmt
+      .mul(ethers.BigNumber.from(10000 - slippageBips))
+      .div(ethers.BigNumber.from(10000));
 
-      case "curve_v2":
-        routerAddr = hop.poolAddress; // pass Curve pool address as "router"
-        {
-          const amtIn = currentAmtBN;
-          rawOutBN = await getCurveQuote(
-            provider,
-            hop.poolAddress,
-            hop.curveIndices.i,
-            hop.curveIndices.j,
-            amtIn
-          );
-        }
-        break;
+    routers.push(routerAddr);
+    pathIns.push(tokenIn);
+    pathOuts.push(tokenOut);
+    minAmountsOut.push(minOut);
 
-      default:
-        throw new Error(`Unknown DEX in buildSwapData: ${hop.dex}`);
-    }
-
-    // Adjust for slippage
-    const slippageAdjusted = rawOutBN.mul(10000 - slippageBips).div(10000);
-
-    // Store
-    paths.push([routerAddr, tokenIn, tokenOut]);
-    minOuts.push(slippageAdjusted);
-
-    // Prepare amount for next hop
-    currentAmtBN = slippageAdjusted;
+    currentAmtBN = outputAmt;
   }
 
-  // Human-readable route string
-  const routeString = routeDef.routeTokens
-    .map((addr) => TOKEN_SYMBOL_BY_ADDRESS[addr] || addr.slice(0, 6))
-    .join("→");
-
-  return {
-    token: actualBorrowToken,
-    paths, // [ [router1, tokenIn, tokenMid], [router2, mid1, mid2], [router3, mid2, actualBorrowToken] ]
-    minOuts, // [minOutHop1, minOutHop2, minOutHop3]
-    minProfit: ethers.BigNumber.from(minProfit),
-    route: routeString,
-  };
+  return { routers, pathIns, pathOuts, minAmountsOut };
 }
 
-module.exports = { buildSwapDataFromDynamic };
+function encodeSwapData({ routers, pathIns, pathOuts, minAmountsOut }) {
+  const tupleType =
+    "tuple(address[] routers, address[] pathIns, address[] pathOuts, uint256[] minAmountsOut)";
+  return ethers.utils.defaultAbiCoder.encode(
+    [tupleType],
+    [{ routers, pathIns, pathOuts, minAmountsOut }]
+  );
+}
+
+module.exports = {
+  buildSwapDataFromDynamic,
+  encodeSwapData,
+};
