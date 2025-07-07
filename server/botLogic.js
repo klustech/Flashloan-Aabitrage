@@ -776,7 +776,8 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
       18
     )} DAI.`
   );
-  if (potentialProfitDAI.lte(BigNumber.from(MIN_PROFIT_DAI || "1"))) {
+  const minProfitThreshold = ethers.utils.parseUnits(MIN_PROFIT_DAI || "1", 18);
+  if (potentialProfitDAI.lte(minProfitThreshold)) {
     logger.info(
       `[${chain}] Not profitable after flashloan premium (threshold ${MIN_PROFIT_DAI}).`
     );
@@ -797,7 +798,7 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
   try {
     swapData = await buildSwapDataFromDynamic(bestRoute.hops, {
       slippageBips: SLIPPAGE_DEFAULT_INT,
-      minProfit: BigNumber.from(MIN_PROFIT_DAI || "1"),
+      minProfit: minProfitThreshold,
       borrowToken: tokenAddresses.DAI,
       borrowAmount: borrowDAI.toString(),
     });
@@ -870,13 +871,13 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
       18
     )} DAI.`
   );
-  if (netDAI.lte(BigNumber.from(MIN_PROFIT_DAI || "1"))) {
+  if (netDAI.lte(minProfitThreshold)) {
     logger.info(
       `[${chain}] Net profit ${ethers.utils.formatUnits(
         netDAI,
         18
       )} below threshold ${ethers.utils.formatUnits(
-        BigNumber.from(MIN_PROFIT_DAI || "1"),
+        minProfitThreshold,
         18
       )} DAI.`
     );
