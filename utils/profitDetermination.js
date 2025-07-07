@@ -8,7 +8,7 @@
 // • CLI helper (node utils/profitDetermination.js) for quick testing.
 
 const { ethers } = require("ethers");
-const axios = require("axios");
+const { fetchEthDaiPrice } = require("../server/scripts/priceUtils");
 
 /* ────────────────────────────────────────────────
    Default simulation config (overrides merge later)
@@ -24,53 +24,16 @@ const defaultSimulationConfig = {
 };
 
 /* ────────────────────────────────────────────────
-   Live ETH→DAI rate (Coingecko), falling back to USD if needed
+   Live ETH→DAI rate (Coingecko)
    ────────────────────────────────────────────────*/
 (async () => {
   try {
-    // 1) First attempt: ask for ETH→DAI directly
-    let resDai = await axios.get(
-      "https://api.coingecko.com/api/v3/simple/price",
-      { params: { ids: "ethereum", vs_currencies: "dai" } }
-    );
-
-    if (
-      resDai.data &&
-      resDai.data.ethereum &&
-      typeof resDai.data.ethereum.dai === "number"
-    ) {
-      defaultSimulationConfig.ethToDaiRate = resDai.data.ethereum.dai;
-      console.log(`✔  Loaded ETH/DAI = ${resDai.data.ethereum.dai}`);
-      return;
-    }
-
-    // 2) If the DAI field is missing or not a number, try ETH→USD and treat USD ≈ DAI
-    console.warn(
-      "⚠  Coingecko returned no .dai field; attempting USD instead..."
-    );
-    let resUsd = await axios.get(
-      "https://api.coingecko.com/api/v3/simple/price",
-      { params: { ids: "ethereum", vs_currencies: "usd" } }
-    );
-
-    if (
-      resUsd.data &&
-      resUsd.data.ethereum &&
-      typeof resUsd.data.ethereum.usd === "number"
-    ) {
-      // Since 1 DAI ≈ 1 USD, use USD as our DAI proxy
-      defaultSimulationConfig.ethToDaiRate = resUsd.data.ethereum.usd;
-      console.log(
-        `✔  Loaded ETH/USD = ${resUsd.data.ethereum.usd} (using as ETH/DAI proxy)`
-      );
-      return;
-    }
-
-    // 3) If both fail, throw to hit the fallback branch
-    throw new Error("unexpected Coingecko response for both dai and usd");
+    const rate = await fetchEthDaiPrice();
+    defaultSimulationConfig.ethToDaiRate = rate;
+    console.log(`✔  Loaded ETH/DAI = ${rate}`);
   } catch (err) {
     console.warn(
-      "⚠  Could not fetch ETH/DAI (or USD); using fallback 2000:",
+      "⚠  Could not fetch ETH/DAI; using fallback 2000:",
       err.message
     );
   }
