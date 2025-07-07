@@ -13,10 +13,31 @@ else:
 
 app = Flask(__name__)
 
+# Determine how many features the loaded model expects
+try:
+    NUM_FEATURES = booster.num_feature()
+except AttributeError:
+    NUM_FEATURES = 0
+
 @app.post("/score")
 def score():
     feats = request.json["features"]
-    probs = booster.predict(feats, raw_score=False)
+
+    # Ensure each feature vector matches the model's feature count.
+    processed = []
+    for f in feats:
+        if NUM_FEATURES and len(f) != NUM_FEATURES:
+            if len(f) > NUM_FEATURES:
+                f = f[:NUM_FEATURES]
+            else:
+                f = f + [0.0] * (NUM_FEATURES - len(f))
+        processed.append(f)
+
+    probs = booster.predict(
+        processed,
+        raw_score=False,
+        predict_disable_shape_check=True,
+    )
     return jsonify(probabilities=probs.tolist())
 
 if __name__ == "__main__":

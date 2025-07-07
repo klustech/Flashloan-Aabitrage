@@ -53672,3 +53672,84 @@
 [2025-07-07T10:13:26.330Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
 [2025-07-07T10:13:26.330Z] [INFO] [ethereum] Subscribing to 0 pools for reserve updates.
 [2025-07-07T10:13:26.331Z] [INFO] Reusing cached slippage: 73 bips
+[2025-07-07T10:20:38.851Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-07T10:20:39.546Z] [INFO] [ethereum] Current gas price: 1.124307299 Gwei.
+[2025-07-07T10:20:48.974Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-07T10:20:48.976Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-07T10:20:48.977Z] [INFO] [ethereum] Subscribing to 0 pools for reserve updates.
+[2025-07-07T10:20:49.245Z] [INFO] Dynamic Slippage determined: 73 bips
+[2025-07-07T10:20:49.935Z] [INFO] [ethereum] Aave available liquidity for DAI: 1185179776.635959200157917603
+[2025-07-07T10:20:49.936Z] [INFO] [ethereum] Optimal borrow amount for DAI: 100.0
+[2025-07-07T10:20:49.939Z] [INFO] Filtered 1152 routes down to 0 by Z-score threshold 3.
+[2025-07-07T10:20:49.939Z] [INFO] No routes exceeded Z-score threshold; using all 1152 as candidates.
+[2025-07-07T10:20:49.954Z] [WARN] ML scoring error: Request failed with status code 500. Proceeding without ML ranking.
+[2025-07-07T10:20:49.955Z] [INFO] After ML scoring, retaining top 50 routes for simulation.
+[2025-07-07T10:21:08.389Z] [WARN] Parallel simulation encountered errors but finished all 50 routes.
+[2025-07-07T10:21:08.390Z] [INFO] Simulation took 18435 ms.
+[2025-07-07T10:21:08.391Z] [INFO] No route yielded positive output after simulation.
+[2025-07-07T10:21:08.391Z] [INFO] [ethereum] No profitable route found after simulation.
+[2025-07-07T10:21:18.392Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-07T10:21:18.898Z] [INFO] [ethereum] Current gas price: 1.094861429 Gwei.
+[2025-07-07T10:21:19.917Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-07T10:21:19.917Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-07T10:21:19.917Z] [INFO] [ethereum] Subscribing to 0 pools for reserve updates.
+[2025-07-07T10:21:19.918Z] [INFO] Reusing cached slippage: 73 bips
+[2025-07-07T10:21:20.345Z] [INFO] [ethereum] Aave available liquidity for DAI: 1185179776.635959200157917603
+[2025-07-07T10:21:20.346Z] [INFO] [ethereum] Optimal borrow amount for DAI: 100.0
+[2025-07-07T10:21:20.347Z] [INFO] Filtered 1152 routes down to 0 by Z-score threshold 3.
+[2025-07-07T10:21:20.347Z] [INFO] No routes exceeded Z-score threshold; using all 1152 as candidates.
+[2025-07-07T10:21:20.370Z] [WARN] ML scoring error: Request failed with status code 500. Proceeding without ML ranking.
+[2025-07-07T10:21:20.372Z] [INFO] After ML scoring, retaining top 50 routes for simulation.
+[2025-07-07T10:21:39.804Z] [WARN] Parallel simulation encountered errors but finished all 50 routes.
+[2025-07-07T10:21:39.804Z] [INFO] Simulation took 19432 ms.
+[2025-07-07T10:21:39.804Z] [INFO] No route yielded positive output after simulation.
+[2025-07-07T10:21:39.804Z] [INFO] [ethereum] No profitable route found after simulation.
+[2025-07-07T10:21:49.806Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-07T10:21:50.290Z] [INFO] [ethereum] Current gas price: 1.041692601 Gwei.
+[2025-07-07T10:21:51.290Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-07T10:21:51.292Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-07T10:21:51.292Z] [INFO] [ethereum] Subscribing to 0 pools for reserve updates.
+[2025-07-07T10:21:51.540Z] [INFO] Dynamic Slippage determined: 73 bips
+[2025-07-07T10:21:51.943Z] [INFO] [ethereum] Aave available liquidity for DAI: 1185179776.635959200157917603
+[2025-07-07T10:21:51.944Z] [INFO] [ethereum] Optimal borrow amount for DAI: 100.0
+[2025-07-07T10:21:51.944Z] [INFO] Filtered 1152 routes down to 0 by Z-score threshold 3.
+[2025-07-07T10:21:51.944Z] [INFO] No routes exceeded Z-score threshold; using all 1152 as candidates.
+[2025-07-07T10:21:51.960Z] [INFO] ML scoring assigned probabilities to 1152 routes.
+[2025-07-07T10:21:51.961Z] [INFO] After ML scoring, retaining top 50 routes for simulation.
+[2025-07-07T10:22:12.130Z] [WARN] Parallel simulation encountered errors but finished all 50 routes.
+[2025-07-07T10:22:12.130Z] [INFO] Simulation took 20168 ms.
+[2025-07-07T10:22:12.132Z] [INFO] No route yielded positive output after simulation.
+[2025-07-07T10:22:12.132Z] [INFO] [ethereum] No profitable route found after simulation.
+[2025-07-07T10:22:22.134Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-07T10:22:22.620Z] [INFO] [ethereum] Current gas price: 1.085752339 Gwei.
+[2025-07-07T10:22:23.234Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-07T10:22:23.235Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-07T10:22:23.236Z] [INFO] [ethereum] Subscribing to 0 pools for reserve updates.
+[2025-07-07T10:22:23.236Z] [INFO] Reusing cached slippage: 73 bips
+[2025-07-07T10:22:23.649Z] [INFO] [ethereum] Aave available liquidity for DAI: 1185179776.635959200157917603
+[2025-07-07T10:22:23.650Z] [INFO] [ethereum] Optimal borrow amount for DAI: 100.0
+[2025-07-07T10:22:23.651Z] [INFO] Filtered 1152 routes down to 0 by Z-score threshold 3.
+[2025-07-07T10:22:23.651Z] [INFO] No routes exceeded Z-score threshold; using all 1152 as candidates.
+[2025-07-07T10:22:23.667Z] [INFO] ML scoring assigned probabilities to 1152 routes.
+[2025-07-07T10:22:23.668Z] [INFO] After ML scoring, retaining top 50 routes for simulation.
+[2025-07-07T10:22:45.482Z] [WARN] Parallel simulation encountered errors but finished all 50 routes.
+[2025-07-07T10:22:45.482Z] [INFO] Simulation took 21814 ms.
+[2025-07-07T10:22:45.482Z] [INFO] No route yielded positive output after simulation.
+[2025-07-07T10:22:45.482Z] [INFO] [ethereum] No profitable route found after simulation.
+[2025-07-07T10:22:55.484Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-07T10:22:55.991Z] [INFO] [ethereum] Current gas price: 1.067485449 Gwei.
+[2025-07-07T10:22:56.558Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-07T10:22:56.559Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-07T10:22:56.559Z] [INFO] [ethereum] Subscribing to 0 pools for reserve updates.
+[2025-07-07T10:22:56.986Z] [INFO] Dynamic Slippage determined: 73 bips
+[2025-07-07T10:22:57.428Z] [INFO] [ethereum] Aave available liquidity for DAI: 1185179776.635959200157917603
+[2025-07-07T10:22:57.429Z] [INFO] [ethereum] Optimal borrow amount for DAI: 100.0
+[2025-07-07T10:22:57.430Z] [INFO] Filtered 1152 routes down to 0 by Z-score threshold 3.
+[2025-07-07T10:22:57.430Z] [INFO] No routes exceeded Z-score threshold; using all 1152 as candidates.
+[2025-07-07T10:22:57.443Z] [INFO] ML scoring assigned probabilities to 1152 routes.
+[2025-07-07T10:22:57.445Z] [INFO] After ML scoring, retaining top 50 routes for simulation.
+[2025-07-07T10:23:14.145Z] [WARN] Parallel simulation encountered errors but finished all 50 routes.
+[2025-07-07T10:23:14.146Z] [INFO] Simulation took 16701 ms.
+[2025-07-07T10:23:14.146Z] [INFO] No route yielded positive output after simulation.
+[2025-07-07T10:23:14.146Z] [INFO] [ethereum] No profitable route found after simulation.
+[2025-07-07T10:23:14.147Z] [ERROR] [ethereum] Failed to pause contract: arbContract.pause is not a function
