@@ -14,9 +14,13 @@ async function runBot() {
   while (true) {
     try {
       const result = await simulateAndExecuteArb(true);
-      console.log(
-        `🔄  Cycle complete: ${result ? "Executed tx" : "No action"}`
-      );
+      if (result.executed) {
+        console.log(
+          `✅ Executed with profit ${result.estimatedProfitInDai.toString()} wei`
+        );
+      } else {
+        console.log("🔄  Cycle complete: No action");
+      }
     } catch (err) {
       console.error("❌  Bot error:", err.message || err);
     }

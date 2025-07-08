@@ -302,23 +302,23 @@ app.post("/api/trigger-arbitrage", async (req, res) => {
     const startTime = Date.now();
     arbAttempts.inc();
 
-    const success = await simulateAndExecuteArb(useFlashbots);
+    const result = await simulateAndExecuteArb(useFlashbots);
     const elapsed = (Date.now() - startTime) / 1000;
     simulationHistogram.observe(elapsed);
     avgLatency.set(elapsed * 1000);
 
-    if (success) {
+    if (result.executed) {
       arbSuccess.inc();
       // Assume simulateAndExecuteArb returns an object with estimatedProfitInDai
-      if (success.estimatedProfitInDai) {
-        avgProfit.set(parseFloat(success.estimatedProfitInDai.toString()));
+      if (result.estimatedProfitInDai) {
+        avgProfit.set(parseFloat(result.estimatedProfitInDai.toString()));
       }
     } else {
       arbFailure.labels("no_opportunity").inc();
     }
 
     res.json(
-      success
+      result.executed
         ? { status: "executed", message: "Arbitrage executed" }
         : { status: "noop", message: "No opportunity" }
     );
@@ -388,15 +388,15 @@ cron.schedule("* * * * *", async () => {
     const startTime = Date.now();
     arbAttempts.inc();
 
-    const success = await simulateAndExecuteArb(botSettings.flashbotsDefault);
+    const result = await simulateAndExecuteArb(botSettings.flashbotsDefault);
     const elapsed = (Date.now() - startTime) / 1000;
     simulationHistogram.observe(elapsed);
     avgLatency.set(elapsed * 1000);
 
-    if (success) {
+    if (result.executed) {
       arbSuccess.inc();
-      if (success.estimatedProfitInDai) {
-        avgProfit.set(parseFloat(success.estimatedProfitInDai.toString()));
+      if (result.estimatedProfitInDai) {
+        avgProfit.set(parseFloat(result.estimatedProfitInDai.toString()));
       }
       logger.info("Scheduler: executed arb");
     } else {

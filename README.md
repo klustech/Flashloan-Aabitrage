@@ -174,6 +174,14 @@ offline pool list. The script reads `OFFLINE_POOLS_FILE` (defaults to
 npm run update-dataset
 ```
 
+## Reinforcement Learning Slippage Agent
+
+The bot now features a lightweight RL module that tunes slippage tolerance
+during live trading. The agent treats different slippage offsets as actions and
+updates their value estimates based on realized profits. A JSON file persists
+the learned Q-values between sessions. You can tweak exploration and learning
+rates via the `RL_EPSILON` and `RL_ALPHA` environment variables.
+
 ## AI Trading Bot
 
 The repository includes `scripts/ai_trading_bot.js`, an example implementation of a

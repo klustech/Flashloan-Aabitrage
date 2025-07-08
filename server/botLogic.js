@@ -24,6 +24,7 @@ const {
 const { Worker } = require("worker_threads");
 const stats = require("simple-statistics");
 const client = require("prom-client");
+const slippageAgent = require("./rl/slippageAgent");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Reintroduced: CoinGecko Caching & Dynamic Slippage (exactly from original)
@@ -658,6 +659,9 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
     wallet
   );
 
+  let currentSlippage = SLIPPAGE_DEFAULT_INT;
+  let reward = -1;
+
   logger.info(`[${chain}] === Arbitrage Cycle Start ===`);
   arbAttempts.inc();
 
@@ -674,7 +678,8 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
   } catch (err) {
     logger.warn(`[${chain}] getGasPrice() error: ${err.message}`);
     arbFailure.labels("gasFetchError").inc();
-    return false;
+    slippageAgent.update(reward);
+    return { executed: false, estimatedProfitInDai: BigNumber.from(0) };
   }
   if (gasPrice.gt(GAS_CEILING_BN)) {
     logger.info(
@@ -687,7 +692,8 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
       )} Gwei—skipping cycle.`
     );
     arbFailure.labels("gasAboveCeiling").inc();
-    return false;
+    slippageAgent.update(reward);
+    return { executed: false, estimatedProfitInDai: BigNumber.from(0) };
   }
 
   // 2. Build dynamic routes
@@ -697,7 +703,8 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
   );
   if (!ROUTES_TO_CHECK.length) {
     arbFailure.labels("noRoutes").inc();
-    return false;
+    slippageAgent.update(reward);
+    return { executed: false, estimatedProfitInDai: BigNumber.from(0) };
   }
 
   // 3. Ensure reserveCache is up to date
@@ -729,18 +736,24 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
   // 4. Get dynamic slippage
   let slipBips;
   try {
-    slipBips = await getDynamicSlippage();
+    const baseSlip = await getDynamicSlippage();
+    slipBips = slippageAgent.select(baseSlip);
+    logger.info(
+      `[${chain}] RL-adjusted slippage: ${slipBips} bips (base ${baseSlip}).`
+    );
   } catch {
-    slipBips = SLIPPAGE_DEFAULT_INT;
+    slipBips = slippageAgent.select(SLIPPAGE_DEFAULT_INT);
     logger.warn(`[${chain}] Using default slippage: ${slipBips} bips.`);
   }
+  currentSlippage = slipBips;
 
   // 5. Determine borrow amount
   const borrowDAI = await getOptimalBorrowAmount("DAI", chain);
   if (borrowDAI.isZero()) {
     logger.info(`[${chain}] No available DAI liquidity to borrow—skipping.`);
     arbFailure.labels("noLiquidity").inc();
-    return false;
+    slippageAgent.update(reward);
+    return { executed: false, estimatedProfitInDai: BigNumber.from(0) };
   }
 
   // 6. Select best route via simulation
@@ -764,7 +777,8 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
         logger.error(`[${chain}] Failed to pause contract: ${err.message}`);
       }
     }
-    return false;
+    slippageAgent.update(reward);
+    return { executed: false, estimatedProfitInDai: BigNumber.from(0) };
   }
   logger.info(
     `[${chain}] Selected best route id=${
@@ -792,7 +806,7 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
       `[${chain}] Not profitable after flashloan premium (threshold ${MIN_PROFIT_DAI}).`
     );
     arbFailure.labels("notProfitableAfterPremium").inc();
-    return false;
+    return { executed: false, estimatedProfitInDai: BigNumber.from(0) };
   }
 
   // 8. Re-fetch fresh reserves for bestRoute
@@ -816,7 +830,8 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
   } catch (err) {
     logger.error(`[${chain}] swapDataBuilder error: ${err.message}`);
     arbFailure.labels("swapDataFail").inc();
-    return false;
+    slippageAgent.update(reward);
+    return { executed: false, estimatedProfitInDai: BigNumber.from(0) };
   }
 
   // 10. Encode SwapData and estimate gas
@@ -830,7 +845,8 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
   } catch (err) {
     logger.error(`[${chain}] Failed to encode SwapData: ${err.message}`);
     arbFailure.labels("calldataEncodeFail").inc();
-    return false;
+    slippageAgent.update(reward);
+    return { executed: false, estimatedProfitInDai: BigNumber.from(0) };
   }
 
   let estimateGas;
@@ -850,7 +866,8 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
       `[${chain}] estimateGas.executeOperation() failed: ${err.message}`
     );
     arbFailure.labels("gasEstimateFail").inc();
-    return false;
+    slippageAgent.update(reward);
+    return { executed: false, estimatedProfitInDai: BigNumber.from(0) };
   }
 
   // 11. Convert gas cost to DAI
@@ -871,7 +888,8 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
   } catch (err) {
     logger.error(`[${chain}] Cannot convert gasCost ETH→DAI: ${err.message}`);
     arbFailure.labels("gasConvertFail").inc();
-    return false;
+    slippageAgent.update(reward);
+    return { executed: false, estimatedProfitInDai: BigNumber.from(0) };
   }
 
   const netDAI = potentialProfitDAI.sub(estCostDAI);
@@ -892,7 +910,8 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
       )} DAI.`
     );
     arbFailure.labels("netBelowMinProfit").inc();
-    return false;
+    slippageAgent.update(reward);
+    return { executed: false, estimatedProfitInDai: BigNumber.from(0) };
   }
   avgProfit.set(parseFloat(ethers.utils.formatUnits(netDAI, 18)));
 
@@ -1035,7 +1054,8 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
           status: "flashbots",
         });
         logger.info(`[${chain}] Trade recorded as flashbots.`);
-        return true;
+        reward = parseFloat(ethers.utils.formatUnits(netDAI, 18));
+        return { executed: true, estimatedProfitInDai: netDAI };
       } else {
         logger.warn(
           `[${chain}] Flashbots bundles failed—falling back to public TX.`
@@ -1067,27 +1087,35 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
       status: "public",
     });
     logger.info(`[${chain}] Trade recorded as public.`);
-    return true;
+    reward = parseFloat(ethers.utils.formatUnits(netDAI, 18));
+    slippageAgent.update(reward);
+    return { executed: true, estimatedProfitInDai: netDAI };
   } catch (err) {
     logger.error(`[${chain}] Public TX failed: ${err.message}`);
     arbFailure.labels("publicTxFail").inc();
-    return false;
+    reward = -1;
+    slippageAgent.update(reward);
+    return { executed: false, estimatedProfitInDai: BigNumber.from(0) };
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Coordinator: Run simulateAndExecuteArbChain on Each Configured Chain
 // ─────────────────────────────────────────────────────────────────────────────
-async function simulateAndExecuteArb() {
+async function simulateAndExecuteArb(useFlashbots = true) {
   const chains = ["ethereum"];
+  let outcome = { executed: false, estimatedProfitInDai: BigNumber.from(0) };
 
   for (const chain of chains) {
     try {
-      await simulateAndExecuteArbChain(chain, true);
+      const res = await simulateAndExecuteArbChain(chain, useFlashbots);
+      if (res.executed) outcome = res;
     } catch (err) {
       logger.error(`[${chain}] Fatal error in cycle: ${err.message}`);
     }
   }
+
+  return outcome;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
