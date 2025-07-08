@@ -50,3 +50,9 @@ export const stopBot = async () => {
   const response = await API.post("/api/stop-bot");
   return response.data;
 };
+
+// Fetch metrics for dashboard
+export const getMetrics = async () => {
+  const response = await API.get("/api/metrics-json");
+  return response.data;
+};

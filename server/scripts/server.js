@@ -187,6 +187,18 @@ app.get("/metrics", async (_req, res) => {
   res.send(await client.register.metrics());
 });
 
+// GET /api/metrics-json
+// Return metrics in JSON form for the front-end
+app.get("/api/metrics-json", async (_req, res) => {
+  try {
+    const data = await client.register.getMetricsAsJSON();
+    res.json(data);
+  } catch (err) {
+    logger.error(`metrics-json error: ${err.message}`);
+    res.status(500).json({ error: "failed to fetch metrics" });
+  }
+});
+
 // GET /api/market-data
 // Returns uniswapPrice and sushiPrice for 1 DAI → WETH,
 // wraps getAmountsOut calls in try/catch to avoid errors.

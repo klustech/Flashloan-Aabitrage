@@ -19,7 +19,11 @@
     "train": "python3 ml/train_model.py",
     "ml:serve": "python3 ml/ml_scorer.py",
     "ai-bot": "node scripts/ai_trading_bot.js",
-    "update-dataset": "node scripts/updateDataset.js"
+    "update-dataset": "node scripts/updateDataset.js",
+    "collect-data": "node scripts/fetchPoolData.js",
+    "slither": "sh scripts/slither.sh",
+    "mythx": "sh scripts/mythx.sh",
+    "fuzz": "forge test -vvv"
   },
   "keywords": [],
   "author": "",

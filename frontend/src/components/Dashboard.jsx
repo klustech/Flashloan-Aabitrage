@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Grid,
@@ -10,8 +10,34 @@ import {
   TableCell,
   TableBody,
 } from "@mui/material";
+import { getMetrics } from "../services/api";
 
 const Dashboard = () => {
+  const [metrics, setMetrics] = useState(null);
+
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      try {
+        const data = await getMetrics();
+        setMetrics(data);
+      } catch (e) {
+        console.error("metrics fetch error", e);
+      }
+    };
+    fetchMetrics();
+    const id = setInterval(fetchMetrics, 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  const metricMap = {};
+  if (Array.isArray(metrics)) {
+    metrics.forEach((m) => {
+      if (m.values && m.values.length) {
+        metricMap[m.name] = m.values[0].value;
+      }
+    });
+  }
+
   return (
     <Box sx={{ maxWidth: 1200, mx: "auto", p: 2 }}>
       <Typography variant="h4" color="primary" gutterBottom>
@@ -23,15 +49,20 @@ const Dashboard = () => {
             <Typography variant="h6" color="primary">
               Total Profit
             </Typography>
-            <Typography variant="h4">$0.00</Typography>
+            <Typography variant="h4">
+              {metricMap["avg_profit_dai"] ?
+                metricMap["avg_profit_dai"].toFixed(2) : "-"}
+            </Typography>
           </Paper>
         </Grid>
         <Grid item xs={12} md={4}>
           <Paper sx={{ p: 2 }}>
             <Typography variant="h6" color="primary">
-              Open Positions
+              Arb Attempts
             </Typography>
-            <Typography variant="h4">0</Typography>
+            <Typography variant="h4">
+              {metricMap["arb_attempts_total"] ?? 0}
+            </Typography>
           </Paper>
         </Grid>
         <Grid item xs={12} md={4}>
@@ -39,7 +70,11 @@ const Dashboard = () => {
             <Typography variant="h6" color="primary">
               Execution Time
             </Typography>
-            <Typography variant="h4">0 ms</Typography>
+            <Typography variant="h4">
+              {metricMap["avg_latency_ms"]
+                ? `${metricMap["avg_latency_ms"].toFixed(0)} ms`
+                : "-"}
+            </Typography>
           </Paper>
         </Grid>
       </Grid>

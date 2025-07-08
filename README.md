@@ -172,6 +172,14 @@ Use `npm run update-dataset` to regenerate `ml/ml_training_data.csv` from the
 offline pool list. The script reads `OFFLINE_POOLS_FILE` (defaults to
 `docs/offline_pools_sample.json`) and writes a CSV for model training.
 
+To pull a larger and more recent pool set directly from Uniswap's subgraph run:
+
+```bash
+npm run collect-data
+```
+
+This writes `docs/latest_pools.json` which can be fed into the dataset builder.
+
 ```bash
 npm run update-dataset
 ```
@@ -209,6 +217,12 @@ npm run ai-bot
 ```
 
 Always test with paper trading before risking real funds.
+
+### Monitoring
+
+Prometheus metrics are exposed at `/metrics` and in JSON form at `/api/metrics-json`.
+Example Grafana dashboards can track `rl_epsilon`, `arb_attempts_total` and trade
+profit over time.
 
 ## Final Recommendations
 
