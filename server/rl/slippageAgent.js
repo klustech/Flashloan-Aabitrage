@@ -38,8 +38,7 @@ class SlippageAgent {
   select(baseBips) {
     if (this.continuous) {
       if (Math.random() < this.epsilon || !Object.keys(this.q).length) {
-        this.lastAction =
-          (Math.random() * 2 - 1) * this.maxOffset;
+        this.lastAction = (Math.random() * 2 - 1) * this.maxOffset;
       } else {
         const bestKey = Object.keys(this.q).reduce((b, k) =>
           this.q[k].value > this.q[b].value ? k : b

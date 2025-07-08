@@ -10,6 +10,7 @@
 
 const { getEnv, loadRequired } = require("../utils/config");
 const fs = require("fs");
+const path = require("path");
 const axios = require("axios");
 const winston = require("winston");
 const { ethers, BigNumber } = require("ethers");

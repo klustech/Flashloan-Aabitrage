@@ -3,10 +3,10 @@ version=v4
 num_class=1
 num_tree_per_iteration=1
 label_index=0
-max_feature_idx=3
+max_feature_idx=5
 objective=binary sigmoid:1
-feature_names=route_length liquidity_usd z_score profit_usd
-feature_infos=none none none none
+feature_names=route_length liquidity_usd log_liquidity z_score profit_usd profit_over_liq
+feature_infos=none none none none none none
 tree_sizes=239
 
 Tree=0
@@ -18,7 +18,7 @@ threshold=
 decision_type=
 left_child=
 right_child=
-leaf_value=0.69314718055994518
+leaf_value=0.40546510810816422
 leaf_weight=
 leaf_count=
 internal_value=
@@ -45,7 +45,7 @@ parameters:
 [learning_rate: 0.05]
 [num_leaves: 31]
 [num_threads: 0]
-[seed: 0]
+[seed: 42]
 [deterministic: 0]
 [force_col_wise: 0]
 [force_row_wise: 0]
@@ -57,12 +57,12 @@ parameters:
 [pos_bagging_fraction: 1]
 [neg_bagging_fraction: 1]
 [bagging_freq: 0]
-[bagging_seed: 3]
+[bagging_seed: 400]
 [feature_fraction: 1]
 [feature_fraction_bynode: 1]
-[feature_fraction_seed: 2]
+[feature_fraction_seed: 30056]
 [extra_trees: 0]
-[extra_seed: 6]
+[extra_seed: 12879]
 [early_stopping_round: 0]
 [first_metric_only: 0]
 [max_delta_step: 0]
@@ -75,7 +75,7 @@ parameters:
 [skip_drop: 0.5]
 [xgboost_dart_mode: 0]
 [uniform_drop: 0]
-[drop_seed: 4]
+[drop_seed: 17869]
 [top_rate: 0.2]
 [other_rate: 0.1]
 [min_data_per_group: 100]
@@ -107,7 +107,7 @@ parameters:
 [max_bin_by_feature: ]
 [min_data_in_bin: 3]
 [bin_construct_sample_cnt: 200000]
-[data_random_seed: 1]
+[data_random_seed: 175]
 [is_enable_sparse: 1]
 [enable_bundle: 1]
 [use_missing: 1]
@@ -124,7 +124,7 @@ parameters:
 [forcedbins_filename: ]
 [precise_float_parser: 0]
 [parser_config_file: ]
-[objective_seed: 5]
+[objective_seed: 16083]
 [num_class: 1]
 [is_unbalance: 0]
 [scale_pos_weight: 1]
