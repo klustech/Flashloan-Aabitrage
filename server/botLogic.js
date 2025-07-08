@@ -161,7 +161,6 @@ const { insertTrade, query } = require("./dbClient");
 const { sendSlackAlert } = require("./scripts/slackUtils");
 const { buildStepsFromHops } = require("../utils/buildStepsFromHops");
 const safeAsync = require("../utils/safeAsync");
-const safeFetchReserves = safeAsync(fetchMulticallReservesForRoute, logger);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Prometheus Metrics Setup
@@ -221,6 +220,9 @@ const logger = winston.createLogger({
     new winston.transports.File({ filename: "bot.log" }),
   ],
 });
+
+// Helper wrapped with safeAsync using the configured logger
+const safeFetchReserves = safeAsync(fetchMulticallReservesForRoute, logger);
 
 process.on("unhandledRejection", (reason) => {
   logger.error(

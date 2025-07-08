@@ -53753,3 +53753,35 @@
 [2025-07-07T10:23:14.146Z] [INFO] No route yielded positive output after simulation.
 [2025-07-07T10:23:14.146Z] [INFO] [ethereum] No profitable route found after simulation.
 [2025-07-07T10:23:14.147Z] [ERROR] [ethereum] Failed to pause contract: arbContract.pause is not a function
+[2025-07-08T15:02:12.475Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-08T15:02:12.478Z] [WARN] Failed to compute daily PnL: query is not a function
+[2025-07-08T15:02:13.258Z] [INFO] [ethereum] Current gas price: 1.66282694 Gwei.
+[2025-07-08T15:02:36.672Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-08T15:02:36.673Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-08T15:02:36.673Z] [INFO] [ethereum] Subscribing to 0 pools for reserve updates.
+[2025-07-08T15:02:36.952Z] [INFO] Dynamic Slippage determined: 62 bips
+[2025-07-08T15:02:36.953Z] [INFO] [ethereum] RL-adjusted slippage: 42 bips (base 62).
+[2025-07-08T15:02:37.593Z] [INFO] [ethereum] Aave available liquidity for DAI: 1185216539.581325647781913652
+[2025-07-08T15:02:37.594Z] [INFO] [ethereum] Optimal borrow amount for DAI: 100.0
+[2025-07-08T15:02:37.596Z] [INFO] Filtered 1152 routes down to 0 by Z-score threshold 3.
+[2025-07-08T15:02:37.596Z] [INFO] No routes exceeded Z-score threshold; using all 1152 as candidates.
+[2025-07-08T15:02:37.611Z] [WARN] ML scoring error: connect ECONNREFUSED 127.0.0.1:4000. Proceeding without ML ranking.
+[2025-07-08T15:02:37.611Z] [INFO] After ML scoring, retaining top 50 routes for simulation.
+[2025-07-08T15:02:59.400Z] [WARN] Parallel simulation encountered errors but finished all 50 routes.
+[2025-07-08T15:02:59.400Z] [INFO] Simulation took 21788 ms.
+[2025-07-08T15:02:59.400Z] [INFO] No route yielded positive output after simulation.
+[2025-07-08T15:02:59.401Z] [INFO] [ethereum] No profitable route found after simulation.
+[2025-07-08T15:04:23.575Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-08T15:04:23.578Z] [WARN] Failed to compute daily PnL: query is not a function
+[2025-07-08T15:04:24.355Z] [INFO] [ethereum] Current gas price: 1.827575218 Gwei.
+[2025-07-08T15:04:25.101Z] [INFO] [ethereum] routeFinder returned 1152 routes (topN=500, minLiq=0).
+[2025-07-08T15:04:25.102Z] [INFO] [ethereum] getAllRoutes returned 1152 routes.
+[2025-07-08T15:04:25.103Z] [INFO] [ethereum] Subscribing to 0 pools for reserve updates.
+[2025-07-08T15:04:25.370Z] [INFO] Dynamic Slippage determined: 62 bips
+[2025-07-08T15:04:25.371Z] [INFO] [ethereum] RL-adjusted slippage: 52 bips (base 62).
+[2025-07-08T15:04:25.875Z] [INFO] [ethereum] Aave available liquidity for DAI: 1185216539.581325647781913652
+[2025-07-08T15:04:25.876Z] [INFO] [ethereum] Optimal borrow amount for DAI: 100.0
+[2025-07-08T15:04:25.881Z] [INFO] Filtered 1152 routes down to 0 by Z-score threshold 3.
+[2025-07-08T15:04:25.881Z] [INFO] No routes exceeded Z-score threshold; using all 1152 as candidates.
+[2025-07-08T15:04:25.990Z] [WARN] ML scoring error: connect ECONNREFUSED 127.0.0.1:4000. Proceeding without ML ranking.
+[2025-07-08T15:04:25.990Z] [INFO] After ML scoring, retaining top 50 routes for simulation.

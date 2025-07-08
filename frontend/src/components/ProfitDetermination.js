@@ -1,7 +1,8 @@
 // src/components/ProfitDetermination.js
 import React, { useState, useEffect } from "react";
 import axios from "../config/axiosConfig";
-import { toast } from "react-toastify";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import "./ProfitDetermination.css";
 
 const ProfitDetermination = () => {
@@ -80,6 +81,7 @@ const ProfitDetermination = () => {
         <button onClick={fetchProfitData} className="refresh-button">
           Refresh Simulation
         </button>
+        <ToastContainer position="bottom-right" />
       </div>
     </div>
   );

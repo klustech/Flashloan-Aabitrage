@@ -50,8 +50,9 @@ const Dashboard = () => {
               Total Profit
             </Typography>
             <Typography variant="h4">
-              {metricMap["avg_profit_dai"] ?
-                metricMap["avg_profit_dai"].toFixed(2) : "-"}
+              {metricMap["avg_profit_dai"]
+                ? metricMap["avg_profit_dai"].toFixed(2)
+                : "-"}
             </Typography>
           </Paper>
         </Grid>
