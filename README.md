@@ -13,6 +13,9 @@ npm ci
 ```
 
 2. Copy `.env.example` to `.env` and fill in the required addresses (router addresses, deployed Arbitrage contracts, etc.). Only Uniswap and SushiSwap routers are needed; the old `ROUTERXYZ` fields have been removed.
+   The project now uses a central config loader (`utils/config.js`) so any process
+   reading environment variables will automatically pull from `.env`.
+   See [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md) for details.
 
 3. Set The Graph API variables if querying via The Graph gateway. Provide your API key and the subgraph IDs for each network you plan to query. These IDs can be obtained from [The Graph explorer](https://thegraph.com/explorer/). If an ID is omitted, the scanner defaults to the legacy hosted-service URL:
 
@@ -171,6 +174,9 @@ writes the resulting `lightgbm_model.txt`. The inference microservice
 Use `npm run update-dataset` to regenerate `ml/ml_training_data.csv` from the
 offline pool list. The script reads `OFFLINE_POOLS_FILE` (defaults to
 `docs/offline_pools_sample.json`) and writes a CSV for model training.
+Additional features such as pool fee tier, whether the pair contains WETH or a
+stablecoin, and the originating DEX are now included automatically for richer
+model inputs.
 
 To pull a larger and more recent pool set directly from Uniswap's subgraph run:
 
@@ -191,7 +197,8 @@ during live trading. The agent treats different slippage offsets as actions and
 updates their value estimates based on realized profits. A JSON file persists
 the learned Q-values between sessions. You can tweak exploration and learning
 rates via the `RL_EPSILON_START`, `RL_EPSILON_MIN`, `RL_EPSILON_DECAY` and
-`RL_ALPHA` environment variables.
+`RL_ALPHA` environment variables. Set `RL_CONTINUOUS=true` to enable a
+continuous action space where offsets are sampled from ±`RL_MAX_OFFSET_BIPS`.
 
 ## AI Trading Bot
 
@@ -237,6 +244,8 @@ and maintainability of the arbitrage bot:
   up-to-date pool information for real-time route discovery.
 - **Harden Security**: schedule regular audits, keep monitoring dashboards
   current and enforce strict operational controls.
+- **Audit Scripts**: run `npm run slither` and `npm run mythx` to generate
+  security reports for the smart contracts.
 - **Refactor as Needed**: as the codebase grows, break out components and add
   documentation to keep the project approachable.
 

@@ -23,6 +23,7 @@
     "collect-data": "node scripts/fetchPoolData.js",
     "slither": "sh scripts/slither.sh",
     "mythx": "sh scripts/mythx.sh",
+    "audit": "npm run slither && npm run mythx",
     "fuzz": "forge test -vvv"
   },
   "keywords": [],

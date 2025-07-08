@@ -8,15 +8,10 @@
  * Added comprehensive logger.info statements at each major step.
  */
 
-const path = require("path");
-require("dotenv").config({
-  path: path.resolve(__dirname, "../.env"),
-  override: true,
-});
+const { getEnv, loadRequired } = require("../utils/config");
 const fs = require("fs");
 const axios = require("axios");
 const winston = require("winston");
-const { validateEnv } = require("../utils/validateEnv");
 const { ethers, BigNumber } = require("ethers");
 const {
   FlashbotsBundleProvider,
@@ -284,9 +279,7 @@ const {
   TOKENS_UNI,
   UNISWAP_ROUTER_ADDRESS,
   SUSHISWAP_ROUTER_ADDRESS,
-} = process.env;
-
-validateEnv([
+} = loadRequired([
   "PRIVATE_KEY",
   "ETH_ARB_CONTRACT",
   "AAVE_LENDING_POOL_ADDRESS_PROVIDER",

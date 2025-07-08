@@ -17,6 +17,10 @@ describe("slippageAgent", function () {
 
   it("exposes additional actions", function () {
     const agent = require("../../server/rl/slippageAgent");
-    expect(agent.actions).to.include.members([-10, 10]);
+    if (agent.continuous) {
+      expect(agent.actions.length).to.equal(0);
+    } else {
+      expect(agent.actions).to.include.members([-10, 10]);
+    }
   });
 });

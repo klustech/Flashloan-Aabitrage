@@ -14,20 +14,11 @@ const cron = require("node-cron");
 const fs = require("fs");
 const winston = require("winston");
 const { ethers } = require("ethers");
-const { validateEnv } = require("../../utils/validateEnv");
+const { getEnv, loadRequired } = require("../../utils/config");
 // Use prom-client if available; otherwise fall back to a no-op stub
 const client = require("../metrics");
 
-try {
-  require("dotenv").config({
-    path: path.resolve(__dirname, "../../.env"),
-    override: true,
-  });
-} catch (err) {
-  // Allow running without dotenv installed
-}
-
-validateEnv([
+loadRequired([
   "MAINNET_RPC_URL",
   "UNISWAP_ROUTER_ADDRESS",
   "SUSHISWAP_ROUTER_ADDRESS",

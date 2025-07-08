@@ -12,6 +12,7 @@ def main():
     # additional feature engineering
     df["log_liquidity"] = (df["liquidity_usd"] + 1).apply(np.log)
     df["profit_over_liq"] = df["profit_usd"] / df["liquidity_usd"].replace(0, 1)
+    df["fee_pct"] = df["fee_bips"] / 10_000.0
 
     features = df[
         [
@@ -21,6 +22,10 @@ def main():
             "z_score",
             "profit_usd",
             "profit_over_liq",
+            "fee_pct",
+            "has_weth",
+            "has_stable",
+            "dex_uniswap",
         ]
     ]
     labels = df["is_profitable"]
