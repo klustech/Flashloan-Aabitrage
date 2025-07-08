@@ -160,6 +160,8 @@ const { insertTrade, query } = require("./dbClient");
 // ─────────────────────────────────────────────────────────────────────────────
 const { sendSlackAlert } = require("./scripts/slackUtils");
 const { buildStepsFromHops } = require("../utils/buildStepsFromHops");
+const safeAsync = require("../utils/safeAsync");
+const safeFetchReserves = safeAsync(fetchMulticallReservesForRoute, logger);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Prometheus Metrics Setup
@@ -257,7 +259,7 @@ const {
   TIP_MULTIPLIER_DEN,
   ALLOW_LNG_CYCLES,
   CB_NEG_THRESHOLD,
-  DAILY_DRAWDOWN_LIMIT,
+  DAILY_DRAWDOWN_LIMIT_DAI,
   SLACK_WEBHOOK_URL,
   SERVER_PORT,
   PG_USER,
@@ -323,9 +325,9 @@ const BUNDLE_COUNT = FLASHBOTS_BUNDLE_COUNT
   ? parseInt(FLASHBOTS_BUNDLE_COUNT, 10)
   : 3;
 const CB_NEG_THRESH_INT = CB_NEG_THRESHOLD ? parseInt(CB_NEG_THRESHOLD, 10) : 5;
-const DAILY_DD_LIMIT_FLOAT = DAILY_DRAWDOWN_LIMIT
-  ? parseFloat(DAILY_DRAWDOWN_LIMIT)
-  : 0.01;
+const DAILY_DD_LIMIT_DAI = DAILY_DRAWDOWN_LIMIT_DAI
+  ? ethers.utils.parseUnits(DAILY_DRAWDOWN_LIMIT_DAI, 18)
+  : ethers.BigNumber.from(0);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Token & DEX Setup (addresses must be in .env)
@@ -665,6 +667,28 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
   logger.info(`[${chain}] === Arbitrage Cycle Start ===`);
   arbAttempts.inc();
 
+  // Risk management: skip cycle if daily losses exceed limit
+  try {
+    const dailyPnL = await computeDailyPnL();
+    const ddLimit = DAILY_DD_LIMIT_DAI;
+    const pnLStr = dailyPnL.toString();
+    const isNeg = pnLStr.startsWith("-");
+    const absPnL = isNeg ? BigNumber.from(pnLStr.slice(1)) : dailyPnL;
+    if (isNeg && absPnL.gte(ddLimit) && ddLimit.gt(0)) {
+      logger.warn(
+        `[${chain}] Daily drawdown limit reached (${ethers.utils.formatUnits(
+          dailyPnL,
+          18
+        )} < -${ethers.utils.formatUnits(ddLimit, 18)}), skipping cycle.`
+      );
+      arbFailure.labels("drawdownLimit").inc();
+      slippageAgent.update(reward);
+      return { executed: false, estimatedProfitInDai: BigNumber.from(0) };
+    }
+  } catch (err) {
+    logger.warn(`[${chain}] drawdown check failed: ${err.message}`);
+  }
+
   // 1. Check gas price
   let gasPrice;
   try {
@@ -720,14 +744,10 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
       !reserveCache.has(poolAddr) ||
       Date.now() - reserveCache.get(poolAddr).timestamp > 5000
     ) {
-      try {
-        await fetchMulticallReservesForRoute({ poolAddress: poolAddr });
+      const ok = await safeFetchReserves({ poolAddress: poolAddr });
+      if (ok) {
         logger.info(
           `[${chain}] Fetched multicall reserves for pool ${poolAddr}`
-        );
-      } catch {
-        logger.warn(
-          `[${chain}] Failed to fetch multicall reserves for pool ${poolAddr}`
         );
       }
     }
@@ -810,11 +830,9 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
   }
 
   // 8. Re-fetch fresh reserves for bestRoute
-  try {
-    await fetchMulticallReservesForRoute(bestRoute.hops);
+  const freshOk = await safeFetchReserves(bestRoute.hops);
+  if (freshOk) {
     logger.info(`[${chain}] Fetched fresh reserves for best route.`);
-  } catch {
-    logger.warn(`[${chain}] Failed to fetch fresh reserves for best route.`);
   }
 
   // 9. Build SwapData via swapDataBuilder

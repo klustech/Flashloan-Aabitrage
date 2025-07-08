@@ -92,6 +92,8 @@ DYNAMIC_ROUTE_HOPS=5
 # Permit up to 0.5% slippage and detect sub‑$1 opportunities
 SLIPPAGE_BIPS=50
 MIN_PROFIT_DAI=0.1
+# Stop trading if daily losses exceed this amount (in DAI)
+DAILY_DRAWDOWN_LIMIT_DAI=100
 ```
 
 Slippage tolerance adjusts automatically with market volatility. The bot fetches
@@ -180,7 +182,8 @@ The bot now features a lightweight RL module that tunes slippage tolerance
 during live trading. The agent treats different slippage offsets as actions and
 updates their value estimates based on realized profits. A JSON file persists
 the learned Q-values between sessions. You can tweak exploration and learning
-rates via the `RL_EPSILON` and `RL_ALPHA` environment variables.
+rates via the `RL_EPSILON_START`, `RL_EPSILON_MIN`, `RL_EPSILON_DECAY` and
+`RL_ALPHA` environment variables.
 
 ## AI Trading Bot
 
