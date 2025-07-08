@@ -5,8 +5,6 @@ import { toast } from "react-toastify";
 import "./ProfitDetermination.css";
 
 const ProfitDetermination = () => {
-  const API_BASE_URL =
-    process.env.REACT_APP_API_BASE_URL || "http://localhost:5000/api";
   const [profitData, setProfitData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -15,8 +13,8 @@ const ProfitDetermination = () => {
     try {
       setLoading(true);
       setError(null);
-      // Assumes your backend now exposes an endpoint /api/profit-simulation
-      const response = await axios.get(`${API_BASE_URL}/profit-simulation`);
+      // Backend exposes /api/simulate-profit
+      const response = await axios.get("/simulate-profit");
       setProfitData(response.data);
     } catch (err) {
       console.error("Error fetching profit simulation data:", err);
@@ -31,7 +29,7 @@ const ProfitDetermination = () => {
     fetchProfitData();
     const interval = setInterval(fetchProfitData, 300000); // refresh every 5 minutes
     return () => clearInterval(interval);
-  }, [API_BASE_URL]);
+  }, []); // API_BASE_URL is a compile-time constant
 
   if (loading) return <p>Loading profit simulation data...</p>;
   if (error) return <p className="error">{error}</p>;

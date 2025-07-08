@@ -13,6 +13,9 @@ import {
   Grid,
   CircularProgress,
   TextField,
+  Switch,
+  FormControlLabel,
+  Alert,
 } from "@mui/material";
 import { Line } from "react-chartjs-2";
 import "chart.js/auto";
@@ -122,6 +125,18 @@ function Settings({ settings, onSettingsSave, onStart, onStop }) {
   });
   const [saving, setSaving] = useState(false);
 
+  // Sync local state when settings prop changes
+  useEffect(() => {
+    setLocalSettings({
+      flashbotsDefault: settings.flashbotsDefault || false,
+      pollingInterval: settings.pollingInterval || 60,
+      gasPriceCeiling: settings.gasPriceCeiling || 50,
+      slippageBips: settings.slippageBips || 50,
+      minBorrowAmount: settings.minBorrowAmount || 100,
+      simulationInputAmount: settings.simulationInputAmount || 1000000,
+    });
+  }, [settings]);
+
   const handleChange = (e) => {
     if (!e || !e.target) return;
     const { name, value, type, checked } = e.target;
@@ -150,6 +165,22 @@ function Settings({ settings, onSettingsSave, onStart, onStop }) {
       <Typography variant="h5" gutterBottom>
         ⚙️ Bot Settings & Control
       </Typography>
+      <Box sx={{ mb: 2 }}>
+        <Alert severity={settings.botActive ? "success" : "warning"}>
+          Bot status: {settings.botActive ? "Running" : "Stopped"}
+        </Alert>
+      </Box>
+      <FormControlLabel
+        control={
+          <Switch
+            checked={localSettings.flashbotsDefault}
+            onChange={handleChange}
+            name="flashbotsDefault"
+            color="primary"
+          />
+        }
+        label="Use Flashbots by default"
+      />
       <Grid container spacing={2} sx={{ mb: 2 }}>
         <Grid item xs={12} sm={6}>
           <TextField
