@@ -53854,3 +53854,13 @@
 [2025-07-10T11:10:18.958Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
 [2025-07-10T11:10:28.282Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
 [2025-07-10T11:10:38.285Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
+[2025-07-10T11:36:07.098Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-10T11:36:07.107Z] [WARN] Failed to compute daily PnL: query is not a function
+[2025-07-10T11:36:07.839Z] [INFO] [ethereum] Current gas price: 2.178169161 Gwei.
+[2025-07-10T11:36:51.584Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=20, minLiq=100000).
+[2025-07-10T11:36:51.584Z] [INFO] [ethereum] getAllRoutes returned 0 routes.
+[2025-07-10T11:37:01.586Z] [INFO] [ethereum] === Arbitrage Cycle Start ===
+[2025-07-10T11:37:01.587Z] [WARN] Failed to compute daily PnL: query is not a function
+[2025-07-10T11:37:02.013Z] [INFO] [ethereum] Current gas price: 1.95156867 Gwei.
+[2025-07-10T11:37:02.062Z] [INFO] [ethereum] routeFinder returned 0 routes (topN=20, minLiq=100000).
+[2025-07-10T11:37:02.062Z] [INFO] [ethereum] getAllRoutes returned 0 routes.

@@ -291,6 +291,8 @@ const {
   "MAINNET_RPC_URL",
   "TOKENS_DAI",
   "TOKENS_WETH",
+  "UNISWAP_ROUTER_ADDRESS",
+  "SUSHISWAP_ROUTER_ADDRESS",
 ]);
 
 // Validate contract address early to avoid cryptic ethers errors
