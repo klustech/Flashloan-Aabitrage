@@ -8,6 +8,10 @@
  * Added comprehensive logger.info statements at each major step.
  */
 
+require("dotenv").config({
+  path: require("path").resolve(__dirname, "../.env"),
+});
+
 const { getEnv, loadRequired } = require("../utils/config");
 const fs = require("fs");
 const path = require("path");
