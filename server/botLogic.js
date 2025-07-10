@@ -293,6 +293,16 @@ const {
   "TOKENS_WETH",
 ]);
 
+// Validate contract address early to avoid cryptic ethers errors
+let VALID_CONTRACT_ADDRESS;
+try {
+  VALID_CONTRACT_ADDRESS = ethers.utils.getAddress(CONTRACT_ADDRESS);
+} catch (err) {
+  throw new Error(
+    `Invalid CONTRACT_ADDRESS environment variable: ${CONTRACT_ADDRESS}`
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Providers for Ethereum, Arbitrum, Optimism
 // ─────────────────────────────────────────────────────────────────────────────
@@ -314,7 +324,7 @@ const wallets = {
 // Arbitrage contract addresses per chain (must be set in .env)
 // ─────────────────────────────────────────────────────────────────────────────
 const arbContractAddresses = {
-  ethereum: CONTRACT_ADDRESS,
+  ethereum: VALID_CONTRACT_ADDRESS,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
