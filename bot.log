@@ -53825,3 +53825,8 @@
 [2025-07-10T08:08:44.949Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
 [2025-07-10T08:08:54.950Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
 [2025-07-10T08:09:04.951Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
+[2025-07-10T08:44:24.865Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
+[2025-07-10T08:44:34.874Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
+[2025-07-10T09:31:59.793Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
+[2025-07-10T09:32:09.799Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
+[2025-07-10T09:32:19.800Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)

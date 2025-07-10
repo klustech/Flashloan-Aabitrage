@@ -259,9 +259,8 @@ app.get("/api/bot-logs", (_req, res) => {
 // Uses profitDetermination utility for a demo route
 app.get("/api/simulate-profit", async (_req, res) => {
   try {
-    const providerInfura = new ethers.providers.InfuraProvider(
-      "mainnet",
-      process.env.INFURA_API_KEY || "demo"
+    const providerInfura = new ethers.providers.JsonRpcProvider(
+      process.env.MAINNET_RPC_URL
     );
 
     const route = {

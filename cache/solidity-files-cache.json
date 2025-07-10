@@ -2,8 +2,8 @@
   "_format": "hh-sol-cache-2",
   "files": {
     "/home/tboy/flashloan-arbitrage/contracts/ArbitrageFlashloan.sol": {
-      "lastModificationDate": 1748902592315,
-      "contentHash": "bf9e6ea069a71c16233b5bd6c0f96068",
+      "lastModificationDate": 1752136740110,
+      "contentHash": "eb04eed28dce9b5140b8773c6f876ede",
       "sourceName": "contracts/ArbitrageFlashloan.sol",
       "solcConfig": {
         "version": "0.8.20",

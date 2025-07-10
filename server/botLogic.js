@@ -237,7 +237,7 @@ process.on("uncaughtException", (err) => {
 const {
   PRIVATE_KEY,
   MAINNET_RPC_URL,
-  ETH_ARB_CONTRACT,
+  CONTRACT_ADDRESS,
   AAVE_LENDING_POOL_ADDRESS_PROVIDER,
   SLIPPAGE_BIPS,
   SLIPPAGE_DEFAULT_BIPS,
@@ -282,7 +282,7 @@ const {
   SUSHISWAP_ROUTER_ADDRESS,
 } = loadRequired([
   "PRIVATE_KEY",
-  "ETH_ARB_CONTRACT",
+  "CONTRACT_ADDRESS",
   "AAVE_LENDING_POOL_ADDRESS_PROVIDER",
   "MAINNET_RPC_URL",
   "TOKENS_DAI",
@@ -310,7 +310,7 @@ const wallets = {
 // Arbitrage contract addresses per chain (must be set in .env)
 // ─────────────────────────────────────────────────────────────────────────────
 const arbContractAddresses = {
-  ethereum: ETH_ARB_CONTRACT,
+  ethereum: CONTRACT_ADDRESS,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
