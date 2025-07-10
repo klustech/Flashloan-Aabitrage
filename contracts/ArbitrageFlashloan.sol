@@ -243,4 +243,11 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard {
     function renounceOwnership() public pure {
         revert("cannot renounceOwnership");
     }
+
+    /// @notice Transfer control to a new owner
+    /// @param newOwner Address of the new owner
+    function transferOwnership(address newOwner) external onlyOwner {
+        require(newOwner != address(0), "new owner zero");
+        owner = newOwner;
+    }
 }

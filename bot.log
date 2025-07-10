@@ -53817,3 +53817,11 @@
 [2025-07-08T15:09:15.356Z] [INFO] No routes exceeded Z-score threshold; using all 1152 as candidates.
 [2025-07-08T15:09:15.369Z] [INFO] ML scoring assigned probabilities to 1152 routes.
 [2025-07-08T15:09:15.370Z] [INFO] After ML scoring, retaining top 50 routes for simulation.
+[2025-07-08T17:19:12.273Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
+[2025-07-08T17:19:22.283Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
+[2025-07-08T17:19:32.284Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
+[2025-07-10T08:08:24.933Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
+[2025-07-10T08:08:34.947Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
+[2025-07-10T08:08:44.949Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
+[2025-07-10T08:08:54.950Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
+[2025-07-10T08:09:04.951Z] [ERROR] [ethereum] Fatal error in cycle: invalid contract address or ENS name (argument="addressOrName", value=undefined, code=INVALID_ARGUMENT, version=contracts/5.8.0)
