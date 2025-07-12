@@ -12,6 +12,16 @@ require("dotenv").config({
   path: require("path").resolve(__dirname, "../.env"),
 });
 
+// Initialize PostgreSQL connection pool for PnL queries
+const { Pool } = require("pg");
+const pgPool = new Pool({
+  user: process.env.PG_USER,
+  host: process.env.PG_HOST,
+  database: process.env.PG_DB,
+  password: process.env.PG_PASSWORD,
+  port: process.env.PG_PORT,
+});
+
 const { getEnv, loadRequired } = require("../utils/config");
 const fs = require("fs");
 const path = require("path");
@@ -153,7 +163,7 @@ const { getCurveQuote } = require("./scripts/curveUtils");
 // ─────────────────────────────────────────────────────────────────────────────
 // Imports: PostgreSQL Client for Trade Persistence (server/dbClient.js)
 // ─────────────────────────────────────────────────────────────────────────────
-const { insertTrade, query } = require("./dbClient");
+const { insertTrade } = require("./dbClient");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Imports: Slack Alert Utility (from server/scripts/)
@@ -647,11 +657,11 @@ async function selectBestRoute(amountIn, slippageBips, routeList) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Compute Daily PnL over the last 24h (using dbClient.query)
+// Compute Daily PnL over the last 24h using direct pgPool.query
 // ─────────────────────────────────────────────────────────────────────────────
 async function computeDailyPnL() {
   try {
-    const res = await query(
+    const res = await pgPool.query(
       `SELECT SUM(profit) AS total_profit FROM trades WHERE timestamp >= NOW() - INTERVAL '24 HOURS';`
     );
     const profit = res.rows[0].total_profit
