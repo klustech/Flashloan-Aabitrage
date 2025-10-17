@@ -8,7 +8,15 @@
 // • CLI helper (node utils/profitDetermination.js) for quick testing.
 
 const { ethers } = require("ethers");
-const { fetchEthDaiPrice } = require("../server/scripts/priceUtils");
+
+let fetchEthDaiPrice = async () => 2000;
+try {
+  ({ fetchEthDaiPrice } = require("../server/scripts/priceUtils"));
+} catch (err) {
+  console.warn(
+    "⚠  priceUtils unavailable; using static ETH/DAI fallback in simulations"
+  );
+}
 
 /* ────────────────────────────────────────────────
    Default simulation config (overrides merge later)
@@ -139,20 +147,28 @@ async function simulateSwapPaths(provider, swapData, borrowAmt) {
 /* ────────────────────────────────────────────────
    Route simulator (array of steps with .simulate fn)
    ────────────────────────────────────────────────*/
+function ensureNumeric(value, label) {
+  const normalized = Number(value);
+  if (!Number.isFinite(normalized)) {
+    throw new Error(`${label} must be a finite number`);
+  }
+  return normalized;
+}
+
 function simulateRoute(route, input) {
   /* Defensive guards — never assume `.steps` is present or valid */
   if (!route || !Array.isArray(route.steps) || route.steps.length === 0) {
     throw new Error("simulateRoute: route.steps missing or empty");
   }
 
-  let out = input;
+  let out = ensureNumeric(input, "simulateRoute input");
   for (const [idx, step] of route.steps.entries()) {
     if (!step || typeof step.simulate !== "function") {
       throw new Error(
         `simulateRoute: steps[${idx}] lacks a callable .simulate()`
       );
     }
-    out = step.simulate(out);
+    out = ensureNumeric(step.simulate(out), `simulateRoute steps[${idx}] output`);
   }
   return out;
 }
@@ -166,8 +182,10 @@ async function determineProfit(
   inputAmount,
   gasUsed,
   flashloanPremiumBips,
-  simCfg
+  simCfg,
+  inputAmountHuman
 ) {
+  const normalizedInput = ethers.BigNumber.from(inputAmount);
   const gasPrice = await getLiveGasPrice(provider);
   if (gasPrice.gt(simCfg.gasPriceLimit)) {
     return { aborted: true, reason: "gasPrice>limit" };
@@ -178,18 +196,50 @@ async function determineProfit(
     simCfg.ethToDaiRate
   );
 
-  const simulatedOut = simulateRoute(route, inputAmount);
-  const totalCostDAI = applyPremium(
-    inputAmount + gasCostDAI,
-    flashloanPremiumBips
+  if (!Number.isFinite(gasCostDAI)) {
+    throw new Error("gasCostDAI must be numeric");
+  }
+
+  const gasCostDAIWei = ethers.utils.parseUnits(gasCostDAI.toFixed(18), 18);
+
+  const premiumBips = Number(flashloanPremiumBips ?? 0);
+  if (!Number.isFinite(premiumBips)) {
+    throw new Error("flashloanPremiumBips must be numeric");
+  }
+
+  const numericInput =
+    inputAmountHuman !== undefined
+      ? ensureNumeric(inputAmountHuman, "determineProfit inputAmountHuman")
+      : Number(ethers.utils.formatUnits(normalizedInput, 18));
+
+  const simulatedOutNumber = simulateRoute(route, numericInput);
+  const simulatedOutWei = ethers.utils.parseUnits(
+    simulatedOutNumber.toFixed(18),
+    18
   );
-  const profit = simulatedOut - totalCostDAI;
+
+  const totalCostWei = applyPremium(
+    normalizedInput.add(gasCostDAIWei),
+    premiumBips
+  );
+
+  let profitWei;
+  let profitSign = 1;
+  if (simulatedOutWei.gte(totalCostWei)) {
+    profitWei = simulatedOutWei.sub(totalCostWei);
+  } else {
+    profitWei = totalCostWei.sub(simulatedOutWei);
+    profitSign = -1;
+  }
 
   return {
-    simulatedOutput: simulatedOut,
-    gasCostDAI,
-    totalCostDAI,
-    profit,
+    simulatedOutput: parseFloat(
+      ethers.utils.formatUnits(simulatedOutWei, 18)
+    ),
+    gasCostDAI: parseFloat(ethers.utils.formatUnits(gasCostDAIWei, 18)),
+    totalCostDAI: parseFloat(ethers.utils.formatUnits(totalCostWei, 18)),
+    profit:
+      profitSign * parseFloat(ethers.utils.formatUnits(profitWei, 18)),
     aborted: false,
   };
 }
@@ -224,13 +274,19 @@ async function runProfitDetermination(overrides = {}) {
   };
 
   const gasUsed = ethers.BigNumber.from("200000");
+  const tradeSizeWei = ethers.utils.parseUnits(
+    cfg.tradeSize.toString(),
+    18
+  );
+
   const res = await determineProfit(
     provider,
     route,
-    cfg.tradeSize,
+    tradeSizeWei,
     gasUsed,
     cfg.flashloanPremiumBips,
-    cfg
+    cfg,
+    cfg.tradeSize
   );
   console.table(res);
 }
