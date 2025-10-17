@@ -118,22 +118,25 @@ async function getDynamicSlippage() {
   try {
     const data = await getCachedCoinGeckoPrice("ethereum", "usd");
     const vol = Math.abs(data.ethereum.usd_24h_change) || 0;
-    const dynamic = Math.min(
-      parseInt(process.env.SLIPPAGE_DEFAULT_BIPS || "50", 10) +
-        Math.round(vol * 10),
-      200
+    const baseDefault = parseInt(
+      SLIPPAGE_DEFAULT_BIPS || OPTIONAL_ENV_DEFAULTS.SLIPPAGE_DEFAULT_BIPS,
+      10
     );
+    const dynamic = Math.min(baseDefault + Math.round(vol * 10), 200);
     cache.dynamicSlippage = { value: dynamic, timestamp: now };
     logger.info(`Dynamic Slippage determined: ${dynamic} bips`);
     return dynamic;
   } catch (err) {
     logger.warn(
       `Slippage fetch error (${err.message}), using default: ${parseInt(
-        process.env.SLIPPAGE_DEFAULT_BIPS || "50",
+        SLIPPAGE_DEFAULT_BIPS || OPTIONAL_ENV_DEFAULTS.SLIPPAGE_DEFAULT_BIPS,
         10
       )} bips`
     );
-    return parseInt(process.env.SLIPPAGE_DEFAULT_BIPS || "50", 10);
+    return parseInt(
+      SLIPPAGE_DEFAULT_BIPS || OPTIONAL_ENV_DEFAULTS.SLIPPAGE_DEFAULT_BIPS,
+      10
+    );
   }
 }
 
@@ -217,6 +220,67 @@ const {
   MAINNET_RPC_URL,
   CONTRACT_ADDRESS,
   AAVE_LENDING_POOL_ADDRESS_PROVIDER,
+  TOKENS_DAI,
+  TOKENS_WETH,
+  UNISWAP_ROUTER_ADDRESS,
+  SUSHISWAP_ROUTER_ADDRESS,
+} = loadRequired([
+  "PRIVATE_KEY",
+  "CONTRACT_ADDRESS",
+  "AAVE_LENDING_POOL_ADDRESS_PROVIDER",
+  "MAINNET_RPC_URL",
+  "TOKENS_DAI",
+  "TOKENS_WETH",
+  "UNISWAP_ROUTER_ADDRESS",
+  "SUSHISWAP_ROUTER_ADDRESS",
+]);
+
+// Optional configuration defaults. These document the baseline behaviour while
+// still allowing deployments to override any value via environment variables.
+const OPTIONAL_ENV_DEFAULTS = {
+  SLIPPAGE_BIPS: undefined,
+  SLIPPAGE_DEFAULT_BIPS: "50",
+  GAS_PRICE_CEILING: "50",
+  FLASHBOTS_RELAY_URL: "https://relay.flashbots.net",
+  MIN_PROFIT_DAI: "1",
+  MIN_LIQUIDITY: "100000",
+  DYNAMIC_ROUTE_HOPS: "3",
+  DYNAMIC_ROUTE_MIN_LIQUIDITY_USD: "100000",
+  DYNAMIC_ROUTE_TOPN: "20",
+  FLASHLOAN_PREMIUM_BIPS: "9",
+  INCLUDE_V3: "false",
+  INCLUDE_BALANCER: "false",
+  INCLUDE_CURVE: "false",
+  INCLUDE_UNISWAP_V2: "true",
+  INCLUDE_SUSHISWAP_V2: "true",
+  REALTIME_POOL_COUNT: "100",
+  ZSCORE_THRESHOLD: "3",
+  ML_TOPK: "50",
+  FLASHBOTS_BUNDLE_COUNT: "3",
+  PRIO_PERCENT: "10",
+  PRIO_FEE_MAX_GWEI: "50",
+  TIP_RETRY_COUNT: "3",
+  TIP_MULTIPLIER_NUM: "12",
+  TIP_MULTIPLIER_DEN: "10",
+  ALLOW_LNG_CYCLES: "false",
+  CB_NEG_THRESHOLD: "5",
+  DAILY_DRAWDOWN_LIMIT_DAI: "0",
+  SLACK_WEBHOOK_URL: undefined,
+  SERVER_PORT: "3000",
+  TOKENS_USDC: "",
+  TOKENS_USDT: "",
+  TOKENS_UNI: "",
+  ML_MODEL_ENDPOINT: undefined,
+};
+
+const optionalEnv = Object.fromEntries(
+  Object.entries(OPTIONAL_ENV_DEFAULTS).map(([key, defaultValue]) => [
+    key,
+    getEnv(key, defaultValue),
+  ])
+);
+
+const {
   SLIPPAGE_BIPS,
   SLIPPAGE_DEFAULT_BIPS,
   GAS_PRICE_CEILING,
@@ -246,28 +310,11 @@ const {
   DAILY_DRAWDOWN_LIMIT_DAI,
   SLACK_WEBHOOK_URL,
   SERVER_PORT,
-  PG_USER,
-  PG_HOST,
-  PG_DB,
-  PG_PASSWORD,
-  PG_PORT,
-  TOKENS_DAI,
-  TOKENS_WETH,
   TOKENS_USDC,
   TOKENS_USDT,
   TOKENS_UNI,
-  UNISWAP_ROUTER_ADDRESS,
-  SUSHISWAP_ROUTER_ADDRESS,
-} = loadRequired([
-  "PRIVATE_KEY",
-  "CONTRACT_ADDRESS",
-  "AAVE_LENDING_POOL_ADDRESS_PROVIDER",
-  "MAINNET_RPC_URL",
-  "TOKENS_DAI",
-  "TOKENS_WETH",
-  "UNISWAP_ROUTER_ADDRESS",
-  "SUSHISWAP_ROUTER_ADDRESS",
-]);
+  ML_MODEL_ENDPOINT,
+} = optionalEnv;
 
 // Validate contract address early to avoid cryptic ethers errors
 let VALID_CONTRACT_ADDRESS;
@@ -308,22 +355,65 @@ const arbContractAddresses = {
 // ─────────────────────────────────────────────────────────────────────────────
 // Global constants (parsed as ints/floats)
 // ─────────────────────────────────────────────────────────────────────────────
-const SLIPPAGE_BIPS_INT = SLIPPAGE_BIPS ? parseInt(SLIPPAGE_BIPS, 10) : 0;
 const SLIPPAGE_DEFAULT_INT = SLIPPAGE_DEFAULT_BIPS
   ? parseInt(SLIPPAGE_DEFAULT_BIPS, 10)
-  : 50;
-const GAS_CEILING_BN = GAS_PRICE_CEILING
-  ? ethers.utils.parseUnits(GAS_PRICE_CEILING, "gwei")
-  : ethers.utils.parseUnits("50", "gwei");
-const ZSCORE_THRESH = ZSCORE_THRESHOLD ? parseFloat(ZSCORE_THRESHOLD) : 3;
-const ML_TOP_K = ML_TOPK ? parseInt(ML_TOPK, 10) : 50;
-const BUNDLE_COUNT = FLASHBOTS_BUNDLE_COUNT
-  ? parseInt(FLASHBOTS_BUNDLE_COUNT, 10)
-  : 3;
-const CB_NEG_THRESH_INT = CB_NEG_THRESHOLD ? parseInt(CB_NEG_THRESHOLD, 10) : 5;
-const DAILY_DD_LIMIT_DAI = DAILY_DRAWDOWN_LIMIT_DAI
-  ? ethers.utils.parseUnits(DAILY_DRAWDOWN_LIMIT_DAI, 18)
-  : ethers.BigNumber.from(0);
+  : parseInt(OPTIONAL_ENV_DEFAULTS.SLIPPAGE_DEFAULT_BIPS, 10);
+const GAS_CEILING_BN = ethers.utils.parseUnits(
+  GAS_PRICE_CEILING || OPTIONAL_ENV_DEFAULTS.GAS_PRICE_CEILING,
+  "gwei"
+);
+const ZSCORE_THRESH = parseFloat(
+  ZSCORE_THRESHOLD || OPTIONAL_ENV_DEFAULTS.ZSCORE_THRESHOLD
+);
+const ML_TOP_K = parseInt(ML_TOPK || OPTIONAL_ENV_DEFAULTS.ML_TOPK, 10);
+const BUNDLE_COUNT = parseInt(
+  FLASHBOTS_BUNDLE_COUNT || OPTIONAL_ENV_DEFAULTS.FLASHBOTS_BUNDLE_COUNT,
+  10
+);
+const CB_NEG_THRESH_INT = parseInt(
+  CB_NEG_THRESHOLD || OPTIONAL_ENV_DEFAULTS.CB_NEG_THRESHOLD,
+  10
+);
+const DAILY_DD_LIMIT_DAI = ethers.utils.parseUnits(
+  DAILY_DRAWDOWN_LIMIT_DAI || OPTIONAL_ENV_DEFAULTS.DAILY_DRAWDOWN_LIMIT_DAI,
+  18
+);
+const REALTIME_POOL_LIMIT = parseInt(
+  REALTIME_POOL_COUNT || OPTIONAL_ENV_DEFAULTS.REALTIME_POOL_COUNT,
+  10
+);
+const ROUTE_TOPN_LIMIT = parseInt(
+  DYNAMIC_ROUTE_TOPN || OPTIONAL_ENV_DEFAULTS.DYNAMIC_ROUTE_TOPN,
+  10
+);
+const ROUTE_MAX_HOPS = parseInt(
+  DYNAMIC_ROUTE_HOPS || OPTIONAL_ENV_DEFAULTS.DYNAMIC_ROUTE_HOPS,
+  10
+);
+const FLASHLOAN_PREMIUM_INT = parseInt(
+  FLASHLOAN_PREMIUM_BIPS || OPTIONAL_ENV_DEFAULTS.FLASHLOAN_PREMIUM_BIPS,
+  10
+);
+const PRIO_PERCENT_INT = parseInt(
+  PRIO_PERCENT || OPTIONAL_ENV_DEFAULTS.PRIO_PERCENT,
+  10
+);
+const PRIO_FEE_MAX = ethers.utils.parseUnits(
+  PRIO_FEE_MAX_GWEI || OPTIONAL_ENV_DEFAULTS.PRIO_FEE_MAX_GWEI,
+  "gwei"
+);
+const TIP_RETRY_LIMIT = parseInt(
+  TIP_RETRY_COUNT || OPTIONAL_ENV_DEFAULTS.TIP_RETRY_COUNT,
+  10
+);
+const TIP_MULTIPLIER_NUM_INT = parseInt(
+  TIP_MULTIPLIER_NUM || OPTIONAL_ENV_DEFAULTS.TIP_MULTIPLIER_NUM,
+  10
+);
+const TIP_MULTIPLIER_DEN_INT = parseInt(
+  TIP_MULTIPLIER_DEN || OPTIONAL_ENV_DEFAULTS.TIP_MULTIPLIER_DEN,
+  10
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Token & DEX Setup (addresses must be in .env)
@@ -461,6 +551,9 @@ function computeZScore(values) {
 // ─────────────────────────────────────────────────────────────────────────────
 async function scoreRoutesWithML(routeDefs) {
   try {
+    if (!ML_MODEL_ENDPOINT) {
+      return routeDefs;
+    }
     const features = routeDefs.map((r) => [
       r.hops.length,
       r.liquidity || 0,
@@ -469,7 +562,7 @@ async function scoreRoutesWithML(routeDefs) {
       r.estimatedGasCost || 0,
       r.historicalSuccessCount || 0,
     ]);
-    const mlRes = await axios.post(process.env.ML_MODEL_ENDPOINT, {
+    const mlRes = await axios.post(ML_MODEL_ENDPOINT, {
       features,
     });
     const probabilities = mlRes.data.probabilities;
@@ -541,8 +634,11 @@ function parallelSimulate(routes, amountIn, slippageBips) {
 // Fetch Top Liquidity Pools & Generate Routes per Chain
 // ─────────────────────────────────────────────────────────────────────────────
 async function getAllRoutes(chain) {
-  const topN = Number(DYNAMIC_ROUTE_TOPN || 20);
-  const minLiq = DYNAMIC_ROUTE_MIN_LIQUIDITY_USD || MIN_LIQUIDITY || "100000";
+  const topN = ROUTE_TOPN_LIMIT;
+  const minLiq =
+    DYNAMIC_ROUTE_MIN_LIQUIDITY_USD ||
+    MIN_LIQUIDITY ||
+    OPTIONAL_ENV_DEFAULTS.MIN_LIQUIDITY;
 
   let routes = [];
   try {
@@ -550,7 +646,7 @@ async function getAllRoutes(chain) {
       startToken: tokenAddresses.DAI,
       topN,
       minLiquidityUSD: minLiq,
-      maxHops: Number(DYNAMIC_ROUTE_HOPS || 3),
+      maxHops: ROUTE_MAX_HOPS,
       allowLongCycles: ALLOW_LNG_CYCLES === "true",
       chain,
     });
@@ -742,7 +838,7 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
   }
 
   // 3. Ensure reserveCache is up to date
-  const topPools = ROUTES_TO_CHECK.slice(0, REALTIME_POOL_COUNT || 100)
+  const topPools = ROUTES_TO_CHECK.slice(0, REALTIME_POOL_LIMIT)
     .map((r) => r.poolAddress)
     .filter((addr) => addr && ethers.utils.isAddress(addr));
   logger.info(
@@ -827,7 +923,7 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
   buildStepsFromHops(bestRoute);
 
   // 7. Compute total debt and net profit
-  const premBps = parseInt(FLASHLOAN_PREMIUM_BIPS || "9", 10);
+  const premBps = FLASHLOAN_PREMIUM_INT;
   const totalDebtDAI = borrowDAI.mul(10000 + premBps).div(10000);
   const potentialProfitDAI = bestOut.sub(totalDebtDAI);
   logger.info(
@@ -836,7 +932,10 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
       18
     )} DAI.`
   );
-  const minProfitThreshold = ethers.utils.parseUnits(MIN_PROFIT_DAI || "1", 18);
+  const minProfitThreshold = ethers.utils.parseUnits(
+    MIN_PROFIT_DAI || OPTIONAL_ENV_DEFAULTS.MIN_PROFIT_DAI,
+    18
+  );
   if (potentialProfitDAI.lte(minProfitThreshold)) {
     logger.info(
       `[${chain}] Not profitable after flashloan premium (threshold ${MIN_PROFIT_DAI}).`
@@ -974,12 +1073,9 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
         .mul(BigNumber.from(1025))
         .div(BigNumber.from(1000));
       const monthlyPrio = baseFeeNext
-        .mul(BigNumber.from(PRIO_PERCENT || 10))
+        .mul(BigNumber.from(PRIO_PERCENT_INT))
         .div(BigNumber.from(100));
-      const maxPrio = ethers.utils.parseUnits(
-        PRIO_FEE_MAX_GWEI || "50",
-        "gwei"
-      );
+      const maxPrio = PRIO_FEE_MAX;
       let chosenPrio = monthlyPrio.gt(maxPrio) ? maxPrio : monthlyPrio;
       logger.info(
         `[${chain}] Base fee Next: ${ethers.utils.formatUnits(
@@ -1037,16 +1133,16 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
 
       if (!flashbotsSuccess) {
         logger.info(
-          `[${chain}] No bundle included on first attempt. Retrying up to ${TIP_RETRY_COUNT} times.`
+          `[${chain}] No bundle included on first attempt. Retrying up to ${TIP_RETRY_LIMIT} times.`
         );
         for (
           let attempt = 0;
-          attempt < TIP_RETRY_COUNT && !flashbotsSuccess;
+          attempt < TIP_RETRY_LIMIT && !flashbotsSuccess;
           attempt++
         ) {
           chosenPrio = chosenPrio
-            .mul(BigNumber.from(TIP_MULTIPLIER_NUM || 12))
-            .div(BigNumber.from(TIP_MULTIPLIER_DEN || 10));
+            .mul(BigNumber.from(TIP_MULTIPLIER_NUM_INT))
+            .div(BigNumber.from(TIP_MULTIPLIER_DEN_INT));
           if (chosenPrio.gt(maxPrio)) chosenPrio = maxPrio;
 
           const txRetry = {
@@ -1175,6 +1271,7 @@ module.exports.getDynamicSlippage = getDynamicSlippage;
 module.exports.getAllRoutes = getAllRoutes;
 module.exports.DEFAULT_CHAIN = DEFAULT_CHAIN;
 module.exports.computeDailyPnL = computeDailyPnL;
+module.exports.__cache = cache;
 
 if (require.main === module) {
   (async () => {
