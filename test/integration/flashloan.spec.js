@@ -21,17 +21,20 @@ describe("ArbitrageFlashloan – smoke test", function () {
     });
 
     const providerAddr = process.env.AAVE_LENDING_POOL_ADDRESS_PROVIDER;
-    const uniRouter = process.env.UNISWAP_ROUTER_ADDRESS;
-    const sushiRouter = process.env.SUSHISWAP_ROUTER_ADDRESS;
 
-    if (!providerAddr || !uniRouter || !sushiRouter) {
-      throw new Error(
-        "Missing AAVE_LENDING_POOL_ADDRESS_PROVIDER, UNISWAP_ROUTER_ADDRESS, or SUSHISWAP_ROUTER_ADDRESS in .env"
-      );
+    if (!providerAddr) {
+      throw new Error("Missing AAVE_LENDING_POOL_ADDRESS_PROVIDER in .env");
     }
 
+    const maxLossBps = 50;
+    const flashloanPremiumBps = 9;
+
     const Factory = await ethers.getContractFactory("ArbitrageFlashloan");
-    const arb = await Factory.deploy(providerAddr, uniRouter, sushiRouter);
+    const arb = await Factory.deploy(
+      providerAddr,
+      maxLossBps,
+      flashloanPremiumBps
+    );
     await arb.deployed();
 
     await expect(arb.setMaxLossBps(50)).to.not.be.reverted;
