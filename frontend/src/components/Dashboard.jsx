@@ -38,6 +38,19 @@ const Dashboard = () => {
     });
   }
 
+  const getNumericMetric = (name) => {
+    if (!Object.prototype.hasOwnProperty.call(metricMap, name)) {
+      return null;
+    }
+
+    const parsed = Number(metricMap[name]);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  const avgProfitDai = getNumericMetric("avg_profit_dai");
+  const arbAttemptsTotal = getNumericMetric("arb_attempts_total");
+  const avgLatencyMs = getNumericMetric("avg_latency_ms");
+
   return (
     <Box sx={{ maxWidth: 1200, mx: "auto", p: 2 }}>
       <Typography variant="h4" color="primary" gutterBottom>
@@ -50,9 +63,7 @@ const Dashboard = () => {
               Total Profit
             </Typography>
             <Typography variant="h4">
-              {metricMap["avg_profit_dai"]
-                ? metricMap["avg_profit_dai"].toFixed(2)
-                : "-"}
+              {avgProfitDai !== null ? avgProfitDai.toFixed(2) : "-"}
             </Typography>
           </Paper>
         </Grid>
@@ -62,7 +73,7 @@ const Dashboard = () => {
               Arb Attempts
             </Typography>
             <Typography variant="h4">
-              {metricMap["arb_attempts_total"] ?? 0}
+              {arbAttemptsTotal !== null ? arbAttemptsTotal : "-"}
             </Typography>
           </Paper>
         </Grid>
@@ -72,9 +83,7 @@ const Dashboard = () => {
               Execution Time
             </Typography>
             <Typography variant="h4">
-              {metricMap["avg_latency_ms"]
-                ? `${metricMap["avg_latency_ms"].toFixed(0)} ms`
-                : "-"}
+              {avgLatencyMs !== null ? `${avgLatencyMs.toFixed(0)} ms` : "-"}
             </Typography>
           </Paper>
         </Grid>
