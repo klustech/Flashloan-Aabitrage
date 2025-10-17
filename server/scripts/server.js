@@ -307,9 +307,14 @@ app.post("/api/trigger-arbitrage", async (req, res) => {
 
     if (result.executed) {
       arbSuccess.inc();
-      // Assume simulateAndExecuteArb returns an object with estimatedProfitInDai
-      if (result.estimatedProfitInDai) {
-        avgProfit.set(parseFloat(result.estimatedProfitInDai.toString()));
+      const estimatedProfit = result?.estimatedProfitInDai;
+      if (estimatedProfit !== undefined && estimatedProfit !== null) {
+        const formattedProfit = parseFloat(
+          ethers.utils.formatUnits(estimatedProfit, 18)
+        );
+        if (!Number.isNaN(formattedProfit)) {
+          avgProfit.set(formattedProfit);
+        }
       }
     } else {
       arbFailure.labels("no_opportunity").inc();
@@ -393,8 +398,14 @@ cron.schedule("* * * * *", async () => {
 
     if (result.executed) {
       arbSuccess.inc();
-      if (result.estimatedProfitInDai) {
-        avgProfit.set(parseFloat(result.estimatedProfitInDai.toString()));
+      const estimatedProfit = result?.estimatedProfitInDai;
+      if (estimatedProfit !== undefined && estimatedProfit !== null) {
+        const formattedProfit = parseFloat(
+          ethers.utils.formatUnits(estimatedProfit, 18)
+        );
+        if (!Number.isNaN(formattedProfit)) {
+          avgProfit.set(formattedProfit);
+        }
       }
       logger.info("Scheduler: executed arb");
     } else {
