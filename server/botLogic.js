@@ -12,16 +12,6 @@ require("dotenv").config({
   path: require("path").resolve(__dirname, "../.env"),
 });
 
-// Initialize PostgreSQL connection pool for PnL queries
-const { Pool } = require("pg");
-const pgPool = new Pool({
-  user: process.env.PG_USER,
-  host: process.env.PG_HOST,
-  database: process.env.PG_DB,
-  password: process.env.PG_PASSWORD,
-  port: process.env.PG_PORT,
-});
-
 const { getEnv, loadRequired } = require("../utils/config");
 const fs = require("fs");
 const path = require("path");
@@ -172,7 +162,7 @@ const { getCurveQuote } = require("./scripts/curveUtils");
 // ─────────────────────────────────────────────────────────────────────────────
 // Imports: PostgreSQL Client for Trade Persistence (server/dbClient.js)
 // ─────────────────────────────────────────────────────────────────────────────
-const { insertTrade } = require("./dbClient");
+const { insertTrade, pool: dbPool, isDbEnabled } = require("./dbClient");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Imports: Slack Alert Utility (from server/scripts/)
@@ -633,15 +623,25 @@ async function selectBestRoute(amountIn, slippageBips, routeList) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Compute Daily PnL over the last 24h using direct pgPool.query
+// Compute Daily PnL over the last 24h using direct dbPool.query
 // ─────────────────────────────────────────────────────────────────────────────
+let dbDisabledLogged = false;
+
 async function computeDailyPnL() {
+  if (!isDbEnabled() || !dbPool) {
+    if (!dbDisabledLogged) {
+      logger.info("PostgreSQL persistence disabled; skipping daily PnL computation.");
+      dbDisabledLogged = true;
+    }
+    return BigNumber.from(0);
+  }
   try {
-    const res = await pgPool.query(
+    const res = await dbPool.query(
       `SELECT SUM(profit) AS total_profit FROM trades WHERE timestamp >= NOW() - INTERVAL '24 HOURS';`
     );
-    const profit = res.rows[0].total_profit
-      ? BigNumber.from(res.rows[0].total_profit)
+    const totalProfitRaw = res.rows[0]?.total_profit;
+    const profit = totalProfitRaw
+      ? ethers.utils.parseUnits(totalProfitRaw.toString(), 18)
       : BigNumber.from(0);
     logger.info(
       `Computed daily PnL: ${ethers.utils.formatUnits(profit, 18)} DAI.`
@@ -1085,14 +1085,18 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
 
       if (flashbotsSuccess) {
         arbSuccess.inc();
-        await insertTrade({
+        const tradeRecord = await insertTrade({
           route: swapData.route,
           profit: netDAI,
           txHash: "flashbots-bundle",
           timestamp: Date.now(),
           status: "flashbots",
         });
-        logger.info(`[${chain}] Trade recorded as flashbots.`);
+        if (isDbEnabled() && tradeRecord) {
+          logger.info(`[${chain}] Trade recorded as flashbots.`);
+        } else if (!isDbEnabled()) {
+          logger.info(`[${chain}] Persistence disabled; flashbots trade not stored.`);
+        }
         reward = parseFloat(ethers.utils.formatUnits(netDAI, 18));
         return { executed: true, estimatedProfitInDai: netDAI };
       } else {
@@ -1118,14 +1122,18 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
     await txResp.wait();
     logger.info(`[${chain}] Public TX mined: ${txResp.hash}`);
     arbSuccess.inc();
-    await insertTrade({
+    const tradeRecord = await insertTrade({
       route: swapData.route,
       profit: netDAI,
       txHash: txResp.hash,
       timestamp: Date.now(),
       status: "public",
     });
-    logger.info(`[${chain}] Trade recorded as public.`);
+    if (isDbEnabled() && tradeRecord) {
+      logger.info(`[${chain}] Trade recorded as public.`);
+    } else if (!isDbEnabled()) {
+      logger.info(`[${chain}] Persistence disabled; public trade not stored.`);
+    }
     reward = parseFloat(ethers.utils.formatUnits(netDAI, 18));
     slippageAgent.update(reward);
     rlEpsilon.set(slippageAgent.epsilon);
