@@ -2,28 +2,33 @@
 
 import React from "react";
 import ReactDOM from "react-dom/client";
-import "./index.css";
-import App from "./App";
-import reportWebVitals from "./reportWebVitals";
+import { BrowserRouter } from "react-router-dom";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
+import CssBaseline from "@mui/material/CssBaseline";
+import "./index.css";
+import App from "./App.jsx";
+import reportWebVitals from "./reportWebVitals";
+import Auth0ProviderWithNavigate from "./Auth0ProviderWithNavigate";
 
 const theme = createTheme({
   palette: {
     mode: "dark",
-    primary: { main: "#000000" },
-    secondary: { main: "#FFD700" },
-    background: { default: "#000000", paper: "#111111" },
-    text: { primary: "#FFD700" },
+    primary: { main: "#FFD700" },
+    background: { default: "#000", paper: "#111" },
   },
-  typography: { fontFamily: "Roboto, Arial, sans-serif" },
 });
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <React.StrictMode>
-    <ThemeProvider theme={theme}>
-      <App />
-    </ThemeProvider>
+    <BrowserRouter>
+      <Auth0ProviderWithNavigate>
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          <App />
+        </ThemeProvider>
+      </Auth0ProviderWithNavigate>
+    </BrowserRouter>
   </React.StrictMode>
 );
 
