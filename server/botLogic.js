@@ -1166,6 +1166,7 @@ module.exports.simulateAndExecuteArb = simulateAndExecuteArb;
 module.exports.getDynamicSlippage = getDynamicSlippage;
 module.exports.getAllRoutes = getAllRoutes;
 module.exports.DEFAULT_CHAIN = DEFAULT_CHAIN;
+module.exports.computeDailyPnL = computeDailyPnL;
 
 if (require.main === module) {
   (async () => {

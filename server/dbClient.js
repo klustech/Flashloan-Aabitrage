@@ -1,5 +1,6 @@
 // server/dbClient.js
 const { Pool } = require("pg");
+const { BigNumber } = require("ethers");
 require("dotenv").config({ override: true });
 
 const pool = new Pool({
@@ -14,9 +15,26 @@ async function insertTrade(tradeData) {
   const { route, profit, txHash, timestamp, status } = tradeData;
   const query = `
     INSERT INTO trades (route, profit, tx_hash, timestamp, status)
-    VALUES ($1, $2, $3, $4, $5) RETURNING *;
+    VALUES ($1, $2::numeric, $3, $4, $5) RETURNING *;
   `;
-  const values = [route, profit, txHash, new Date(timestamp), status];
+  const normalizeValue = (value) =>
+    typeof BigNumber.isBigNumber === "function" && BigNumber.isBigNumber(value)
+      ? value.toString()
+      : value;
+
+  const normalizedTimestamp =
+    typeof BigNumber.isBigNumber === "function" &&
+    BigNumber.isBigNumber(timestamp)
+      ? new Date(timestamp.toNumber())
+      : new Date(timestamp);
+
+  const values = [
+    normalizeValue(route),
+    normalizeValue(profit),
+    normalizeValue(txHash),
+    normalizedTimestamp,
+    normalizeValue(status),
+  ];
   const res = await pool.query(query, values);
   return res.rows[0];
 }
