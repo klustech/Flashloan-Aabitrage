@@ -1,91 +1,129 @@
 let client;
+let register;
+let CounterCtor;
+let GaugeCtor;
+let HistogramCtor;
+let isRealClient = false;
+
 try {
   client = require("prom-client");
+  register = new client.Registry();
+  isRealClient = true;
+  CounterCtor = client.Counter;
+  GaugeCtor = client.Gauge;
+  HistogramCtor = client.Histogram;
 } catch (err) {
   // Fallback stub if prom-client is unavailable
-  const metrics = [];
-
-  class StubMetric {
-    constructor({ name, help, type }) {
-      this.name = name;
-      this.help = help;
-      this.type = type;
-      metrics.push(this);
-    }
-
-    toJSON() {
-      return {
-        name: this.name,
-        help: this.help,
-        type: this.type,
-        values: this.get().values || [],
-      };
+  class NoopCounter {
+    constructor() {}
+    inc() {}
+    labels() {
+      return this;
     }
   }
 
-  class Counter extends StubMetric {
-    constructor(config) {
-      super({ ...config, type: "counter" });
-      this.value = 0;
-    }
-    inc() {
-      this.value += 1;
-    }
-    get() {
-      return { values: [{ value: this.value }] };
-    }
-    reset() {
-      this.value = 0;
-    }
+  class NoopGauge {
+    constructor() {}
+    set() {}
+    inc() {}
+    dec() {}
   }
 
-  class Gauge extends StubMetric {
-    constructor(config) {
-      super({ ...config, type: "gauge" });
-      this.value = undefined;
-    }
-    set(v) {
-      this.value = v;
-    }
-    inc(v = 1) {
-      const next = typeof this.value === "number" ? this.value + v : v;
-      this.value = next;
-    }
-    get() {
-      return {
-        values:
-          this.value === undefined ? [] : [{ value: this.value, labels: {} }],
-      };
-    }
-    reset() {
-      this.value = undefined;
-    }
+  class NoopHistogram {
+    constructor() {}
+    observe() {}
   }
 
-  class Histogram extends StubMetric {
-    constructor(config) {
-      super({ ...config, type: "histogram" });
-      this.values = [];
-    }
-    observe(v) {
-      this.values.push(v);
-    }
-    get() {
-      return { values: this.values.map((value) => ({ value })) };
-    }
-  }
+  CounterCtor = NoopCounter;
+  GaugeCtor = NoopGauge;
+  HistogramCtor = NoopHistogram;
+
+  register = {
+    async metrics() {
+      return "";
+    },
+    async getMetricsAsJSON() {
+      return [];
+    },
+    contentType: "text/plain",
+  };
 
   client = {
     collectDefaultMetrics: () => {},
-    Counter,
-    Gauge,
-    Histogram,
-    register: {
-      contentType: "text/plain",
-      metrics: async () => "",
-      getMetricsAsJSON: async () => metrics.map((metric) => metric.toJSON()),
-    },
+    Counter: CounterCtor,
+    Gauge: GaugeCtor,
+    Histogram: HistogramCtor,
   };
 }
 
-module.exports = client;
+const createCounter = (config) =>
+  new CounterCtor(
+    isRealClient ? { ...config, registers: [register] } : config
+  );
+
+const createGauge = (config) =>
+  new GaugeCtor(isRealClient ? { ...config, registers: [register] } : config);
+
+const createHistogram = (config) =>
+  new HistogramCtor(
+    isRealClient ? { ...config, registers: [register] } : config
+  );
+
+client.collectDefaultMetrics(
+  isRealClient ? { register } : undefined
+);
+
+const arbAttempts = createCounter({
+  name: "arb_attempts_total",
+  help: "Total number of arbitrage attempts",
+});
+
+const arbSuccess = createCounter({
+  name: "arb_success_total",
+  help: "Total number of successful arbitrage trades",
+});
+
+const arbFailure = createCounter({
+  name: "arb_failure_total",
+  help: "Total number of failed arbitrage trades",
+  labelNames: ["reason"],
+});
+
+const avgLatency = createGauge({
+  name: "avg_latency_ms",
+  help: "Average latency in route simulation",
+});
+
+const avgProfit = createGauge({
+  name: "avg_profit_dai",
+  help: "Average profit in DAI",
+});
+
+const simulationHistogram = createHistogram({
+  name: "simulation_time_seconds",
+  help: "Time taken to simulate a route",
+  buckets: [0.1, 0.5, 1, 2, 5],
+});
+
+const rlEpsilon = createGauge({
+  name: "rl_epsilon",
+  help: "Current epsilon for slippage RL agent",
+});
+
+const rlAction = createGauge({
+  name: "rl_last_action",
+  help: "Last slippage action selected by RL agent",
+});
+
+module.exports = {
+  client,
+  register,
+  arbAttempts,
+  arbSuccess,
+  arbFailure,
+  avgLatency,
+  avgProfit,
+  simulationHistogram,
+  rlEpsilon,
+  rlAction,
+};

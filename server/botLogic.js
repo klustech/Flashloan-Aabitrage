@@ -33,7 +33,16 @@ const {
 } = require("@flashbots/ethers-provider-bundle");
 const { Worker } = require("worker_threads");
 const stats = require("simple-statistics");
-const client = require("prom-client");
+const {
+  arbAttempts,
+  arbSuccess,
+  arbFailure,
+  avgLatency,
+  avgProfit,
+  simulationHistogram,
+  rlEpsilon,
+  rlAction,
+} = require("./metrics");
 const slippageAgent = require("./rl/slippageAgent");
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -175,43 +184,8 @@ const safeAsync = require("../utils/safeAsync");
 // ─────────────────────────────────────────────────────────────────────────────
 // Prometheus Metrics Setup
 // ─────────────────────────────────────────────────────────────────────────────
-const collectDefaultMetrics = client.collectDefaultMetrics;
-collectDefaultMetrics();
-
-const arbAttempts = new client.Counter({
-  name: "arb_attempts_total",
-  help: "Total number of arbitrage attempts",
-});
-const arbSuccess = new client.Counter({
-  name: "arb_success_total",
-  help: "Total number of successful arbitrage trades",
-});
-const arbFailure = new client.Counter({
-  name: "arb_failure_total",
-  help: "Total number of failed arbitrage trades",
-  labelNames: ["reason"],
-});
-const avgLatency = new client.Gauge({
-  name: "avg_latency_ms",
-  help: "Average latency in route simulation",
-});
-const avgProfit = new client.Gauge({
-  name: "avg_profit_dai",
-  help: "Average profit in DAI",
-});
-const simulationHistogram = new client.Histogram({
-  name: "simulation_time_seconds",
-  help: "Time taken to simulate a route",
-  buckets: [0.1, 0.5, 1, 2, 5],
-});
-const rlEpsilon = new client.Gauge({
-  name: "rl_epsilon",
-  help: "Current epsilon for slippage RL agent",
-});
-const rlAction = new client.Gauge({
-  name: "rl_last_action",
-  help: "Last slippage action selected by RL agent",
-});
+// Prometheus metrics are shared via server/metrics.js; importing here ensures
+// updates from the bot leverage the same registry as the API server.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Logger Configuration
@@ -1192,6 +1166,7 @@ module.exports.simulateAndExecuteArb = simulateAndExecuteArb;
 module.exports.getDynamicSlippage = getDynamicSlippage;
 module.exports.getAllRoutes = getAllRoutes;
 module.exports.DEFAULT_CHAIN = DEFAULT_CHAIN;
+module.exports.computeDailyPnL = computeDailyPnL;
 
 if (require.main === module) {
   (async () => {
