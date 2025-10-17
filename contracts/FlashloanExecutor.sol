@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import {IERC20, SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
 // Aave V2 Interfaces
 interface ILendingPoolAddressesProvider {
     function getLendingPool() external view returns (address);
@@ -73,13 +75,9 @@ interface ICurvePool {
     function exchange(int128 i, int128 j, uint256 dx, uint256 minDy) external;
 }
 
-interface IERC20 {
-    function approve(address spender, uint256 amount) external returns (bool);
-    function balanceOf(address owner) external view returns (uint256);
-    function transfer(address recipient, uint256 amount) external returns (bool);
-}
-
 contract FlashloanExecutor {
+    using SafeERC20 for IERC20;
+
     ILendingPoolAddressesProvider public immutable ADDRESSES_PROVIDER;
     address public owner;
 
@@ -145,10 +143,10 @@ contract FlashloanExecutor {
 
         // Approve all tokens for DEXes/Vaults
         for (uint256 i = 0; i < steps.length; i++) {
-            IERC20(steps[i].tokenIn).approve(
-                _approveSpender(steps[i]),
-                steps[i].amountIn
-            );
+            IERC20 tokenIn = IERC20(steps[i].tokenIn);
+            address spender = _approveSpender(steps[i]);
+            tokenIn.safeApprove(spender, 0);
+            tokenIn.safeApprove(spender, steps[i].amountIn);
         }
 
         // Execute each hop in sequence
@@ -207,7 +205,9 @@ contract FlashloanExecutor {
         // Compute amounts owed to Aave
         for (uint256 i = 0; i < assets.length; i++) {
             uint256 amountOwing = amounts[i] + premiums[i];
-            IERC20(assets[i]).approve(msg.sender, amountOwing);
+            IERC20 asset = IERC20(assets[i]);
+            asset.safeApprove(msg.sender, 0);
+            asset.safeApprove(msg.sender, amountOwing);
         }
 
         return true;
@@ -227,6 +227,6 @@ contract FlashloanExecutor {
     }
 
     function withdrawERC20(address token, uint256 amount) external onlyOwner {
-        IERC20(token).transfer(owner, amount);
+        IERC20(token).safeTransfer(owner, amount);
     }
 }
