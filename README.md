@@ -77,6 +77,13 @@ npm run bot &
 npm run api
 ```
 
+To replay historical data or evaluate strategy tweaks offline, run the dedicated
+backtest entry point:
+
+```bash
+npm run backtest
+```
+
 ## Configuration
 
 The bot's pool selection and profit thresholds are controlled via environment
