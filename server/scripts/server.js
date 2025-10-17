@@ -159,16 +159,38 @@ let botSettings = {
 // GET /metrics
 // Expose Prometheus metrics
 app.get("/metrics", async (_req, res) => {
-  res.set("Content-Type", register.contentType);
-  res.send(await register.metrics());
+  try {
+    const contentType =
+      register && typeof register.contentType === "string"
+        ? register.contentType
+        : "text/plain";
+
+    res.set("Content-Type", contentType);
+
+    const metricsText = await Promise.resolve(
+      register && typeof register.metrics === "function"
+        ? register.metrics()
+        : ""
+    );
+
+    res.send(metricsText || "");
+  } catch (err) {
+    logger.error(`metrics endpoint error: ${err.message}`);
+    res.status(500).send("");
+  }
 });
 
 // GET /api/metrics-json
 // Return metrics in JSON form for the front-end
 app.get("/api/metrics-json", async (_req, res) => {
   try {
-    const data = await register.getMetricsAsJSON();
-    res.json(data);
+    const data = await Promise.resolve(
+      register && typeof register.getMetricsAsJSON === "function"
+        ? register.getMetricsAsJSON()
+        : []
+    );
+
+    res.json(Array.isArray(data) ? data : []);
   } catch (err) {
     logger.error(`metrics-json error: ${err.message}`);
     res.status(500).json({ error: "failed to fetch metrics" });
