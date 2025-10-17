@@ -17,6 +17,16 @@ npm ci
    reading environment variables will automatically pull from `.env`.
    See [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md) for details.
 
+   To verify that the most important secrets are present without printing
+   their values, run the safer diagnostic command:
+
+   ```bash
+   npm run env:check
+   ```
+
+   Missing variables are listed by name so you can fill them in without
+   leaking sensitive data to shared logs.
+
 3. Set The Graph API variables if querying via The Graph gateway. Provide your API key and the subgraph IDs for each network you plan to query. These IDs can be obtained from [The Graph explorer](https://thegraph.com/explorer/). If an ID is omitted, the scanner defaults to the legacy hosted-service URL:
 
 ```

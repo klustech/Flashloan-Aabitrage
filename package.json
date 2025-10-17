@@ -15,6 +15,7 @@
     "docker:up": "docker-compose up --build",
     "coverage": "solidity-coverage",
     "clean": "hardhat clean",
+    "env:check": "node scripts/envCheck.js",
     "check:subgraphs": "node scripts/checkSubgraphs.js",
     "train": "python3 ml/train_model.py",
     "ml:serve": "python3 ml/ml_scorer.py",
