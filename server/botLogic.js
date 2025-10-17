@@ -854,12 +854,16 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
   // 9. Build SwapData via swapDataBuilder
   let swapData;
   try {
-    swapData = await buildSwapDataFromDynamic(bestRoute.hops, {
-      slippageBips: SLIPPAGE_DEFAULT_INT,
-      minProfit: minProfitThreshold,
-      borrowToken: tokenAddresses.DAI,
-      borrowAmount: borrowDAI.toString(),
-    });
+    swapData = await buildSwapDataFromDynamic(
+      bestRoute,
+      {
+        slippageBips: SLIPPAGE_DEFAULT_INT,
+        minProfit: minProfitThreshold,
+        borrowToken: tokenAddresses.DAI,
+        borrowAmount: borrowDAI,
+      },
+      provider
+    );
     logger.info(`[${chain}] swapDataBuilder returned SwapData successfully.`);
   } catch (err) {
     logger.error(`[${chain}] swapDataBuilder error: ${err.message}`);
