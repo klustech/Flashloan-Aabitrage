@@ -15,6 +15,10 @@ const fs = require("fs");
 const winston = require("winston");
 const { ethers } = require("ethers");
 const { getEnv, loadRequired } = require("../../utils/config");
+const {
+  determineProfit,
+  getSimulationConfig,
+} = require("../../utils/profitDetermination");
 // Use prom-client if available; otherwise fall back to a no-op stub
 const client = require("../metrics");
 
@@ -277,15 +281,26 @@ app.get("/api/simulate-profit", async (_req, res) => {
       ],
     };
 
-    const result =
-      await require("../../utils/profitDetermination").determineProfit(
-        providerInfura,
-        route,
-        ethers.BigNumber.from(botSettings.simulationInputAmount),
-        ethers.BigNumber.from("200000"),
-        botSettings.slippageBips,
-        botSettings
-      );
+    const borrowAmountNumber = botSettings.simulationInputAmount;
+    const borrowAmountWei = ethers.utils.parseUnits(
+      borrowAmountNumber.toString(),
+      18
+    );
+
+    const simulationConfig = getSimulationConfig({
+      ...botSettings,
+      simulationInputAmount: borrowAmountNumber,
+    });
+
+    const result = await determineProfit(
+      providerInfura,
+      route,
+      borrowAmountWei,
+      ethers.BigNumber.from("200000"),
+      botSettings.slippageBips,
+      simulationConfig,
+      borrowAmountNumber
+    );
 
     res.json(result);
   } catch (err) {
