@@ -9,60 +9,49 @@
 require("dotenv").config({ override: true });
 const { simulateAndExecuteArb } = require("../server/botLogic");
 
-async function runBot() {
+async function delay(ms) {
+  if (ms > 0) {
+    await new Promise((res) => setTimeout(res, ms));
+  }
+}
+
+async function runBot({
+  maxCycles = Infinity,
+  pollIntervalMs = 10_000,
+  useFlashbots = true,
+} = {}) {
   console.log("🤖  Starting arbitrage bot...");
-  while (true) {
+  let cycles = 0;
+  let lastResult = { executed: false, estimatedProfitInDai: null };
+
+  while (cycles < maxCycles) {
     try {
-      const result = await simulateAndExecuteArb(true);
-      if (result.executed) {
+      lastResult = await simulateAndExecuteArb(useFlashbots);
+      if (lastResult?.executed) {
         console.log(
-          `✅ Executed with profit ${result.estimatedProfitInDai.toString()} wei`
+          `✅ Executed with profit ${lastResult.estimatedProfitInDai.toString()} wei`
         );
       } else {
         console.log("🔄  Cycle complete: No action");
       }
     } catch (err) {
-      console.error("❌  Bot error:", err.message || err);
+      console.error("❌  Bot error:", err?.message || err);
     }
-    // Wait 10 seconds between cycles
-    await new Promise((res) => setTimeout(res, 10000));
+
+    cycles += 1;
+    if (cycles < maxCycles) {
+      await delay(pollIntervalMs);
+    }
   }
+
+  return lastResult;
 }
 
-runBot().catch((err) => {
-  console.error("❌  Fatal error in bot runner:", err);
-  process.exit(1);
-});
+if (require.main === module) {
+  runBot().catch((err) => {
+    console.error("❌  Fatal error in bot runner:", err);
+    process.exit(1);
+  });
+}
 
-// scripts/run-backtest.js
-/**
- * Runner for backtesting historical arbitrage.
- * Usage:
- *   node scripts/run-backtest.js
- */
-
-require("dotenv").config({ override: true });
-const { backtestArbitrage } = require("../server/scripts/backtestArbitrage");
-const { ROUTES } = require("../server/botLogic");
-const { ethers } = require("ethers");
-
-(async () => {
-  // Configure your block range and options here
-  const startBlock = 17000000;
-  const endBlock = 17000100;
-  const borrowAmount = ethers.utils.parseEther("100");
-  const slippageBips = parseInt(process.env.SLIPPAGE_BIPS || "50");
-
-  console.log(`📊  Running backtest from block ${startBlock} to ${endBlock}`);
-  const { tradeCount, totalProfit } = await backtestArbitrage(
-    startBlock,
-    endBlock,
-    ROUTES,
-    { borrowAmount, slippageBips }
-  );
-  console.log(
-    `✅  Backtest complete: Profitable trades = ${tradeCount}, Total profit = ${ethers.utils.formatEther(
-      totalProfit
-    )} DAI`
-  );
-})();
+module.exports = { runBot };

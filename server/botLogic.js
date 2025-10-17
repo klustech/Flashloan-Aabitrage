@@ -318,8 +318,10 @@ try {
 // ─────────────────────────────────────────────────────────────────────────────
 // Providers for Ethereum, Arbitrum, Optimism
 // ─────────────────────────────────────────────────────────────────────────────
+const DEFAULT_CHAIN = "ethereum";
+
 const providers = {
-  ethereum: new ethers.providers.JsonRpcProvider({
+  [DEFAULT_CHAIN]: new ethers.providers.JsonRpcProvider({
     url: MAINNET_RPC_URL,
     timeout: 120_000,
   }),
@@ -329,14 +331,14 @@ const providers = {
 // Wallets for each chain
 // ─────────────────────────────────────────────────────────────────────────────
 const wallets = {
-  ethereum: new ethers.Wallet(PRIVATE_KEY, providers.ethereum),
+  [DEFAULT_CHAIN]: new ethers.Wallet(PRIVATE_KEY, providers[DEFAULT_CHAIN]),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Arbitrage contract addresses per chain (must be set in .env)
 // ─────────────────────────────────────────────────────────────────────────────
 const arbContractAddresses = {
-  ethereum: VALID_CONTRACT_ADDRESS,
+  [DEFAULT_CHAIN]: VALID_CONTRACT_ADDRESS,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1168,7 +1170,7 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
 // Coordinator: Run simulateAndExecuteArbChain on Each Configured Chain
 // ─────────────────────────────────────────────────────────────────────────────
 async function simulateAndExecuteArb(useFlashbots = true) {
-  const chains = ["ethereum"];
+  const chains = [DEFAULT_CHAIN];
   let outcome = { executed: false, estimatedProfitInDai: BigNumber.from(0) };
 
   for (const chain of chains) {
@@ -1188,6 +1190,8 @@ async function simulateAndExecuteArb(useFlashbots = true) {
 // ─────────────────────────────────────────────────────────────────────────────
 module.exports.simulateAndExecuteArb = simulateAndExecuteArb;
 module.exports.getDynamicSlippage = getDynamicSlippage;
+module.exports.getAllRoutes = getAllRoutes;
+module.exports.DEFAULT_CHAIN = DEFAULT_CHAIN;
 
 if (require.main === module) {
   (async () => {
