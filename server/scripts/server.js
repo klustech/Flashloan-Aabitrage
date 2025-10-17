@@ -19,8 +19,16 @@ const {
   determineProfit,
   getSimulationConfig,
 } = require("../../utils/profitDetermination");
-// Use prom-client if available; otherwise fall back to a no-op stub
-const client = require("../metrics");
+// Shared Prometheus metrics (registry + concrete instruments)
+const {
+  register,
+  arbAttempts,
+  arbSuccess,
+  arbFailure,
+  avgLatency,
+  avgProfit,
+  simulationHistogram,
+} = require("../metrics");
 
 loadRequired([
   "MAINNET_RPC_URL",
@@ -66,35 +74,8 @@ const WETH_ADDRESS = process.env.TOKENS_WETH;
 // ─────────────────────────────────────────────────────────────────────────────
 // Prometheus Metrics Setup
 // ─────────────────────────────────────────────────────────────────────────────
-const collectDefaultMetrics = client.collectDefaultMetrics;
-collectDefaultMetrics();
-
-const arbAttempts = new client.Counter({
-  name: "arb_attempts_total",
-  help: "Total number of arbitrage attempts",
-});
-const arbSuccess = new client.Counter({
-  name: "arb_success_total",
-  help: "Total number of successful arbitrage trades",
-});
-const arbFailure = new client.Counter({
-  name: "arb_failure_total",
-  help: "Total number of failed arbitrage trades",
-  labelNames: ["reason"],
-});
-const avgLatency = new client.Gauge({
-  name: "avg_latency_ms",
-  help: "Average latency in route simulation",
-});
-const avgProfit = new client.Gauge({
-  name: "avg_profit_dai",
-  help: "Average profit in DAI",
-});
-const simulationHistogram = new client.Histogram({
-  name: "simulation_time_seconds",
-  help: "Time taken to simulate a route",
-  buckets: [0.1, 0.5, 1, 2, 5],
-});
+// Prometheus metrics are created centrally in server/metrics.js so the API and
+// bot share a single registry regardless of which component instantiates them.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Express init & middleware
@@ -178,15 +159,15 @@ let botSettings = {
 // GET /metrics
 // Expose Prometheus metrics
 app.get("/metrics", async (_req, res) => {
-  res.set("Content-Type", client.register.contentType);
-  res.send(await client.register.metrics());
+  res.set("Content-Type", register.contentType);
+  res.send(await register.metrics());
 });
 
 // GET /api/metrics-json
 // Return metrics in JSON form for the front-end
 app.get("/api/metrics-json", async (_req, res) => {
   try {
-    const data = await client.register.getMetricsAsJSON();
+    const data = await register.getMetricsAsJSON();
     res.json(data);
   } catch (err) {
     logger.error(`metrics-json error: ${err.message}`);
