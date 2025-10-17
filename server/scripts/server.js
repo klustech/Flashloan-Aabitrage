@@ -28,7 +28,7 @@ const {
   avgLatency,
   avgProfit,
   simulationHistogram,
-} = require("../metrics");
+} = require("../metricsRegistry");
 
 loadRequired([
   "MAINNET_RPC_URL",
@@ -74,7 +74,7 @@ const WETH_ADDRESS = process.env.TOKENS_WETH;
 // ─────────────────────────────────────────────────────────────────────────────
 // Prometheus Metrics Setup
 // ─────────────────────────────────────────────────────────────────────────────
-// Prometheus metrics are created centrally in server/metrics.js so the API and
+// Prometheus metrics are created centrally in server/metricsRegistry.js so the API and
 // bot share a single registry regardless of which component instantiates them.
 
 // ─────────────────────────────────────────────────────────────────────────────
