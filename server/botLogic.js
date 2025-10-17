@@ -42,7 +42,7 @@ const {
   simulationHistogram,
   rlEpsilon,
   rlAction,
-} = require("./metrics");
+} = require("./metricsRegistry");
 const slippageAgent = require("./rl/slippageAgent");
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -184,7 +184,7 @@ const safeAsync = require("../utils/safeAsync");
 // ─────────────────────────────────────────────────────────────────────────────
 // Prometheus Metrics Setup
 // ─────────────────────────────────────────────────────────────────────────────
-// Prometheus metrics are shared via server/metrics.js; importing here ensures
+// Prometheus metrics are shared via server/metricsRegistry.js; importing here ensures
 // updates from the bot leverage the same registry as the API server.
 
 // ─────────────────────────────────────────────────────────────────────────────
