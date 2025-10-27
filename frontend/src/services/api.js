@@ -15,6 +15,18 @@ export const API = axios.create({
   baseURL: API_BASE_URL,
 });
 
+const API_KEY = process.env.REACT_APP_API_KEY;
+
+if (API_KEY) {
+  API.interceptors.request.use((config) => {
+    const nextConfig = { ...config };
+    nextConfig.headers = nextConfig.headers ?? {};
+    if (!nextConfig.headers["x-api-key"]) {
+      nextConfig.headers["x-api-key"] = API_KEY;
+    }
+    return nextConfig;
+  });
+}
 let authTokenProvider = null;
 let unauthorizedHandler = null;
 
@@ -102,8 +114,23 @@ export const triggerArbitrage = async () => {
 };
 
 // Fetch bot logs
-export const getBotLogs = async () => {
-  const response = await API.get("/api/bot-logs");
+/**
+ * Fetch a paginated slice of bot logs.
+ *
+ * @param {Object} options
+ * @param {number} [options.offset=0] - Line offset (0-indexed) to start reading from.
+ * @param {number} [options.limit=100] - Maximum number of log lines to return (capped server-side).
+ * @param {string} [options.file="bot.log"] - Optional log filename relative to the project root.
+ * @returns {Promise<{logs: string[], offset: number, limit: number, nextOffset: number|null, hasMore: boolean, file: string}>}
+ */
+export const getBotLogs = async ({ offset = 0, limit = 100, file = "bot.log" } = {}) => {
+  const response = await API.get("/api/bot-logs", {
+    params: {
+      offset,
+      limit,
+      file,
+    },
+  });
   return response.data;
 };
 

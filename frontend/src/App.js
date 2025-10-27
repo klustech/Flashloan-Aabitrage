@@ -402,11 +402,18 @@ function BotLogs({ logs, loadingLogs }) {
 }
 
 function App() {
+  const LOG_PAGE_LIMIT = 100;
   const [activeTab, setActiveTab] = useState(0);
   const [prices, setPrices] = useState({});
   const [marketHistory, setMarketHistory] = useState([]);
   const [loadingPrices, setLoadingPrices] = useState(false);
-  const [botLogs, setBotLogs] = useState([]);
+  const [botLogsPage, setBotLogsPage] = useState({
+    logs: [],
+    offset: 0,
+    limit: LOG_PAGE_LIMIT,
+    nextOffset: null,
+    hasMore: false,
+  });
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [arbLoading, setArbLoading] = useState(false);
   const [settings, setSettings] = useState({});
@@ -450,8 +457,14 @@ function App() {
   const fetchLogs = async () => {
     setLoadingLogs(true);
     try {
-      const logs = await getBotLogs();
-      setBotLogs(logs);
+      const logResponse = await getBotLogs({
+        offset: 0,
+        limit: LOG_PAGE_LIMIT,
+      });
+      setBotLogsPage((prev) => ({
+        ...prev,
+        ...logResponse,
+      }));
     } finally {
       setLoadingLogs(false);
     }
@@ -517,7 +530,7 @@ function App() {
           />
         )}
         {activeTab === 3 && (
-          <BotLogs logs={botLogs} loadingLogs={loadingLogs} />
+          <BotLogs logs={botLogsPage.logs} loadingLogs={loadingLogs} />
         )}
       </Box>
     </Box>
