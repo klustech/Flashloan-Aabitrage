@@ -128,9 +128,156 @@ process.on("unhandledRejection", (reason) => {
 });
 
 process.on("uncaughtException", (err) => {
-  logger.error(`Uncaught Exception: ${err.message}`);
-  process.exit(1);
+  logger.error(`Uncaught Exception: ${err.stack || err.message}`);
+  arbFailure.labels("uncaught_exception").inc();
+  sendSlackAlert(`Uncaught Exception in API server: ${err.message}`);
 });
+
+const ARB_TIMEOUT_MS =
+  parseInt(process.env.ARB_EXECUTION_TIMEOUT_MS, 10) || 120_000;
+const HEALTH_STALE_THRESHOLD_MS =
+  parseInt(process.env.HEALTH_STALE_THRESHOLD_MS, 10) || 300_000;
+
+const workerStatus = {
+  running: false,
+  lastRunAt: null,
+  lastSuccessAt: null,
+  lastErrorAt: null,
+  lastTimeoutAt: null,
+  lastErrorMessage: null,
+};
+
+const recordWorkerState = (patch = {}) => {
+  Object.assign(workerStatus, patch);
+};
+
+const notifyError = (label, err) => {
+  const reason = err.metricReason || label || "exception";
+  try {
+    arbFailure.labels(reason).inc();
+  } catch (metricErr) {
+    logger.warn(`Metric increment failed for ${reason}: ${metricErr.message}`);
+  }
+  logger.error(
+    `[${label}] ${err.stack || err.message || "Unknown error encountered"}`
+  );
+  const shouldAlert =
+    err.shouldAlert ??
+    (typeof err.message === "string" && err.message.includes("Circuit breaker"));
+  if (shouldAlert) {
+    sendSlackAlert(`[${label}] ${err.message}`);
+  }
+};
+
+const withErrorBoundary = (label, handler) => (req, res, next) => {
+  Promise.resolve()
+    .then(() => handler(req, res, next))
+    .catch((err) => {
+      notifyError(label, err);
+      next(err);
+    });
+};
+
+const withCronBoundary = (label, handler) => async () => {
+  try {
+    await handler();
+  } catch (err) {
+    notifyError(label, err);
+  }
+};
+
+const createTimeoutError = (timeoutMs, contextLabel) => {
+  const timeoutError = new Error(
+    `simulateAndExecuteArb timed out after ${timeoutMs}ms (${contextLabel})`
+  );
+  timeoutError.name = "AbortError";
+  timeoutError.metricReason = "timeout";
+  timeoutError.shouldAlert = false;
+  return timeoutError;
+};
+
+async function runArbWithTimeout(useFlashbots, contextLabel) {
+  const timeoutMs = ARB_TIMEOUT_MS;
+  const controller = new AbortController();
+  recordWorkerState({ running: true, lastRunAt: Date.now() });
+
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      const timeoutError = createTimeoutError(timeoutMs, contextLabel);
+      controller.abort();
+      reject(timeoutError);
+    }, timeoutMs);
+  });
+
+  const arbPromise = simulateAndExecuteArb(useFlashbots, {
+    signal: controller.signal,
+  });
+
+  try {
+    const result = await Promise.race([arbPromise, timeoutPromise]);
+    recordWorkerState({
+      running: false,
+      lastSuccessAt: Date.now(),
+      lastErrorMessage: null,
+      lastTimeoutAt: null,
+    });
+    return result;
+  } catch (err) {
+    const isTimeout = err.name === "AbortError" || err.metricReason === "timeout";
+    recordWorkerState({
+      running: false,
+      lastErrorAt: Date.now(),
+      lastErrorMessage: err.message,
+      lastTimeoutAt: isTimeout ? Date.now() : workerStatus.lastTimeoutAt,
+    });
+    if (isTimeout) {
+      botSettings.botActive = false;
+      logger.error(
+        `[${contextLabel}] simulateAndExecuteArb timed out after ${timeoutMs}ms. Bot paused.`
+      );
+      sendSlackAlert(
+        `Arbitrage loop timed out in ${contextLabel}. Bot has been paused.`
+      );
+      err.shouldAlert = false;
+      err.metricReason = "timeout";
+      err.publicMessage = err.publicMessage || "arbitrage execution timed out";
+    }
+    if (!err.metricReason) {
+      err.metricReason = "exception";
+    }
+    if (!err.publicMessage) {
+      err.publicMessage = "arbitrage execution failed";
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+    arbPromise.catch(() => {});
+  }
+}
+
+const getHealthStatus = () => {
+  const now = Date.now();
+  const stale =
+    workerStatus.lastRunAt && now - workerStatus.lastRunAt > HEALTH_STALE_THRESHOLD_MS;
+  const healthy =
+    botSettings.botActive &&
+    !workerStatus.running &&
+    !stale &&
+    !workerStatus.lastTimeoutAt;
+
+  return {
+    healthy,
+    botActive: botSettings.botActive,
+    running: workerStatus.running,
+    stale,
+    lastRunAt: workerStatus.lastRunAt,
+    lastSuccessAt: workerStatus.lastSuccessAt,
+    lastErrorAt: workerStatus.lastErrorAt,
+    lastTimeoutAt: workerStatus.lastTimeoutAt,
+    lastErrorMessage: workerStatus.lastErrorMessage,
+  };
+};
 
 // Log each incoming request
 app.use((req, _res, next) => {
@@ -158,141 +305,165 @@ let botSettings = {
 
 // GET /metrics
 // Expose Prometheus metrics
-app.get("/metrics", async (_req, res) => {
-  res.set("Content-Type", register.contentType);
-  res.send(await register.metrics());
-});
+app.get(
+  "/metrics",
+  withErrorBoundary("metrics_endpoint", async (_req, res) => {
+    res.set("Content-Type", register.contentType);
+    res.send(await register.metrics());
+  })
+);
 
 // GET /api/metrics-json
 // Return metrics in JSON form for the front-end
-app.get("/api/metrics-json", async (_req, res) => {
-  try {
-    const data = await register.getMetricsAsJSON();
-    res.json(data);
-  } catch (err) {
-    logger.error(`metrics-json error: ${err.message}`);
-    res.status(500).json({ error: "failed to fetch metrics" });
-  }
-});
+app.get(
+  "/api/metrics-json",
+  withErrorBoundary("metrics_json", async (_req, res) => {
+    try {
+      const data = await register.getMetricsAsJSON();
+      res.json(data);
+    } catch (err) {
+      err.statusCode = 500;
+      err.publicMessage = "failed to fetch metrics";
+      err.metricReason = err.metricReason || "metrics_json_error";
+      throw err;
+    }
+  })
+);
 
 // GET /api/market-data
 // Returns uniswapPrice and sushiPrice for 1 DAI → WETH,
 // wraps getAmountsOut calls in try/catch to avoid errors.
-app.get("/api/market-data", async (_req, res) => {
-  try {
-    if (!DAI_ADDRESS || !WETH_ADDRESS) {
-      throw new Error("TOKENS_DAI or TOKENS_WETH is undefined in .env");
-    }
-    const uniswap = new ethers.Contract(UNI_ROUTER, UniswapABI, provider);
-    const sushi = new ethers.Contract(SUSHI_ROUTER, SushiABI, provider);
-
-    const amountIn = ethers.utils.parseUnits("1", 18);
-    const tokenPath = [DAI_ADDRESS, WETH_ADDRESS];
-
-    let uniswapPrice = "0";
-    let sushiPrice = "0";
-
-    // Attempt Uniswap quote
+app.get(
+  "/api/market-data",
+  withErrorBoundary("market_data", async (_req, res) => {
     try {
-      const uniAmounts = await uniswap.getAmountsOut(amountIn, tokenPath);
-      uniswapPrice = ethers.utils.formatUnits(uniAmounts[1], 18);
+      if (!DAI_ADDRESS || !WETH_ADDRESS) {
+        throw new Error("TOKENS_DAI or TOKENS_WETH is undefined in .env");
+      }
+      const uniswap = new ethers.Contract(UNI_ROUTER, UniswapABI, provider);
+      const sushi = new ethers.Contract(SUSHI_ROUTER, SushiABI, provider);
+
+      const amountIn = ethers.utils.parseUnits("1", 18);
+      const tokenPath = [DAI_ADDRESS, WETH_ADDRESS];
+
+      let uniswapPrice = "0";
+      let sushiPrice = "0";
+
+      // Attempt Uniswap quote
+      try {
+        const uniAmounts = await uniswap.getAmountsOut(amountIn, tokenPath);
+        uniswapPrice = ethers.utils.formatUnits(uniAmounts[1], 18);
+      } catch (err) {
+        logger.error(`Uniswap getAmountsOut error: ${err.message}`);
+        // Keep uniswapPrice as "0"
+      }
+
+      // Attempt SushiSwap quote
+      try {
+        const sushiAmounts = await sushi.getAmountsOut(amountIn, tokenPath);
+        sushiPrice = ethers.utils.formatUnits(sushiAmounts[1], 18);
+      } catch (err) {
+        logger.error(`SushiSwap getAmountsOut error: ${err.message}`);
+        // Keep sushiPrice as "0"
+      }
+
+      const payload = {
+        tokenIn: "DAI",
+        tokenOut: "WETH",
+        uniswapPrice,
+        sushiPrice,
+      };
+
+      logger.info(`Market data: ${JSON.stringify(payload)}`);
+      res.json(payload);
     } catch (err) {
-      logger.error(`Uniswap getAmountsOut error: ${err.message}`);
-      // Keep uniswapPrice as "0"
+      err.statusCode = 500;
+      err.publicMessage = "failed to fetch market data";
+      err.metricReason = err.metricReason || "market_data_error";
+      throw err;
     }
-
-    // Attempt SushiSwap quote
-    try {
-      const sushiAmounts = await sushi.getAmountsOut(amountIn, tokenPath);
-      sushiPrice = ethers.utils.formatUnits(sushiAmounts[1], 18);
-    } catch (err) {
-      logger.error(`SushiSwap getAmountsOut error: ${err.message}`);
-      // Keep sushiPrice as "0"
-    }
-
-    const payload = {
-      tokenIn: "DAI",
-      tokenOut: "WETH",
-      uniswapPrice,
-      sushiPrice,
-    };
-
-    logger.info(`Market data: ${JSON.stringify(payload)}`);
-    res.json(payload);
-  } catch (err) {
-    logger.error(`Market data endpoint error: ${err.message}`);
-    res.status(500).json({ error: "failed to fetch market data" });
-  }
-});
+  })
+);
 
 // GET /api/bot-logs
 // Returns the contents of bot.log as a JSON array
-app.get("/api/bot-logs", (_req, res) => {
-  try {
-    const logs = fs
-      .readFileSync("bot.log", "utf-8")
-      .split("\n")
-      .filter(Boolean);
-    res.json(logs);
-  } catch (err) {
-    logger.error(`Log read error: ${err.message}`);
-    res.status(500).json({ error: "failed to read bot.log" });
-  }
-});
+app.get(
+  "/api/bot-logs",
+  withErrorBoundary("bot_logs", (_req, res) => {
+    try {
+      const logs = fs
+        .readFileSync("bot.log", "utf-8")
+        .split("\n")
+        .filter(Boolean);
+      res.json(logs);
+    } catch (err) {
+      err.statusCode = 500;
+      err.publicMessage = "failed to read bot.log";
+      err.metricReason = err.metricReason || "bot_log_error";
+      throw err;
+    }
+  })
+);
 
 // GET /api/simulate-profit
 // Uses profitDetermination utility for a demo route
-app.get("/api/simulate-profit", async (_req, res) => {
-  try {
-    const providerInfura = new ethers.providers.JsonRpcProvider(
-      process.env.MAINNET_RPC_URL
-    );
+app.get(
+  "/api/simulate-profit",
+  withErrorBoundary("simulate_profit", async (_req, res) => {
+    try {
+      const providerInfura = new ethers.providers.JsonRpcProvider(
+        process.env.MAINNET_RPC_URL
+      );
 
-    const route = {
-      name: "DAI→WETH→DAI (Uni)",
-      steps: [
-        {
-          description: "DAI→WETH",
-          simulate: (amt) => (amt / 2000) * 0.995,
-        },
-        {
-          description: "WETH→DAI",
-          simulate: (amt) => amt * 2000 * 1.03 * 0.995,
-        },
-      ],
-    };
+      const route = {
+        name: "DAI→WETH→DAI (Uni)",
+        steps: [
+          {
+            description: "DAI→WETH",
+            simulate: (amt) => (amt / 2000) * 0.995,
+          },
+          {
+            description: "WETH→DAI",
+            simulate: (amt) => amt * 2000 * 1.03 * 0.995,
+          },
+        ],
+      };
 
-    const borrowAmountNumber = botSettings.simulationInputAmount;
-    const borrowAmountWei = ethers.utils.parseUnits(
-      borrowAmountNumber.toString(),
-      18
-    );
+      const borrowAmountNumber = botSettings.simulationInputAmount;
+      const borrowAmountWei = ethers.utils.parseUnits(
+        borrowAmountNumber.toString(),
+        18
+      );
 
-    const simulationConfig = getSimulationConfig({
-      ...botSettings,
-      simulationInputAmount: borrowAmountNumber,
-    });
+      const simulationConfig = getSimulationConfig({
+        ...botSettings,
+        simulationInputAmount: borrowAmountNumber,
+      });
 
-    const result = await determineProfit(
-      providerInfura,
-      route,
-      borrowAmountWei,
-      ethers.BigNumber.from("200000"),
-      botSettings.slippageBips,
-      simulationConfig,
-      borrowAmountNumber
-    );
+      const result = await determineProfit(
+        providerInfura,
+        route,
+        borrowAmountWei,
+        ethers.BigNumber.from("200000"),
+        botSettings.slippageBips,
+        simulationConfig,
+        borrowAmountNumber
+      );
 
-    res.json(result);
-  } catch (err) {
-    logger.error(`simulate-profit error: ${err.message}`);
-    res.status(500).json({ error: "simulation failed" });
-  }
-});
+      res.json(result);
+    } catch (err) {
+      err.statusCode = 500;
+      err.publicMessage = "simulation failed";
+      err.metricReason = err.metricReason || "simulation_error";
+      throw err;
+    }
+  })
+);
 
 // POST /api/trigger-arbitrage?flashbots=true|false
-app.post("/api/trigger-arbitrage", async (req, res) => {
-  try {
+app.post(
+  "/api/trigger-arbitrage",
+  withErrorBoundary("manual_trigger", async (req, res) => {
     const useFlashbots =
       req.query.flashbots === "true" || botSettings.flashbotsDefault;
     logger.info(`Manual trigger (flashbots=${useFlashbots})`);
@@ -300,7 +471,21 @@ app.post("/api/trigger-arbitrage", async (req, res) => {
     const startTime = Date.now();
     arbAttempts.inc();
 
-    const result = await simulateAndExecuteArb(useFlashbots);
+    let result;
+    try {
+      result = await runArbWithTimeout(useFlashbots, "manual_trigger");
+    } catch (err) {
+      if (
+        !err.publicMessage ||
+        err.publicMessage === "arbitrage execution failed"
+      ) {
+        err.publicMessage =
+          err.metricReason === "timeout"
+            ? "arbitrage execution timed out"
+            : "trigger failed";
+      }
+      throw err;
+    }
     const elapsed = (Date.now() - startTime) / 1000;
     simulationHistogram.observe(elapsed);
     avgLatency.set(elapsed * 1000);
@@ -325,73 +510,123 @@ app.post("/api/trigger-arbitrage", async (req, res) => {
         ? { status: "executed", message: "Arbitrage executed" }
         : { status: "noop", message: "No opportunity" }
     );
-  } catch (err) {
-    arbFailure.labels("exception").inc();
-    logger.error(`Trigger error: ${err.message}`);
-    res.status(500).json({ error: "trigger failed" });
-  }
-});
+  })
+);
 
 // GET /api/settings
-app.get("/api/settings", (_req, res) => {
-  res.json(botSettings);
-});
+app.get(
+  "/api/settings",
+  withErrorBoundary("get_settings", (_req, res) => {
+    res.json(botSettings);
+  })
+);
 
 // POST /api/settings
 // Allowed fields: flashbotsDefault, pollingInterval, gasPriceCeiling,
 // slippageBips, minBorrowAmount, simulationInputAmount
-app.post("/api/settings", (req, res) => {
-  try {
-    const allowed = [
-      "flashbotsDefault",
-      "pollingInterval",
-      "gasPriceCeiling",
-      "slippageBips",
-      "minBorrowAmount",
-      "simulationInputAmount",
-    ];
+app.post(
+  "/api/settings",
+  withErrorBoundary("update_settings", (req, res) => {
+    try {
+      const allowed = [
+        "flashbotsDefault",
+        "pollingInterval",
+        "gasPriceCeiling",
+        "slippageBips",
+        "minBorrowAmount",
+        "simulationInputAmount",
+      ];
 
-    allowed.forEach((k) => {
-      if (req.body[k] !== undefined) {
-        botSettings[k] = req.body[k];
-        if (k === "minBorrowAmount") updateMinBorrowAmount(req.body[k]);
-        if (k === "simulationInputAmount")
-          updateSimulationInputAmount(req.body[k]);
-      }
-    });
+      allowed.forEach((k) => {
+        if (req.body[k] !== undefined) {
+          botSettings[k] = req.body[k];
+          if (k === "minBorrowAmount") updateMinBorrowAmount(req.body[k]);
+          if (k === "simulationInputAmount")
+            updateSimulationInputAmount(req.body[k]);
+        }
+      });
 
-    logger.info(`Settings updated: ${JSON.stringify(botSettings)}`);
-    res.json({ status: "ok", settings: botSettings });
-  } catch (err) {
-    logger.error(`Settings error: ${err.message}`);
-    res.status(500).json({ error: "update failed" });
-  }
-});
+      logger.info(`Settings updated: ${JSON.stringify(botSettings)}`);
+      res.json({ status: "ok", settings: botSettings });
+    } catch (err) {
+      err.statusCode = 500;
+      err.publicMessage = "update failed";
+      err.metricReason = err.metricReason || "settings_error";
+      throw err;
+    }
+  })
+);
 
 // POST /api/start-bot
-app.post("/api/start-bot", (_req, res) => {
-  botSettings.botActive = true;
-  logger.info("Bot started");
-  res.json({ status: "ok", settings: botSettings });
-});
+app.post(
+  "/api/start-bot",
+  withErrorBoundary("start_bot", (_req, res) => {
+    botSettings.botActive = true;
+    logger.info("Bot started");
+    recordWorkerState({ lastTimeoutAt: null, lastErrorMessage: null });
+    res.json({ status: "ok", settings: botSettings });
+  })
+);
 
 // POST /api/stop-bot
-app.post("/api/stop-bot", (_req, res) => {
-  botSettings.botActive = false;
-  logger.info("Bot stopped");
-  res.json({ status: "ok", settings: botSettings });
+app.post(
+  "/api/stop-bot",
+  withErrorBoundary("stop_bot", (_req, res) => {
+    botSettings.botActive = false;
+    logger.info("Bot stopped");
+    recordWorkerState({ running: false });
+    res.json({ status: "ok", settings: botSettings });
+  })
+);
+
+// GET /healthz
+app.get(
+  "/healthz",
+  withErrorBoundary("healthz", (_req, res) => {
+    res.json(getHealthStatus());
+  })
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Centralized error handler
+// ─────────────────────────────────────────────────────────────────────────────
+app.use((err, req, res, next) => {
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  const status = err.statusCode || err.status || 500;
+  const message =
+    status >= 500
+      ? err.publicMessage || "Internal Server Error"
+      : err.publicMessage || err.message;
+
+  const payload = { error: message };
+  if (err.details) {
+    payload.details = err.details;
+  }
+
+  res.status(status).json(payload);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Cron: scheduled arbitrage checks (once per minute)
 // ─────────────────────────────────────────────────────────────────────────────
-cron.schedule("* * * * *", async () => {
-  if (!botSettings.botActive) return;
-  try {
+cron.schedule(
+  "* * * * *",
+  withCronBoundary("scheduler", async () => {
+    if (!botSettings.botActive) {
+      recordWorkerState({ running: false });
+      return;
+    }
+
     const startTime = Date.now();
     arbAttempts.inc();
 
-    const result = await simulateAndExecuteArb(botSettings.flashbotsDefault);
+    const result = await runArbWithTimeout(
+      botSettings.flashbotsDefault,
+      "scheduler"
+    );
     const elapsed = (Date.now() - startTime) / 1000;
     simulationHistogram.observe(elapsed);
     avgLatency.set(elapsed * 1000);
@@ -412,15 +647,8 @@ cron.schedule("* * * * *", async () => {
       arbFailure.labels("no_opportunity").inc();
       logger.info("Scheduler: no opportunity");
     }
-  } catch (err) {
-    arbFailure.labels("exception").inc();
-    logger.error(`Scheduler error: ${err.message}`);
-    // If circuit breaker logic in botLogic paused the bot, send Slack alert
-    if (err.message.includes("Circuit breaker")) {
-      sendSlackAlert(err.message);
-    }
-  }
-});
+  })
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Serve React front-end build
