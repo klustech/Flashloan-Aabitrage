@@ -153,6 +153,9 @@ const {
   initSubscriptions,
   reserveCache,
   fetchMulticallReservesForRoute,
+  events: reserveEvents,
+  isLiveEnabled: isLiveReserveIngestionEnabled,
+  getConnectionState: getReserveConnectionState,
 } = require("./scripts/priceIngestion");
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -197,6 +200,48 @@ const logger = winston.createLogger({
     new winston.transports.File({ filename: "bot.log" }),
   ],
 });
+
+if (reserveEvents && typeof reserveEvents.on === "function") {
+  reserveEvents.on("connected", ({ providerType }) => {
+    logger.info(
+      `[reserves] Connected to ${providerType || "unknown"} provider.`
+    );
+  });
+  reserveEvents.on("reconnected", ({ providerType, fallback }) => {
+    const fallbackNote = fallback ? " (RPC fallback)" : "";
+    logger.info(
+      `[reserves] Reconnected to ${providerType || "unknown"} provider${fallbackNote}.`
+    );
+  });
+  reserveEvents.on("reconnecting", ({ providerType, attempt, delay, error }) => {
+    const delayLabel =
+      typeof delay === "number" && Number.isFinite(delay) ? `${delay}ms` : "n/a";
+    const attemptLabel =
+      typeof attempt === "number" && Number.isFinite(attempt) ? attempt : 0;
+    logger.warn(
+      `[reserves] Reconnecting ${providerType || "unknown"} provider (attempt ${
+        attemptLabel
+      }, delay ${delayLabel}): ${error ? error.message || error : "n/a"}.`
+    );
+  });
+  reserveEvents.on("disconnected", ({ providerType, code }) => {
+    logger.warn(
+      `[reserves] ${providerType || "unknown"} provider disconnected (code: ${
+        typeof code !== "undefined" ? code : "n/a"
+      }).`
+    );
+  });
+  reserveEvents.on("error", ({ providerType, error }) => {
+    logger.error(
+      `[reserves] ${providerType || "unknown"} provider error: ${
+        error ? error.message || error : "unknown"
+      }.`
+    );
+  });
+  reserveEvents.on("provider_unavailable", ({ reason }) => {
+    logger.warn(`[reserves] Provider unavailable: ${reason || "unknown"}.`);
+  });
+}
 
 // Helper wrapped with safeAsync using the configured logger
 const safeFetchReserves = safeAsync(fetchMulticallReservesForRoute, logger);
@@ -844,16 +889,60 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
   logger.info(
     `[${chain}] Subscribing to ${topPools.length} pools for reserve updates.`
   );
-  await initSubscriptions(topPools);
+  const liveReservesEnabled = isLiveReserveIngestionEnabled();
+  if (liveReservesEnabled && typeof getReserveConnectionState === "function") {
+    const state = getReserveConnectionState();
+    if (state.status && state.status !== "connected") {
+      logger.warn(
+        `[${chain}] Reserve provider status: ${state.status} (attempts=${
+          state.attempts ?? 0
+        }).`
+      );
+    }
+  }
+
+  if (liveReservesEnabled) {
+    await initSubscriptions(topPools);
+  } else {
+    logger.info(
+      `[${chain}] Live reserve ingestion disabled—using cached reserves when available.`
+    );
+  }
+
   for (const poolAddr of topPools) {
-    if (
-      !reserveCache.has(poolAddr) ||
-      Date.now() - reserveCache.get(poolAddr).timestamp > 5000
-    ) {
-      const ok = await safeFetchReserves({ poolAddress: poolAddr });
-      if (ok) {
+    let normalizedPool;
+    try {
+      normalizedPool = ethers.utils.getAddress(poolAddr);
+    } catch (err) {
+      logger.warn(`[${chain}] Skipping invalid pool address ${poolAddr}.`);
+      continue;
+    }
+
+    const cachedEntry = reserveCache.get(normalizedPool);
+    const isStale = !cachedEntry || Date.now() - cachedEntry.timestamp > 5000;
+
+    if (!liveReservesEnabled) {
+      if (!cachedEntry) {
+        logger.warn(
+          `[${chain}] No cached reserves for pool ${normalizedPool} while live ingestion is disabled.`
+        );
+      }
+      continue;
+    }
+
+    if (isStale) {
+      const fetched = await safeFetchReserves({ poolAddress: normalizedPool });
+      if (fetched) {
         logger.info(
-          `[${chain}] Fetched multicall reserves for pool ${poolAddr}`
+          `[${chain}] Updated reserves for pool ${normalizedPool} via multicall.`
+        );
+      } else if (reserveCache.has(normalizedPool)) {
+        logger.info(
+          `[${chain}] Falling back to cached reserves for pool ${normalizedPool}.`
+        );
+      } else {
+        logger.warn(
+          `[${chain}] Unable to refresh or fallback reserves for pool ${normalizedPool}.`
         );
       }
     }

@@ -3,6 +3,33 @@ const promClient = require("prom-client");
 const register = new promClient.Registry();
 promClient.collectDefaultMetrics({ register });
 
+const reserveIngestionFailures = new promClient.Counter({
+  name: "reserve_ingestion_failures_total",
+  help: "Number of failures encountered while maintaining reserve ingestion",
+  labelNames: ["type"],
+  registers: [register],
+});
+
+const reserveIngestionReconnects = new promClient.Counter({
+  name: "reserve_ingestion_reconnects_total",
+  help: "Total number of reserve ingestion provider reconnect events",
+  labelNames: ["provider_type"],
+  registers: [register],
+});
+
+const reserveIngestionConnectionState = new promClient.Gauge({
+  name: "reserve_ingestion_connection_state",
+  help: "Connection state of the reserve ingestion provider (0=offline, 1=online)",
+  labelNames: ["provider_type"],
+  registers: [register],
+});
+
+const reserveIngestionEnabled = new promClient.Gauge({
+  name: "reserve_ingestion_enabled",
+  help: "Flag indicating whether live reserve ingestion is enabled (1) or disabled (0)",
+  registers: [register],
+});
+
 const arbAttempts = new promClient.Counter({
   name: "arb_attempts_total",
   help: "Total number of arbitrage attempts",
@@ -63,4 +90,8 @@ module.exports = {
   simulationHistogram,
   rlEpsilon,
   rlAction,
+  reserveIngestionFailures,
+  reserveIngestionReconnects,
+  reserveIngestionConnectionState,
+  reserveIngestionEnabled,
 };
