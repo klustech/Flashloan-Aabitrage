@@ -13,8 +13,9 @@ npm ci
 ```
 
 2. Copy `.env.example` to `.env` and fill in the required addresses (router addresses, deployed Arbitrage contracts, etc.). Only Uniswap and SushiSwap routers are needed; the old `ROUTERXYZ` fields have been removed.
-   The project now uses a central config loader (`utils/config.js`) so any process
-   reading environment variables will automatically pull from `.env`.
+   The project now uses central config loaders – `utils/config.js` for shared
+   scripts and `server/utils/runtimeConfig.js` for bot/server processes – so any
+   process reading environment variables will automatically pull from `.env`.
    See [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md) for details.
 
    To verify that the most important secrets are present without printing
@@ -55,17 +56,19 @@ CURVE_V2_SUBGRAPH_ID=<id>   # optional
 CURVE_OPTIMISM_SUBGRAPH_ID=<id>   # optional
 ```
 
-By default the bot queries Uniswap V3, Balancer V2 and Curve V2 pools. You can
-disable any of these integrations by setting the corresponding `INCLUDE_*`
-variable to `false`:
+Optional integrations default to disabled so the bot can still start when
+supporting credentials are missing. Enable the pieces you need in `.env`:
 
 ```bash
-# Optional DEX toggles (defaults to true)
+# Optional DEX toggles
 INCLUDE_UNISWAP_V2=true
 INCLUDE_SUSHISWAP_V2=true
 INCLUDE_V3=true
-INCLUDE_BALANCER=true
+INCLUDE_BALANCER=true   # requires ETH_RPC_URL (falls back to MAINNET_RPC_URL)
 INCLUDE_CURVE=true
+
+# Reinforcement learning slippage controller
+ENABLE_RL=true
 ```
 
 If the bot logs `routeFinder returned 0 routes`, double-check these subgraph
@@ -80,12 +83,32 @@ V3 ID for `UNISWAP_ARBITRUM_SUBGRAPH_ID` will cause `pairs` queries to fail.
 You can run `node scripts/checkSubgraphs.js` to quickly verify that each
 configured subgraph responds to queries.
 
+### PostgreSQL Persistence
+
+The bot requires a PostgreSQL instance to persist executed trades and compute
+drawdown guardrails. Populate the `PG_USER`, `PG_HOST`, `PG_DB`, `PG_PASSWORD`,
+and `PG_PORT` environment variables in `.env` (see `server/dbClient.js` for the
+exact list). On startup the server performs a health check; in production builds
+(`NODE_ENV=production`) the process exits immediately if the connection cannot
+be established so that orchestration layers can restart the service.
+
+Operational telemetry is exposed via Prometheus: the `db_enabled` gauge reports
+`1` when persistence is active and `0` otherwise, and the
+`db_insert_failures_total` counter increments each time an insert is skipped or
+fails because the database is unavailable. Monitor these metrics to trigger
+alerts when persistence is degraded.
+
 4. Start the services:
 
 ```bash
 npm run bot &
 npm run api
 ```
+
+The bot prints which integrations are active at startup. For example, if
+`MAINNET_WEBSOCKET` is omitted it will fall back to HTTP polling, and if
+`INCLUDE_BALANCER` or `ENABLE_RL` are unset the log will note that those
+features are running in a reduced mode instead of aborting the process.
 
 To replay historical data or evaluate strategy tweaks offline, run the dedicated
 backtest entry point:

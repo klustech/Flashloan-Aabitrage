@@ -1,6 +1,7 @@
 // frontend/src/App.js
 
 import React, { useEffect, useState } from "react";
+import { ZodError } from "zod";
 import {
   AppBar,
   Toolbar,
@@ -35,6 +36,17 @@ import {
   startBot,
   stopBot,
 } from "./services/api";
+import {
+  normalizeFieldErrors,
+  pickSettingsFields,
+  settingsDefaults,
+  settingsUpdateSchema,
+} from "./validation/settingsSchema";
+
+const toLocalSettings = (incoming = {}) => ({
+  ...settingsDefaults,
+  ...pickSettingsFields(incoming),
+});
 
 function Dashboard({ prices, marketHistory, loadingPrices }) {
   const chartData = {
@@ -115,49 +127,103 @@ function BotControl({ onTrigger, arbLoading }) {
 }
 
 function Settings({ settings, onSettingsSave, onStart, onStop }) {
-  const [localSettings, setLocalSettings] = useState({
-    flashbotsDefault: settings.flashbotsDefault || false,
-    pollingInterval: settings.pollingInterval || 60,
-    gasPriceCeiling: settings.gasPriceCeiling || 50,
-    slippageBips: settings.slippageBips || 50,
-    minBorrowAmount: settings.minBorrowAmount || 100,
-    simulationInputAmount: settings.simulationInputAmount || 1000000,
-  });
+  const [localSettings, setLocalSettings] = useState(() =>
+    toLocalSettings(settings)
+  );
   const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [formError, setFormError] = useState(null);
+  const [formSuccess, setFormSuccess] = useState(null);
 
-  // Sync local state when settings prop changes
   useEffect(() => {
-    setLocalSettings({
-      flashbotsDefault: settings.flashbotsDefault || false,
-      pollingInterval: settings.pollingInterval || 60,
-      gasPriceCeiling: settings.gasPriceCeiling || 50,
-      slippageBips: settings.slippageBips || 50,
-      minBorrowAmount: settings.minBorrowAmount || 100,
-      simulationInputAmount: settings.simulationInputAmount || 1000000,
-    });
+    setLocalSettings(toLocalSettings(settings));
+    setErrors({});
+    setFormError(null);
+    setFormSuccess(null);
   }, [settings]);
 
   const handleChange = (e) => {
     if (!e || !e.target) return;
     const { name, value, type, checked } = e.target;
+
     setLocalSettings((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : Number(value),
     }));
+
+    setErrors((prev) => {
+      if (!prev || !prev[name]) return prev;
+      const next = { ...prev };
+      delete next[name];
+      return next;
+    });
+
+    setFormError(null);
+    setFormSuccess(null);
   };
 
   const handleSave = async () => {
     setSaving(true);
+    setFormError(null);
+    setFormSuccess(null);
+
     try {
-      const res = await onSettingsSave(localSettings);
+      const payload = settingsUpdateSchema.parse(localSettings);
+      const res = await onSettingsSave(payload);
       if (res && res.settings) {
-        setLocalSettings(res.settings);
+        setLocalSettings(toLocalSettings(res.settings));
       }
+      setErrors({});
+      setFormSuccess("Settings updated successfully.");
+      return res;
     } catch (error) {
-      console.error("Error saving settings:", error);
+      if (error instanceof ZodError) {
+        const { fieldErrors, formErrors } = error.flatten();
+        setErrors(normalizeFieldErrors(fieldErrors));
+        setFormError(
+          formErrors.length > 0
+            ? formErrors.join(" ")
+            : "Please correct the highlighted fields."
+        );
+        return null;
+      }
+
+      if (error?.response?.data) {
+        const { errors: fieldErrors = {}, formErrors = [], message } =
+          error.response.data;
+        setErrors(normalizeFieldErrors(fieldErrors));
+        setFormError(
+          formErrors.length > 0
+            ? formErrors.join(" ")
+            : message || "Failed to save settings."
+        );
+        return null;
+      }
+
+      if (error?.errors || error?.formErrors) {
+        const { errors: fieldErrors = {}, formErrors = [], message } = error;
+        setErrors(normalizeFieldErrors(fieldErrors));
+        setFormError(
+          formErrors.length > 0
+            ? formErrors.join(" ")
+            : message || "Failed to save settings."
+        );
+        return null;
+      }
+
+      setFormError("Failed to save settings.");
+      return null;
     } finally {
       setSaving(false);
     }
+  };
+
+  const helperTexts = {
+    pollingInterval: "Seconds between polls (5 - 3600).",
+    gasPriceCeiling: "Maximum gas price in gwei.",
+    slippageBips: "Slippage tolerance in basis points (0 - 10000).",
+    minBorrowAmount: "Set the minimum DAI value for borrowing.",
+    simulationInputAmount: "Set the simulation input amount in DAI.",
   };
 
   return (
@@ -170,6 +236,16 @@ function Settings({ settings, onSettingsSave, onStart, onStop }) {
           Bot status: {settings.botActive ? "Running" : "Stopped"}
         </Alert>
       </Box>
+      {formError && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {formError}
+        </Alert>
+      )}
+      {formSuccess && (
+        <Alert severity="success" sx={{ mb: 2 }}>
+          {formSuccess}
+        </Alert>
+      )}
       <FormControlLabel
         control={
           <Switch
@@ -191,6 +267,10 @@ function Settings({ settings, onSettingsSave, onStart, onStop }) {
             variant="outlined"
             value={localSettings.pollingInterval}
             onChange={handleChange}
+            error={Boolean(errors.pollingInterval)}
+            helperText={
+              errors.pollingInterval || helperTexts.pollingInterval
+            }
           />
         </Grid>
         <Grid item xs={12} sm={6}>
@@ -202,6 +282,10 @@ function Settings({ settings, onSettingsSave, onStart, onStop }) {
             variant="outlined"
             value={localSettings.gasPriceCeiling}
             onChange={handleChange}
+            error={Boolean(errors.gasPriceCeiling)}
+            helperText={
+              errors.gasPriceCeiling || helperTexts.gasPriceCeiling
+            }
           />
         </Grid>
         <Grid item xs={12} sm={6}>
@@ -213,6 +297,8 @@ function Settings({ settings, onSettingsSave, onStart, onStop }) {
             variant="outlined"
             value={localSettings.slippageBips}
             onChange={handleChange}
+            error={Boolean(errors.slippageBips)}
+            helperText={errors.slippageBips || helperTexts.slippageBips}
           />
         </Grid>
         <Grid item xs={12} sm={6}>
@@ -224,7 +310,10 @@ function Settings({ settings, onSettingsSave, onStart, onStop }) {
             variant="outlined"
             value={localSettings.minBorrowAmount}
             onChange={handleChange}
-            helperText="Set the minimum DAI value for borrowing"
+            error={Boolean(errors.minBorrowAmount)}
+            helperText={
+              errors.minBorrowAmount || helperTexts.minBorrowAmount
+            }
           />
         </Grid>
         <Grid item xs={12} sm={6}>
@@ -236,7 +325,10 @@ function Settings({ settings, onSettingsSave, onStart, onStop }) {
             variant="outlined"
             value={localSettings.simulationInputAmount}
             onChange={handleChange}
-            helperText="Set the simulation input amount in DAI"
+            error={Boolean(errors.simulationInputAmount)}
+            helperText={
+              errors.simulationInputAmount || helperTexts.simulationInputAmount
+            }
           />
         </Grid>
       </Grid>
@@ -310,11 +402,18 @@ function BotLogs({ logs, loadingLogs }) {
 }
 
 function App() {
+  const LOG_PAGE_LIMIT = 100;
   const [activeTab, setActiveTab] = useState(0);
   const [prices, setPrices] = useState({});
   const [marketHistory, setMarketHistory] = useState([]);
   const [loadingPrices, setLoadingPrices] = useState(false);
-  const [botLogs, setBotLogs] = useState([]);
+  const [botLogsPage, setBotLogsPage] = useState({
+    logs: [],
+    offset: 0,
+    limit: LOG_PAGE_LIMIT,
+    nextOffset: null,
+    hasMore: false,
+  });
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [arbLoading, setArbLoading] = useState(false);
   const [settings, setSettings] = useState({});
@@ -358,8 +457,14 @@ function App() {
   const fetchLogs = async () => {
     setLoadingLogs(true);
     try {
-      const logs = await getBotLogs();
-      setBotLogs(logs);
+      const logResponse = await getBotLogs({
+        offset: 0,
+        limit: LOG_PAGE_LIMIT,
+      });
+      setBotLogsPage((prev) => ({
+        ...prev,
+        ...logResponse,
+      }));
     } finally {
       setLoadingLogs(false);
     }
@@ -425,7 +530,7 @@ function App() {
           />
         )}
         {activeTab === 3 && (
-          <BotLogs logs={botLogs} loadingLogs={loadingLogs} />
+          <BotLogs logs={botLogsPage.logs} loadingLogs={loadingLogs} />
         )}
       </Box>
     </Box>

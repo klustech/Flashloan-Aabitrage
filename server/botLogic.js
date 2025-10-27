@@ -8,16 +8,13 @@
  * Added comprehensive logger.info statements at each major step.
  */
 
-require("dotenv").config({
-  path: require("path").resolve(__dirname, "../.env"),
-});
-
-const { getEnv, loadRequired } = require("../utils/config");
+const runtimeConfig = require("./utils/runtimeConfig");
 const fs = require("fs");
 const path = require("path");
 const axios = require("axios");
 const winston = require("winston");
 const { ethers, BigNumber } = require("ethers");
+const { env: envConfig, optional, features } = runtimeConfig;
 const {
   FlashbotsBundleProvider,
 } = require("@flashbots/ethers-provider-bundle");
@@ -33,7 +30,27 @@ const {
   rlEpsilon,
   rlAction,
 } = require("./metricsRegistry");
-const slippageAgent = require("./rl/slippageAgent");
+function createDisabledSlippageAgent() {
+  return {
+    epsilon: 0,
+    lastAction: 0,
+    select(baseBips) {
+      this.lastAction = 0;
+      return baseBips;
+    },
+    update() {},
+  };
+}
+
+const slippageAgent = features.reinforcementLearning
+  ? require("./rl/slippageAgent")
+  : createDisabledSlippageAgent();
+
+if (!features.reinforcementLearning) {
+  rlAction.set(0);
+  rlEpsilon.set(0);
+}
+const { initSlippageAgent } = require("./rl/slippageAgent");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Reintroduced: CoinGecko Caching & Dynamic Slippage (exactly from original)
@@ -159,13 +176,20 @@ const {
 // Imports: DEX Quote Utilities (from server/scripts/)
 // ─────────────────────────────────────────────────────────────────────────────
 const { getV3Quote } = require("./scripts/v3Utils");
-const { initBalancer, getBalancerQuote } = require("./scripts/balancerUtils");
-const { getCurveQuote } = require("./scripts/curveUtils");
+let initBalancer;
+let getBalancerQuote;
+if (features.balancer) {
+  ({ initBalancer, getBalancerQuote } = require("./scripts/balancerUtils"));
+}
+let getCurveQuote;
+if (features.curve) {
+  ({ getCurveQuote } = require("./scripts/curveUtils"));
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Imports: PostgreSQL Client for Trade Persistence (server/dbClient.js)
 // ─────────────────────────────────────────────────────────────────────────────
-const { insertTrade, pool: dbPool, isDbEnabled } = require("./dbClient");
+const { insertTrade, pool: dbPool, isDbEnabled, waitForPoolReady } = require("./dbClient");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Imports: Slack Alert Utility (from server/scripts/)
@@ -197,6 +221,34 @@ const logger = winston.createLogger({
     new winston.transports.File({ filename: "bot.log" }),
   ],
 });
+
+const RECENT_OPPORTUNITY_LIMIT = 5;
+const recentOpportunities = [];
+
+function cloneSwapDataForStore(data) {
+  return {
+    token: data.token,
+    paths: data.paths.map((path) => [...path]),
+    minOuts: data.minOuts.map((value) =>
+      ethers.BigNumber.isBigNumber(value)
+        ? value
+        : ethers.BigNumber.from(value)
+    ),
+    minProfit: ethers.BigNumber.from(data.minProfit),
+    route: data.route,
+  };
+}
+
+function recordOpportunity(opportunity) {
+  recentOpportunities.unshift(opportunity);
+  if (recentOpportunities.length > RECENT_OPPORTUNITY_LIMIT) {
+    recentOpportunities.length = RECENT_OPPORTUNITY_LIMIT;
+  }
+}
+
+function getRecentOpportunities() {
+  return recentOpportunities.slice();
+}
 
 // Helper wrapped with safeAsync using the configured logger
 const safeFetchReserves = safeAsync(fetchMulticallReservesForRoute, logger);
@@ -234,16 +286,7 @@ const {
   TOKENS_WETH,
   UNISWAP_ROUTER_ADDRESS,
   SUSHISWAP_ROUTER_ADDRESS,
-} = loadRequired([
-  "PRIVATE_KEY",
-  "CONTRACT_ADDRESS",
-  "AAVE_LENDING_POOL_ADDRESS_PROVIDER",
-  "MAINNET_RPC_URL",
-  "TOKENS_DAI",
-  "TOKENS_WETH",
-  "UNISWAP_ROUTER_ADDRESS",
-  "SUSHISWAP_ROUTER_ADDRESS",
-]);
+} = envConfig;
 
 // Optional configuration defaults. These document the baseline behaviour while
 // still allowing deployments to override any value via environment variables.
@@ -281,12 +324,19 @@ const OPTIONAL_ENV_DEFAULTS = {
   TOKENS_USDT: "",
   TOKENS_UNI: "",
   ML_MODEL_ENDPOINT: undefined,
+  RL_CONTINUOUS: "false",
+  RL_MAX_OFFSET_BIPS: "40",
+  RL_EPSILON_START: "0.2",
+  RL_EPSILON_MIN: "0.05",
+  RL_EPSILON_DECAY: "0.995",
+  RL_ALPHA: "0.2",
+  RL_SAVE_DEBOUNCE_MS: "200",
 };
 
 const optionalEnv = Object.fromEntries(
   Object.entries(OPTIONAL_ENV_DEFAULTS).map(([key, defaultValue]) => [
     key,
-    getEnv(key, defaultValue),
+    optional(key).string(defaultValue),
   ])
 );
 
@@ -324,6 +374,13 @@ const {
   TOKENS_USDT,
   TOKENS_UNI,
   ML_MODEL_ENDPOINT,
+  RL_CONTINUOUS,
+  RL_MAX_OFFSET_BIPS,
+  RL_EPSILON_START,
+  RL_EPSILON_MIN,
+  RL_EPSILON_DECAY,
+  RL_ALPHA,
+  RL_SAVE_DEBOUNCE_MS,
 } = optionalEnv;
 
 // Validate contract address early to avoid cryptic ethers errors
@@ -341,26 +398,38 @@ try {
 // ─────────────────────────────────────────────────────────────────────────────
 const DEFAULT_CHAIN = "ethereum";
 
-const providers = {
-  [DEFAULT_CHAIN]: new ethers.providers.JsonRpcProvider({
-    url: MAINNET_RPC_URL,
-    timeout: 120_000,
-  }),
-};
+const chainContexts = new Map();
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Wallets for each chain
-// ─────────────────────────────────────────────────────────────────────────────
-const wallets = {
-  [DEFAULT_CHAIN]: new ethers.Wallet(PRIVATE_KEY, providers[DEFAULT_CHAIN]),
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Arbitrage contract addresses per chain (must be set in .env)
-// ─────────────────────────────────────────────────────────────────────────────
-const arbContractAddresses = {
-  [DEFAULT_CHAIN]: VALID_CONTRACT_ADDRESS,
-};
+function getChainContext(chain) {
+  if (!chainContexts.has(chain)) {
+    const provider = new ethers.providers.JsonRpcProvider({
+      url: MAINNET_RPC_URL,
+      timeout: 120_000,
+    });
+    const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+    const context = {
+      provider,
+      wallet,
+      arbContract: new ethers.Contract(
+        VALID_CONTRACT_ADDRESS,
+        arbitrageABI,
+        wallet
+      ),
+    };
+    context.uniRouter = new ethers.Contract(
+      UNISWAP_ROUTER_ADDRESS,
+      minimalRouterABI,
+      wallet
+    );
+    context.sushiRouter = new ethers.Contract(
+      SUSHISWAP_ROUTER_ADDRESS,
+      minimalRouterABI,
+      wallet
+    );
+    chainContexts.set(chain, context);
+  }
+  return chainContexts.get(chain);
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Global constants (parsed as ints/floats)
@@ -425,6 +494,30 @@ const TIP_MULTIPLIER_DEN_INT = parseInt(
   10
 );
 
+const slippageAgent = initSlippageAgent({
+  continuous:
+    (RL_CONTINUOUS || OPTIONAL_ENV_DEFAULTS.RL_CONTINUOUS) === "true",
+  maxOffsetBips: parseFloat(
+    RL_MAX_OFFSET_BIPS || OPTIONAL_ENV_DEFAULTS.RL_MAX_OFFSET_BIPS,
+  ),
+  epsilonStart: parseFloat(
+    RL_EPSILON_START || OPTIONAL_ENV_DEFAULTS.RL_EPSILON_START,
+  ),
+  epsilonMin: parseFloat(
+    RL_EPSILON_MIN || OPTIONAL_ENV_DEFAULTS.RL_EPSILON_MIN,
+  ),
+  epsilonDecay: parseFloat(
+    RL_EPSILON_DECAY || OPTIONAL_ENV_DEFAULTS.RL_EPSILON_DECAY,
+  ),
+  alpha: parseFloat(RL_ALPHA || OPTIONAL_ENV_DEFAULTS.RL_ALPHA),
+  saveDebounceMs: parseInt(
+    RL_SAVE_DEBOUNCE_MS || OPTIONAL_ENV_DEFAULTS.RL_SAVE_DEBOUNCE_MS,
+    10,
+  ),
+  metrics: { rlAction, rlEpsilon },
+  logger,
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Token & DEX Setup (addresses must be in .env)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -458,23 +551,6 @@ const minimalRouterABI = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Helpers to instantiate DEX routers per chain
-// ─────────────────────────────────────────────────────────────────────────────
-function getUniRouter(chain) {
-  return new ethers.Contract(
-    UNISWAP_ROUTER_ADDRESS,
-    minimalRouterABI,
-    wallets[chain]
-  );
-}
-function getSushiRouter(chain) {
-  return new ethers.Contract(
-    SUSHISWAP_ROUTER_ADDRESS,
-    minimalRouterABI,
-    wallets[chain]
-  );
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Heuristic state
 // ─────────────────────────────────────────────────────────────────────────────
@@ -490,11 +566,12 @@ function calculateMinOut(amountOut, slippageBips) {
 }
 
 async function getAvailableLiquidity(token, chain) {
+  const { provider } = getChainContext(chain);
   const providerAddr = AAVE_LENDING_POOL_ADDRESS_PROVIDER;
   const lpProvider = new ethers.Contract(
     providerAddr,
     ["function getLendingPool() view returns (address)"],
-    providers[chain]
+    provider
   );
   let poolAddr;
   try {
@@ -510,7 +587,7 @@ async function getAvailableLiquidity(token, chain) {
     [
       "function getReserveData(address) view returns (uint256 totalLiquidity, uint256 availableLiquidity, uint256 totalStableDebt, uint256 totalVariableDebt, uint256 liquidityRate, uint256 variableBorrowRate, uint256 stableBorrowRate, uint256 averageStableBorrowRate, uint256 liquidityIndex, uint256 variableBorrowIndex, uint40 lastUpdateTimestamp)",
     ],
-    providers[chain]
+    provider
   );
   try {
     const reserveData = await lendingPool.getReserveData(tokenAddresses[token]);
@@ -734,6 +811,9 @@ async function selectBestRoute(amountIn, slippageBips, routeList) {
 let dbDisabledLogged = false;
 
 async function computeDailyPnL() {
+  if (!isDbEnabled() && dbPool && typeof waitForPoolReady === "function") {
+    await waitForPoolReady();
+  }
   if (!isDbEnabled() || !dbPool) {
     if (!dbDisabledLogged) {
       logger.info("PostgreSQL persistence disabled; skipping daily PnL computation.");
@@ -777,6 +857,9 @@ async function simulateAndExecuteArbChain(
     arbitrageABI,
     wallet
   );
+async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
+  const { provider, wallet, uniRouter, sushiRouter, arbContract } =
+    getChainContext(chain);
 
   let currentSlippage = SLIPPAGE_DEFAULT_INT;
   let reward = -1;
@@ -1055,6 +1138,26 @@ async function simulateAndExecuteArbChain(
       18
     )} DAI.`
   );
+
+  try {
+    recordOpportunity({
+      id: bestRoute.id,
+      chain,
+      timestamp: Date.now(),
+      swapData: cloneSwapDataForStore(swapData),
+      borrowAmount: borrowDAI,
+      estimatedOut: bestOut,
+      gasEstimate: estimateGas,
+      gasPrice,
+      gasCostDai: estCostDAI,
+      premiumBips: premBps,
+      premiumWei: totalDebtDAI.sub(borrowDAI),
+      netProfit: netDAI,
+    });
+  } catch (err) {
+    logger.warn(`Failed to record opportunity snapshot: ${err.message}`);
+  }
+
   if (netDAI.lte(minProfitThreshold)) {
     logger.info(
       `[${chain}] Net profit ${ethers.utils.formatUnits(
@@ -1200,17 +1303,21 @@ async function simulateAndExecuteArbChain(
 
       if (flashbotsSuccess) {
         arbSuccess.inc();
-        const tradeRecord = await insertTrade({
+        const tradeResult = await insertTrade({
           route: swapData.route,
           profit: netDAI,
           txHash: "flashbots-bundle",
           timestamp: Date.now(),
           status: "flashbots",
         });
-        if (isDbEnabled() && tradeRecord) {
+        if (tradeResult?.ok) {
           logger.info(`[${chain}] Trade recorded as flashbots.`);
-        } else if (!isDbEnabled()) {
+        } else if (tradeResult?.error?.code === "DB_DISABLED") {
           logger.info(`[${chain}] Persistence disabled; flashbots trade not stored.`);
+        } else if (tradeResult?.error) {
+          logger.warn(
+            `[${chain}] Failed to persist flashbots trade (${tradeResult.error.code}): ${tradeResult.error.message}`
+          );
         }
         reward = parseFloat(ethers.utils.formatUnits(netDAI, 18));
         return { executed: true, estimatedProfitInDai: netDAI };
@@ -1237,17 +1344,21 @@ async function simulateAndExecuteArbChain(
     await txResp.wait();
     logger.info(`[${chain}] Public TX mined: ${txResp.hash}`);
     arbSuccess.inc();
-    const tradeRecord = await insertTrade({
+    const tradeResult = await insertTrade({
       route: swapData.route,
       profit: netDAI,
       txHash: txResp.hash,
       timestamp: Date.now(),
       status: "public",
     });
-    if (isDbEnabled() && tradeRecord) {
+    if (tradeResult?.ok) {
       logger.info(`[${chain}] Trade recorded as public.`);
-    } else if (!isDbEnabled()) {
+    } else if (tradeResult?.error?.code === "DB_DISABLED") {
       logger.info(`[${chain}] Persistence disabled; public trade not stored.`);
+    } else if (tradeResult?.error) {
+      logger.warn(
+        `[${chain}] Failed to persist public trade (${tradeResult.error.code}): ${tradeResult.error.message}`
+      );
     }
     reward = parseFloat(ethers.utils.formatUnits(netDAI, 18));
     slippageAgent.update(reward);
@@ -1292,6 +1403,17 @@ module.exports.getAllRoutes = getAllRoutes;
 module.exports.DEFAULT_CHAIN = DEFAULT_CHAIN;
 module.exports.computeDailyPnL = computeDailyPnL;
 module.exports.__cache = cache;
+module.exports.getRecentOpportunities = getRecentOpportunities;
+module.exports.resetSlippagePolicy = function resetSlippagePolicy() {
+  slippageAgent.resetPolicy();
+  rlAction.set(0);
+  rlEpsilon.set(slippageAgent.epsilon);
+  return {
+    epsilon: slippageAgent.epsilon,
+    continuous: slippageAgent.continuous,
+    actions: slippageAgent.actions ? [...slippageAgent.actions] : [],
+  };
+};
 
 if (require.main === module) {
   (async () => {

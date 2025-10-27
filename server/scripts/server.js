@@ -12,6 +12,7 @@ const cors = require("cors");
 const rateLimit = require("express-rate-limit");
 const cron = require("node-cron");
 const fs = require("fs");
+const readline = require("readline");
 const winston = require("winston");
 const { ethers } = require("ethers");
 const { getEnv, loadRequired } = require("../../utils/config");
@@ -19,6 +20,12 @@ const {
   determineProfit,
   getSimulationConfig,
 } = require("../../utils/profitDetermination");
+const {
+  settingsSchema,
+  settingsUpdateSchema,
+  settingsDefaults,
+  formatValidationErrors,
+} = require("../utils/settingsSchema");
 // Shared Prometheus metrics (registry + concrete instruments)
 const {
   register,
@@ -46,12 +53,19 @@ const {
   getCurrentMarketData,
   updateMinBorrowAmount,
   updateSimulationInputAmount,
+  getRecentOpportunities,
+  resetSlippagePolicy,
 } = require("../botLogic");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Slack Alerts Utility
 // ─────────────────────────────────────────────────────────────────────────────
 const { sendSlackAlert } = require("./slackUtils");
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Trade history helpers
+// ─────────────────────────────────────────────────────────────────────────────
+const { getRecentTrades } = require("../dbClient");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DEX ABIs & Provider for real-time quotes (market-data endpoint)
@@ -70,6 +84,21 @@ const UNI_ROUTER = process.env.UNISWAP_ROUTER_ADDRESS;
 const SUSHI_ROUTER = process.env.SUSHISWAP_ROUTER_ADDRESS;
 const DAI_ADDRESS = process.env.TOKENS_DAI;
 const WETH_ADDRESS = process.env.TOKENS_WETH;
+
+const { promises: fsPromises, constants: fsConstants } = fs;
+const LOGS_BASE_DIR = path.resolve(__dirname, "../../");
+
+const sanitizeLogPath = (requestedPath = "bot.log") => {
+  const normalized = path.normalize(String(requestedPath));
+  const resolved = path.resolve(LOGS_BASE_DIR, normalized);
+  if (!resolved.startsWith(LOGS_BASE_DIR + path.sep) && resolved !== LOGS_BASE_DIR) {
+    throw new Error("invalid log path");
+  }
+  if (resolved === LOGS_BASE_DIR) {
+    throw new Error("log path must reference a file");
+  }
+  return resolved;
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Prometheus Metrics Setup
@@ -120,6 +149,27 @@ const logger = winston.createLogger({
     new winston.transports.File({ filename: "server.log" }),
   ],
 });
+
+const requireLogApiKey = (req, res, next) => {
+  const { API_KEY } = process.env;
+  if (!API_KEY) {
+    logger.error("Log access requested but API_KEY is not configured");
+    return res
+      .status(500)
+      .json({ error: "log access authentication is not configured" });
+  }
+
+  const providedKey = req.headers["x-api-key"]; // header names are lower-cased
+  if (!providedKey) {
+    return res.status(401).json({ error: "missing x-api-key header" });
+  }
+
+  if (providedKey !== API_KEY) {
+    return res.status(403).json({ error: "invalid x-api-key" });
+  }
+
+  return next();
+};
 
 process.on("unhandledRejection", (reason) => {
   logger.error(
@@ -288,16 +338,47 @@ app.use((req, _res, next) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // In-memory bot settings
 // ─────────────────────────────────────────────────────────────────────────────
-let botSettings = {
-  botActive: true,
-  flashbotsDefault: process.env.FLASHBOTS_DEFAULT === "true",
-  pollingInterval: 60,
-  gasPriceCeiling: parseInt(process.env.GAS_PRICE_CEILING, 10) || 50,
-  slippageBips: parseInt(process.env.SLIPPAGE_BIPS, 10) || 50,
-  minBorrowAmount: parseInt(process.env.MIN_BORROW_AMOUNT, 10) || 100,
-  simulationInputAmount:
-    parseInt(process.env.SIMULATION_INPUT_AMOUNT, 10) || 1_000_000,
+const parseOptionalInt = (value) => {
+  if (value === undefined || value === null || value === "") return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
 };
+
+const rawInitialSettings = {
+  ...settingsDefaults,
+  flashbotsDefault:
+    process.env.FLASHBOTS_DEFAULT === undefined
+      ? settingsDefaults.flashbotsDefault
+      : process.env.FLASHBOTS_DEFAULT === "true",
+  pollingInterval:
+    parseOptionalInt(process.env.POLLING_INTERVAL) ??
+    settingsDefaults.pollingInterval,
+  gasPriceCeiling:
+    parseOptionalInt(process.env.GAS_PRICE_CEILING) ??
+    settingsDefaults.gasPriceCeiling,
+  slippageBips:
+    parseOptionalInt(process.env.SLIPPAGE_BIPS) ?? settingsDefaults.slippageBips,
+  minBorrowAmount:
+    parseOptionalInt(process.env.MIN_BORROW_AMOUNT) ??
+    settingsDefaults.minBorrowAmount,
+  simulationInputAmount:
+    parseOptionalInt(process.env.SIMULATION_INPUT_AMOUNT) ??
+    settingsDefaults.simulationInputAmount,
+};
+
+let botSettings;
+const initialSettingsResult = settingsSchema.safeParse(rawInitialSettings);
+if (!initialSettingsResult.success) {
+  const details = formatValidationErrors(initialSettingsResult.error);
+  logger.warn(
+    `Invalid initial settings detected, falling back to defaults: ${JSON.stringify(
+      details
+    )}`
+  );
+  botSettings = settingsSchema.parse(settingsDefaults);
+} else {
+  botSettings = initialSettingsResult.data;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // REST endpoints
@@ -460,6 +541,206 @@ app.get(
   })
 );
 
+    const payload = {
+      tokenIn: "DAI",
+      tokenOut: "WETH",
+      uniswapPrice,
+      sushiPrice,
+    };
+
+    logger.info(`Market data: ${JSON.stringify(payload)}`);
+    res.json(payload);
+  } catch (err) {
+    logger.error(`Market data endpoint error: ${err.message}`);
+    res.status(500).json({ error: "failed to fetch market data" });
+  }
+});
+
+// GET /api/bot-logs
+// Streams the requested log file and returns a paginated chunk of lines
+app.get("/api/bot-logs", requireLogApiKey, async (req, res) => {
+  const {
+    offset: rawOffset = "0",
+    limit: rawLimit = "100",
+    file: requestedFile = "bot.log",
+  } = req.query;
+
+  const offset = Number.parseInt(rawOffset, 10);
+  const limit = Number.parseInt(rawLimit, 10);
+
+  if (Number.isNaN(offset) || offset < 0) {
+    return res.status(400).json({ error: "offset must be a positive integer" });
+  }
+
+  if (Number.isNaN(limit) || limit <= 0) {
+    return res.status(400).json({ error: "limit must be a positive integer" });
+  }
+
+  const cappedLimit = Math.min(limit, 500);
+
+  const safeRequestedFile = Array.isArray(requestedFile)
+    ? requestedFile[0]
+    : requestedFile;
+
+  let logPath;
+  try {
+    logPath = sanitizeLogPath(safeRequestedFile);
+  } catch (err) {
+    logger.warn(`Rejected log path '${safeRequestedFile}': ${err.message}`);
+    return res.status(400).json({ error: "invalid log path" });
+  }
+
+  try {
+    await fsPromises.access(logPath, fsConstants.R_OK);
+  } catch (err) {
+    logger.error(`Log access error for ${logPath}: ${err.message}`);
+    return res.status(404).json({ error: "log file not found" });
+  }
+
+  const logs = [];
+  let hasMore = false;
+  let lineNumber = 0;
+
+  const stream = fs.createReadStream(logPath, {
+    encoding: "utf-8",
+  });
+
+  const rl = readline.createInterface({
+    input: stream,
+    crlfDelay: Infinity,
+  });
+
+  try {
+    for await (const line of rl) {
+      if (lineNumber >= offset) {
+        if (logs.length < cappedLimit) {
+          logs.push(line);
+        } else {
+          hasMore = true;
+          break;
+        }
+      }
+      lineNumber += 1;
+    }
+  } catch (err) {
+    logger.error(`Log stream error for ${logPath}: ${err.message}`);
+    return res.status(500).json({ error: "failed to stream log file" });
+  } finally {
+    rl.close();
+    stream.destroy();
+  }
+
+  return res.json({
+    file: path.basename(logPath),
+    offset,
+    limit: cappedLimit,
+    logs,
+    nextOffset: hasMore ? offset + cappedLimit : null,
+    hasMore,
+  });
+});
+
+// GET /api/trades
+// Returns the most recent trade history entries
+app.get("/api/trades", async (req, res) => {
+  try {
+    const { limit } = req.query;
+    const trades = await getRecentTrades(limit);
+    res.json(trades);
+  } catch (err) {
+    logger.error(`trade history error: ${err.message}`);
+    res.status(500).json({ error: "failed to fetch trade history" });
+  }
+});
+
+// GET /api/simulate-profit
+// Returns a profit simulation based on the most recent on-chain opportunity
+app.get("/api/simulate-profit", async (_req, res) => {
+  try {
+    const [latestOpportunity] = getRecentOpportunities();
+    if (!latestOpportunity || !latestOpportunity.swapData) {
+      res.status(204).send();
+      return;
+    }
+
+    const borrowAmountBN = ethers.BigNumber.from(latestOpportunity.borrowAmount);
+    const gasEstimateBN = ethers.BigNumber.from(latestOpportunity.gasEstimate);
+    const gasPriceBN = ethers.BigNumber.from(latestOpportunity.gasPrice);
+    const premiumWei = ethers.BigNumber.from(latestOpportunity.premiumWei);
+
+    let midRateWei = null;
+    if (WETH_ADDRESS && DAI_ADDRESS) {
+      try {
+        const uniRouter = new ethers.Contract(UNI_ROUTER, UniswapABI, provider);
+        const amounts = await uniRouter.getAmountsOut(
+          ethers.utils.parseEther("1"),
+          [WETH_ADDRESS, DAI_ADDRESS]
+        );
+        midRateWei = amounts[amounts.length - 1];
+      } catch (err) {
+        logger.warn(`Mid-market fetch failed: ${err.message}`);
+      }
+    }
+
+    const simulationConfig = getSimulationConfig({ ...botSettings });
+
+    const profitResult = await determineProfit({
+      provider,
+      swapData: latestOpportunity.swapData,
+      inputAmount: borrowAmountBN,
+      gasEstimate: gasEstimateBN,
+      gasPriceOverride: gasPriceBN,
+      flashloanPremiumBips: latestOpportunity.premiumBips,
+      flashloanPremiumWei: premiumWei,
+      simConfig: simulationConfig,
+      ethToDaiRate: midRateWei,
+    });
+
+    const payload = {
+      route: latestOpportunity.swapData.route,
+      chain: latestOpportunity.chain,
+      timestamp: latestOpportunity.timestamp,
+      aborted: profitResult.aborted,
+      reason: profitResult.reason || null,
+    };
+
+    if (!profitResult.aborted || profitResult.details) {
+      const borrowAmount = parseFloat(
+        ethers.utils.formatUnits(borrowAmountBN, 18)
+      );
+      const estimatedOut =
+        latestOpportunity.estimatedOut !== undefined
+          ? parseFloat(
+              ethers.utils.formatUnits(latestOpportunity.estimatedOut, 18)
+            )
+          : null;
+
+      Object.assign(payload, {
+        borrowAmount,
+        estimatedOut,
+        simulatedOutput: profitResult.simulatedOutput ?? 0,
+        gasCostDAI: profitResult.gasCostDAI ?? 0,
+        gasCostETH: profitResult.gasCostETH ?? 0,
+        premiumDAI: profitResult.premiumDAI ?? 0,
+        totalCostDAI: profitResult.totalCostDAI ?? 0,
+        profit: profitResult.profit ?? 0,
+      });
+
+      if (profitResult.details) {
+        payload.gasPriceGwei = parseFloat(
+          ethers.utils.formatUnits(profitResult.details.gasPriceWei, "gwei")
+        );
+        payload.gasUsed = profitResult.details.gasUsed;
+      }
+    }
+
+    res.json(payload);
+  } catch (err) {
+    logger.error(`simulate-profit error: ${err.message}`);
+    res.status(500).json({ error: "simulation failed" });
+  }
+});
+
 // POST /api/trigger-arbitrage?flashbots=true|false
 app.post(
   "/api/trigger-arbitrage",
@@ -545,6 +826,49 @@ app.post(
             updateSimulationInputAmount(req.body[k]);
         }
       });
+// Validates and updates the configurable bot settings.
+app.post("/api/settings", (req, res) => {
+  try {
+    const parseResult = settingsUpdateSchema.safeParse(req.body);
+
+    if (!parseResult.success) {
+      const details = formatValidationErrors(parseResult.error);
+      logger.warn(
+        `Settings validation failed: ${JSON.stringify(details)} | payload=${JSON.stringify(
+          req.body
+        )}`
+      );
+      return res.status(400).json({
+        status: "error",
+        message: "Invalid settings",
+        errors: details.fieldErrors,
+        formErrors: details.formErrors,
+      });
+    }
+
+    const updates = parseResult.data;
+
+    if (Object.keys(updates).length === 0) {
+      const emptyPayloadError = {
+        fieldErrors: {},
+        formErrors: ["At least one setting must be provided"],
+      };
+      return res.status(400).json({
+        status: "error",
+        message: "No settings provided",
+        errors: emptyPayloadError.fieldErrors,
+        formErrors: emptyPayloadError.formErrors,
+      });
+    }
+
+    botSettings = { ...botSettings, ...updates };
+
+    if (updates.minBorrowAmount !== undefined) {
+      updateMinBorrowAmount(updates.minBorrowAmount);
+    }
+    if (updates.simulationInputAmount !== undefined) {
+      updateSimulationInputAmount(updates.simulationInputAmount);
+    }
 
       logger.info(`Settings updated: ${JSON.stringify(botSettings)}`);
       res.json({ status: "ok", settings: botSettings });
@@ -607,6 +931,18 @@ app.use((err, req, res, next) => {
   }
 
   res.status(status).json(payload);
+});
+
+// POST /api/rl/reset
+app.post("/api/rl/reset", (_req, res) => {
+  try {
+    const snapshot = resetSlippagePolicy();
+    logger.info("RL slippage policy reset");
+    res.json({ status: "ok", policy: snapshot });
+  } catch (err) {
+    logger.error(`RL reset error: ${err.message}`);
+    res.status(500).json({ error: "reset failed" });
+  }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
