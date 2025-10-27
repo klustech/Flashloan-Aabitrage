@@ -46,6 +46,7 @@ const {
   getCurrentMarketData,
   updateMinBorrowAmount,
   updateSimulationInputAmount,
+  getRecentOpportunities,
 } = require("../botLogic");
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -241,49 +242,87 @@ app.get("/api/bot-logs", (_req, res) => {
 });
 
 // GET /api/simulate-profit
-// Uses profitDetermination utility for a demo route
+// Returns a profit simulation based on the most recent on-chain opportunity
 app.get("/api/simulate-profit", async (_req, res) => {
   try {
-    const providerInfura = new ethers.providers.JsonRpcProvider(
-      process.env.MAINNET_RPC_URL
-    );
+    const [latestOpportunity] = getRecentOpportunities();
+    if (!latestOpportunity || !latestOpportunity.swapData) {
+      res.status(204).send();
+      return;
+    }
 
-    const route = {
-      name: "DAI→WETH→DAI (Uni)",
-      steps: [
-        {
-          description: "DAI→WETH",
-          simulate: (amt) => (amt / 2000) * 0.995,
-        },
-        {
-          description: "WETH→DAI",
-          simulate: (amt) => amt * 2000 * 1.03 * 0.995,
-        },
-      ],
-    };
+    const borrowAmountBN = ethers.BigNumber.from(latestOpportunity.borrowAmount);
+    const gasEstimateBN = ethers.BigNumber.from(latestOpportunity.gasEstimate);
+    const gasPriceBN = ethers.BigNumber.from(latestOpportunity.gasPrice);
+    const premiumWei = ethers.BigNumber.from(latestOpportunity.premiumWei);
 
-    const borrowAmountNumber = botSettings.simulationInputAmount;
-    const borrowAmountWei = ethers.utils.parseUnits(
-      borrowAmountNumber.toString(),
-      18
-    );
+    let midRateWei = null;
+    if (WETH_ADDRESS && DAI_ADDRESS) {
+      try {
+        const uniRouter = new ethers.Contract(UNI_ROUTER, UniswapABI, provider);
+        const amounts = await uniRouter.getAmountsOut(
+          ethers.utils.parseEther("1"),
+          [WETH_ADDRESS, DAI_ADDRESS]
+        );
+        midRateWei = amounts[amounts.length - 1];
+      } catch (err) {
+        logger.warn(`Mid-market fetch failed: ${err.message}`);
+      }
+    }
 
-    const simulationConfig = getSimulationConfig({
-      ...botSettings,
-      simulationInputAmount: borrowAmountNumber,
+    const simulationConfig = getSimulationConfig({ ...botSettings });
+
+    const profitResult = await determineProfit({
+      provider,
+      swapData: latestOpportunity.swapData,
+      inputAmount: borrowAmountBN,
+      gasEstimate: gasEstimateBN,
+      gasPriceOverride: gasPriceBN,
+      flashloanPremiumBips: latestOpportunity.premiumBips,
+      flashloanPremiumWei: premiumWei,
+      simConfig: simulationConfig,
+      ethToDaiRate: midRateWei,
     });
 
-    const result = await determineProfit(
-      providerInfura,
-      route,
-      borrowAmountWei,
-      ethers.BigNumber.from("200000"),
-      botSettings.slippageBips,
-      simulationConfig,
-      borrowAmountNumber
-    );
+    const payload = {
+      route: latestOpportunity.swapData.route,
+      chain: latestOpportunity.chain,
+      timestamp: latestOpportunity.timestamp,
+      aborted: profitResult.aborted,
+      reason: profitResult.reason || null,
+    };
 
-    res.json(result);
+    if (!profitResult.aborted || profitResult.details) {
+      const borrowAmount = parseFloat(
+        ethers.utils.formatUnits(borrowAmountBN, 18)
+      );
+      const estimatedOut =
+        latestOpportunity.estimatedOut !== undefined
+          ? parseFloat(
+              ethers.utils.formatUnits(latestOpportunity.estimatedOut, 18)
+            )
+          : null;
+
+      Object.assign(payload, {
+        borrowAmount,
+        estimatedOut,
+        simulatedOutput: profitResult.simulatedOutput ?? 0,
+        gasCostDAI: profitResult.gasCostDAI ?? 0,
+        gasCostETH: profitResult.gasCostETH ?? 0,
+        premiumDAI: profitResult.premiumDAI ?? 0,
+        totalCostDAI: profitResult.totalCostDAI ?? 0,
+        profit: profitResult.profit ?? 0,
+      });
+
+      if (profitResult.details) {
+        payload.gasPriceGwei = parseFloat(
+          ethers.utils.formatUnits(profitResult.details.gasPriceWei, "gwei")
+        );
+        payload.gasUsed = profitResult.details.gasUsed;
+      }
+    }
+
+    res.json(payload);
   } catch (err) {
     logger.error(`simulate-profit error: ${err.message}`);
     res.status(500).json({ error: "simulation failed" });
