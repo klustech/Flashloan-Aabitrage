@@ -54,6 +54,11 @@ const {
 const { sendSlackAlert } = require("./slackUtils");
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Trade history helpers
+// ─────────────────────────────────────────────────────────────────────────────
+const { getRecentTrades } = require("../dbClient");
+
+// ─────────────────────────────────────────────────────────────────────────────
 // DEX ABIs & Provider for real-time quotes (market-data endpoint)
 // ─────────────────────────────────────────────────────────────────────────────
 const UniswapABI = require("./abis/UniswapV2Router02.json");
@@ -237,6 +242,19 @@ app.get("/api/bot-logs", (_req, res) => {
   } catch (err) {
     logger.error(`Log read error: ${err.message}`);
     res.status(500).json({ error: "failed to read bot.log" });
+  }
+});
+
+// GET /api/trades
+// Returns the most recent trade history entries
+app.get("/api/trades", async (req, res) => {
+  try {
+    const { limit } = req.query;
+    const trades = await getRecentTrades(limit);
+    res.json(trades);
+  } catch (err) {
+    logger.error(`trade history error: ${err.message}`);
+    res.status(500).json({ error: "failed to fetch trade history" });
   }
 });
 
