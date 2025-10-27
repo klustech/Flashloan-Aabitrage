@@ -86,20 +86,27 @@ async function getLiveGasPrice(provider) {
 /* ────────────────────────────────────────────────
    Helper: convert gas*price → ETH, then ETH→DAI
    ────────────────────────────────────────────────*/
-function estimateGasCostETH(gasUsed, gasPrice) {
-  return parseFloat(ethers.utils.formatEther(gasUsed.mul(gasPrice)));
-}
-function convertEthToDai(eth, rate) {
-  return eth * rate;
+function estimateGasCostWei(gasUsed, gasPrice) {
+  if (ethers.BigNumber.isBigNumber(gasUsed)) {
+    return gasUsed.mul(gasPrice);
+  }
+  return ethers.BigNumber.from(gasUsed).mul(gasPrice);
 }
 
-/* ────────────────────────────────────────────────
-   Helper: apply flash-loan premium (in bips)
-   ────────────────────────────────────────────────*/
-function applyPremium(amountBN, bipsInt) {
-  // amountBN and the return value are BigNumbers (wei)
-  // bipsInt is an integer, e.g. 9  (= 0.09 %)
-  return amountBN.mul(10_000 + bipsInt).div(10_000);
+function normalizeRateToWei(rate) {
+  if (!rate && rate !== 0) return null;
+  if (ethers.BigNumber.isBigNumber(rate)) return rate;
+  if (typeof rate === "string") {
+    if (rate.trim() === "") return null;
+    if (rate.includes(".")) {
+      return ethers.utils.parseUnits(rate, 18);
+    }
+    return ethers.BigNumber.from(rate);
+  }
+  if (typeof rate === "number") {
+    return ethers.utils.parseUnits(rate.toString(), 18);
+  }
+  return null;
 }
 
 /* ────────────────────────────────────────────────
@@ -107,9 +114,20 @@ function applyPremium(amountBN, bipsInt) {
    for each hop, exactly as the contract will
    ────────────────────────────────────────────────*/
 async function simulateSwapPaths(provider, swapData, borrowAmt) {
+  if (!swapData || !Array.isArray(swapData.paths)) {
+    throw new Error("simulateSwapPaths: swapData.paths missing or invalid");
+  }
+  if (!Array.isArray(swapData.minOuts)) {
+    throw new Error("simulateSwapPaths: swapData.minOuts missing or invalid");
+  }
+
   let currentAmt = borrowAmt;
   for (let i = 0; i < swapData.paths.length; i++) {
-    const [router, ...tokenPath] = swapData.paths[i];
+    const path = swapData.paths[i];
+    if (!Array.isArray(path) || path.length < 3) {
+      throw new Error(`simulateSwapPaths: invalid path at index ${i}`);
+    }
+    const [router, ...tokenPath] = path;
     const routerContract = new ethers.Contract(
       router,
       ["function getAmountsOut(uint256, address[]) view returns (uint256[])"],
@@ -120,28 +138,25 @@ async function simulateSwapPaths(provider, swapData, borrowAmt) {
       tokenPath
     );
     const outAmt = amountsOut[amountsOut.length - 1];
-    if (outAmt.lt(swapData.minOuts[i])) {
-      // If slippage fails, no arb
+    const minOutRaw = swapData.minOuts[i];
+    const minOut = ethers.BigNumber.isBigNumber(minOutRaw)
+      ? minOutRaw
+      : ethers.BigNumber.from(minOutRaw);
+    if (outAmt.lt(minOut)) {
       return {
-        profit: ethers.constants.NegativeOne,
-        gasCost: ethers.constants.Zero,
+        success: false,
+        reason: "slippage",
+        amountOut: outAmt,
       };
     }
     currentAmt = outAmt;
   }
 
-  const premium = borrowAmt
-    .mul(parseInt(process.env.FLASHLOAN_PREMIUM_BIPS, 10))
-    .div(10000);
-  const required = borrowAmt.add(premium);
-  const profit = currentAmt.sub(required);
-
-  // Rough gas cost: (per-hop + final settlement) × estimatedGasPerSwap
-  const gasCost = ethers.BigNumber.from(
-    getSimulationConfig().estimatedGasPerSwap
-  ).mul(swapData.paths.length + 1);
-
-  return { profit, gasCost };
+  return {
+    success: true,
+    amountOut: currentAmt,
+    hops: swapData.paths.length,
+  };
 }
 
 /* ────────────────────────────────────────────────
@@ -176,52 +191,118 @@ function simulateRoute(route, input) {
 /* ────────────────────────────────────────────────
    determineProfit()
    ────────────────────────────────────────────────*/
-async function determineProfit(
-  provider,
-  route,
-  inputAmount,
-  gasUsed,
-  flashloanPremiumBips,
-  simCfg,
-  inputAmountHuman
-) {
+async function determineProfit(options) {
+  if (!options || typeof options !== "object") {
+    throw new Error("determineProfit expects an options object");
+  }
+
+  const {
+    provider,
+    route,
+    swapData,
+    inputAmount,
+    gasEstimate,
+    gasUsed,
+    gasPriceOverride,
+    flashloanPremiumBips,
+    flashloanPremiumWei,
+    simConfig,
+    inputAmountHuman,
+    ethToDaiRate,
+    midMarketRate,
+    borrowTokenDecimals = 18,
+  } = options;
+
+  if (!provider || typeof provider.getGasPrice !== "function") {
+    throw new Error("determineProfit requires a provider with getGasPrice()");
+  }
+
   const normalizedInput = ethers.BigNumber.from(inputAmount);
-  const gasPrice = await getLiveGasPrice(provider);
-  if (gasPrice.gt(simCfg.gasPriceLimit)) {
+  const cfg = simConfig || getSimulationConfig();
+
+  const gasPrice = gasPriceOverride
+    ? ethers.BigNumber.from(gasPriceOverride)
+    : await getLiveGasPrice(provider);
+
+  if (cfg.gasPriceLimit && gasPrice.gt(cfg.gasPriceLimit)) {
     return { aborted: true, reason: "gasPrice>limit" };
   }
 
-  const gasCostDAI = convertEthToDai(
-    estimateGasCostETH(gasUsed, gasPrice),
-    simCfg.ethToDaiRate
-  );
+  const gasUnits =
+    gasEstimate !== undefined && gasEstimate !== null
+      ? gasEstimate
+      : gasUsed !== undefined
+      ? gasUsed
+      : cfg.estimatedGasPerSwap;
+  const gasUnitsBN = ethers.BigNumber.isBigNumber(gasUnits)
+    ? gasUnits
+    : ethers.BigNumber.from(gasUnits);
 
-  if (!Number.isFinite(gasCostDAI)) {
-    throw new Error("gasCostDAI must be numeric");
+  const gasCostWei = estimateGasCostWei(gasUnitsBN, gasPrice);
+
+  const rateWei =
+    normalizeRateToWei(midMarketRate) ||
+    normalizeRateToWei(ethToDaiRate) ||
+    normalizeRateToWei(cfg.ethToDaiRate) ||
+    ethers.utils.parseUnits("2000", 18);
+
+  const gasCostDaiWei = gasCostWei.mul(rateWei).div(ethers.constants.WeiPerEther);
+
+  let simulatedOutWei;
+  if (swapData) {
+    const swapResult = await simulateSwapPaths(provider, swapData, normalizedInput);
+    if (!swapResult.success) {
+      return {
+        aborted: true,
+        reason: swapResult.reason || "swapSimulationFailed",
+        simulatedOutput: 0,
+        gasCostDAI: parseFloat(ethers.utils.formatUnits(gasCostDaiWei, 18)),
+        gasCostETH: parseFloat(ethers.utils.formatEther(gasCostWei)),
+        totalCostDAI: parseFloat(
+          ethers.utils.formatUnits(normalizedInput.add(gasCostDaiWei), 18)
+        ),
+        profit: 0,
+        premiumDAI: 0,
+        details: {
+          gasUsed: gasUnitsBN.toString(),
+          gasPriceWei: gasPrice.toString(),
+          premiumWei: "0",
+          rateWei: rateWei.toString(),
+          amountOutWei: swapResult.amountOut?.toString() || "0",
+        },
+      };
+    }
+    simulatedOutWei = swapResult.amountOut;
+  } else if (route) {
+    const numericInput =
+      inputAmountHuman !== undefined
+        ? ensureNumeric(
+            inputAmountHuman,
+            "determineProfit inputAmountHuman"
+          )
+        : Number(ethers.utils.formatUnits(normalizedInput, borrowTokenDecimals));
+    const simulatedOutNumber = simulateRoute(route, numericInput);
+    simulatedOutWei = ethers.utils.parseUnits(
+      simulatedOutNumber.toFixed(18),
+      borrowTokenDecimals
+    );
+  } else {
+    throw new Error("determineProfit requires either route or swapData");
   }
 
-  const gasCostDAIWei = ethers.utils.parseUnits(gasCostDAI.toFixed(18), 18);
-
-  const premiumBips = Number(flashloanPremiumBips ?? 0);
+  const premiumBips =
+    flashloanPremiumBips !== undefined
+      ? Number(flashloanPremiumBips)
+      : cfg.flashloanPremiumBips;
   if (!Number.isFinite(premiumBips)) {
     throw new Error("flashloanPremiumBips must be numeric");
   }
 
-  const numericInput =
-    inputAmountHuman !== undefined
-      ? ensureNumeric(inputAmountHuman, "determineProfit inputAmountHuman")
-      : Number(ethers.utils.formatUnits(normalizedInput, 18));
+  const premiumWei = flashloanPremiumWei
+    ? ethers.BigNumber.from(flashloanPremiumWei)
+    : normalizedInput.mul(10_000 + Math.trunc(premiumBips)).div(10_000).sub(normalizedInput);
 
-  const simulatedOutNumber = simulateRoute(route, numericInput);
-  const simulatedOutWei = ethers.utils.parseUnits(
-    simulatedOutNumber.toFixed(18),
-    18
-  );
-
-  const totalCostWei = applyPremium(
-    normalizedInput.add(gasCostDAIWei),
-    premiumBips
-  );
+  const totalCostWei = normalizedInput.add(gasCostDaiWei).add(premiumWei);
 
   let profitWei;
   let profitSign = 1;
@@ -232,15 +313,29 @@ async function determineProfit(
     profitSign = -1;
   }
 
+  const premiumDaiFloat = parseFloat(
+    ethers.utils.formatUnits(premiumWei, borrowTokenDecimals)
+  );
+
   return {
     simulatedOutput: parseFloat(
-      ethers.utils.formatUnits(simulatedOutWei, 18)
+      ethers.utils.formatUnits(simulatedOutWei, borrowTokenDecimals)
     ),
-    gasCostDAI: parseFloat(ethers.utils.formatUnits(gasCostDAIWei, 18)),
+    gasCostDAI: parseFloat(ethers.utils.formatUnits(gasCostDaiWei, 18)),
+    gasCostETH: parseFloat(ethers.utils.formatEther(gasCostWei)),
     totalCostDAI: parseFloat(ethers.utils.formatUnits(totalCostWei, 18)),
+    premiumDAI: premiumDaiFloat,
     profit:
-      profitSign * parseFloat(ethers.utils.formatUnits(profitWei, 18)),
+      profitSign *
+      parseFloat(ethers.utils.formatUnits(profitWei, borrowTokenDecimals)),
     aborted: false,
+    details: {
+      gasUsed: gasUnitsBN.toString(),
+      gasPriceWei: gasPrice.toString(),
+      premiumWei: premiumWei.toString(),
+      rateWei: rateWei.toString(),
+      amountOutWei: simulatedOutWei.toString(),
+    },
   };
 }
 
@@ -279,15 +374,16 @@ async function runProfitDetermination(overrides = {}) {
     18
   );
 
-  const res = await determineProfit(
+  const res = await determineProfit({
     provider,
     route,
-    tradeSizeWei,
-    gasUsed,
-    cfg.flashloanPremiumBips,
-    cfg,
-    cfg.tradeSize
-  );
+    inputAmount: tradeSizeWei,
+    gasEstimate: gasUsed,
+    flashloanPremiumBips: cfg.flashloanPremiumBips,
+    simConfig: cfg,
+    inputAmountHuman: cfg.tradeSize,
+    ethToDaiRate: cfg.ethToDaiRate,
+  });
   console.table(res);
 }
 
@@ -304,4 +400,5 @@ module.exports = {
   runProfitDetermination,
   simulateSwapPaths,
   simulateRoute,
+  normalizeRateToWei,
 };
