@@ -12,6 +12,7 @@ const cors = require("cors");
 const rateLimit = require("express-rate-limit");
 const cron = require("node-cron");
 const fs = require("fs");
+const readline = require("readline");
 const winston = require("winston");
 const { ethers } = require("ethers");
 const { getEnv, loadRequired } = require("../../utils/config");
@@ -71,6 +72,21 @@ const SUSHI_ROUTER = process.env.SUSHISWAP_ROUTER_ADDRESS;
 const DAI_ADDRESS = process.env.TOKENS_DAI;
 const WETH_ADDRESS = process.env.TOKENS_WETH;
 
+const { promises: fsPromises, constants: fsConstants } = fs;
+const LOGS_BASE_DIR = path.resolve(__dirname, "../../");
+
+const sanitizeLogPath = (requestedPath = "bot.log") => {
+  const normalized = path.normalize(String(requestedPath));
+  const resolved = path.resolve(LOGS_BASE_DIR, normalized);
+  if (!resolved.startsWith(LOGS_BASE_DIR + path.sep) && resolved !== LOGS_BASE_DIR) {
+    throw new Error("invalid log path");
+  }
+  if (resolved === LOGS_BASE_DIR) {
+    throw new Error("log path must reference a file");
+  }
+  return resolved;
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Prometheus Metrics Setup
 // ─────────────────────────────────────────────────────────────────────────────
@@ -120,6 +136,27 @@ const logger = winston.createLogger({
     new winston.transports.File({ filename: "server.log" }),
   ],
 });
+
+const requireLogApiKey = (req, res, next) => {
+  const { API_KEY } = process.env;
+  if (!API_KEY) {
+    logger.error("Log access requested but API_KEY is not configured");
+    return res
+      .status(500)
+      .json({ error: "log access authentication is not configured" });
+  }
+
+  const providedKey = req.headers["x-api-key"]; // header names are lower-cased
+  if (!providedKey) {
+    return res.status(401).json({ error: "missing x-api-key header" });
+  }
+
+  if (providedKey !== API_KEY) {
+    return res.status(403).json({ error: "invalid x-api-key" });
+  }
+
+  return next();
+};
 
 process.on("unhandledRejection", (reason) => {
   logger.error(
@@ -226,18 +263,87 @@ app.get("/api/market-data", async (_req, res) => {
 });
 
 // GET /api/bot-logs
-// Returns the contents of bot.log as a JSON array
-app.get("/api/bot-logs", (_req, res) => {
-  try {
-    const logs = fs
-      .readFileSync("bot.log", "utf-8")
-      .split("\n")
-      .filter(Boolean);
-    res.json(logs);
-  } catch (err) {
-    logger.error(`Log read error: ${err.message}`);
-    res.status(500).json({ error: "failed to read bot.log" });
+// Streams the requested log file and returns a paginated chunk of lines
+app.get("/api/bot-logs", requireLogApiKey, async (req, res) => {
+  const {
+    offset: rawOffset = "0",
+    limit: rawLimit = "100",
+    file: requestedFile = "bot.log",
+  } = req.query;
+
+  const offset = Number.parseInt(rawOffset, 10);
+  const limit = Number.parseInt(rawLimit, 10);
+
+  if (Number.isNaN(offset) || offset < 0) {
+    return res.status(400).json({ error: "offset must be a positive integer" });
   }
+
+  if (Number.isNaN(limit) || limit <= 0) {
+    return res.status(400).json({ error: "limit must be a positive integer" });
+  }
+
+  const cappedLimit = Math.min(limit, 500);
+
+  const safeRequestedFile = Array.isArray(requestedFile)
+    ? requestedFile[0]
+    : requestedFile;
+
+  let logPath;
+  try {
+    logPath = sanitizeLogPath(safeRequestedFile);
+  } catch (err) {
+    logger.warn(`Rejected log path '${safeRequestedFile}': ${err.message}`);
+    return res.status(400).json({ error: "invalid log path" });
+  }
+
+  try {
+    await fsPromises.access(logPath, fsConstants.R_OK);
+  } catch (err) {
+    logger.error(`Log access error for ${logPath}: ${err.message}`);
+    return res.status(404).json({ error: "log file not found" });
+  }
+
+  const logs = [];
+  let hasMore = false;
+  let lineNumber = 0;
+
+  const stream = fs.createReadStream(logPath, {
+    encoding: "utf-8",
+  });
+
+  const rl = readline.createInterface({
+    input: stream,
+    crlfDelay: Infinity,
+  });
+
+  try {
+    for await (const line of rl) {
+      if (lineNumber >= offset) {
+        if (logs.length < cappedLimit) {
+          logs.push(line);
+        } else {
+          hasMore = true;
+          break;
+        }
+      }
+      lineNumber += 1;
+    }
+  } catch (err) {
+    logger.error(`Log stream error for ${logPath}: ${err.message}`);
+    return res.status(500).json({ error: "failed to stream log file" });
+  } finally {
+    rl.close();
+    stream.destroy();
+  }
+
+  return res.json({
+    file: path.basename(logPath),
+    offset,
+    limit: cappedLimit,
+    logs,
+    nextOffset: hasMore ? offset + cappedLimit : null,
+    hasMore,
+  });
 });
 
 // GET /api/simulate-profit
