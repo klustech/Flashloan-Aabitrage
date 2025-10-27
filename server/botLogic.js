@@ -33,7 +33,7 @@ const {
   rlEpsilon,
   rlAction,
 } = require("./metricsRegistry");
-const slippageAgent = require("./rl/slippageAgent");
+const { initSlippageAgent } = require("./rl/slippageAgent");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Reintroduced: CoinGecko Caching & Dynamic Slippage (exactly from original)
@@ -271,6 +271,13 @@ const OPTIONAL_ENV_DEFAULTS = {
   TOKENS_USDT: "",
   TOKENS_UNI: "",
   ML_MODEL_ENDPOINT: undefined,
+  RL_CONTINUOUS: "false",
+  RL_MAX_OFFSET_BIPS: "40",
+  RL_EPSILON_START: "0.2",
+  RL_EPSILON_MIN: "0.05",
+  RL_EPSILON_DECAY: "0.995",
+  RL_ALPHA: "0.2",
+  RL_SAVE_DEBOUNCE_MS: "200",
 };
 
 const optionalEnv = Object.fromEntries(
@@ -314,6 +321,13 @@ const {
   TOKENS_USDT,
   TOKENS_UNI,
   ML_MODEL_ENDPOINT,
+  RL_CONTINUOUS,
+  RL_MAX_OFFSET_BIPS,
+  RL_EPSILON_START,
+  RL_EPSILON_MIN,
+  RL_EPSILON_DECAY,
+  RL_ALPHA,
+  RL_SAVE_DEBOUNCE_MS,
 } = optionalEnv;
 
 // Validate contract address early to avoid cryptic ethers errors
@@ -414,6 +428,30 @@ const TIP_MULTIPLIER_DEN_INT = parseInt(
   TIP_MULTIPLIER_DEN || OPTIONAL_ENV_DEFAULTS.TIP_MULTIPLIER_DEN,
   10
 );
+
+const slippageAgent = initSlippageAgent({
+  continuous:
+    (RL_CONTINUOUS || OPTIONAL_ENV_DEFAULTS.RL_CONTINUOUS) === "true",
+  maxOffsetBips: parseFloat(
+    RL_MAX_OFFSET_BIPS || OPTIONAL_ENV_DEFAULTS.RL_MAX_OFFSET_BIPS,
+  ),
+  epsilonStart: parseFloat(
+    RL_EPSILON_START || OPTIONAL_ENV_DEFAULTS.RL_EPSILON_START,
+  ),
+  epsilonMin: parseFloat(
+    RL_EPSILON_MIN || OPTIONAL_ENV_DEFAULTS.RL_EPSILON_MIN,
+  ),
+  epsilonDecay: parseFloat(
+    RL_EPSILON_DECAY || OPTIONAL_ENV_DEFAULTS.RL_EPSILON_DECAY,
+  ),
+  alpha: parseFloat(RL_ALPHA || OPTIONAL_ENV_DEFAULTS.RL_ALPHA),
+  saveDebounceMs: parseInt(
+    RL_SAVE_DEBOUNCE_MS || OPTIONAL_ENV_DEFAULTS.RL_SAVE_DEBOUNCE_MS,
+    10,
+  ),
+  metrics: { rlAction, rlEpsilon },
+  logger,
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Token & DEX Setup (addresses must be in .env)
@@ -1276,6 +1314,16 @@ module.exports.getAllRoutes = getAllRoutes;
 module.exports.DEFAULT_CHAIN = DEFAULT_CHAIN;
 module.exports.computeDailyPnL = computeDailyPnL;
 module.exports.__cache = cache;
+module.exports.resetSlippagePolicy = function resetSlippagePolicy() {
+  slippageAgent.resetPolicy();
+  rlAction.set(0);
+  rlEpsilon.set(slippageAgent.epsilon);
+  return {
+    epsilon: slippageAgent.epsilon,
+    continuous: slippageAgent.continuous,
+    actions: slippageAgent.actions ? [...slippageAgent.actions] : [],
+  };
+};
 
 if (require.main === module) {
   (async () => {

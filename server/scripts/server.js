@@ -46,6 +46,7 @@ const {
   getCurrentMarketData,
   updateMinBorrowAmount,
   updateSimulationInputAmount,
+  resetSlippagePolicy,
 } = require("../botLogic");
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -380,6 +381,18 @@ app.post("/api/stop-bot", (_req, res) => {
   botSettings.botActive = false;
   logger.info("Bot stopped");
   res.json({ status: "ok", settings: botSettings });
+});
+
+// POST /api/rl/reset
+app.post("/api/rl/reset", (_req, res) => {
+  try {
+    const snapshot = resetSlippagePolicy();
+    logger.info("RL slippage policy reset");
+    res.json({ status: "ok", policy: snapshot });
+  } catch (err) {
+    logger.error(`RL reset error: ${err.message}`);
+    res.status(500).json({ error: "reset failed" });
+  }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
