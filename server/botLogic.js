@@ -260,9 +260,19 @@ process.on("unhandledRejection", (reason) => {
 });
 
 process.on("uncaughtException", (err) => {
-  logger.error(`Uncaught Exception: ${err.message}`);
-  process.exit(1);
+  logger.error(`Uncaught Exception: ${err.stack || err.message}`);
+  arbFailure.labels("uncaught_exception").inc();
+  sendSlackAlert(`Uncaught Exception in bot process: ${err.message}`);
 });
+
+const throwIfAborted = (signal) => {
+  if (signal?.aborted) {
+    const abortError = new Error("Arbitrage execution aborted");
+    abortError.name = "AbortError";
+    abortError.metricReason = "timeout";
+    throw abortError;
+  }
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Environment & Config (adjusted)
@@ -832,6 +842,21 @@ async function computeDailyPnL() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Simulation & Execution Loop for One Chain
 // ─────────────────────────────────────────────────────────────────────────────
+async function simulateAndExecuteArbChain(
+  chain,
+  useFlashbots = true,
+  options = {}
+) {
+  throwIfAborted(options.signal);
+  const provider = providers[chain];
+  const wallet = wallets[chain];
+  const uniRouter = getUniRouter(chain);
+  const sushiRouter = getSushiRouter(chain);
+  const arbContract = new ethers.Contract(
+    arbContractAddresses[chain],
+    arbitrageABI,
+    wallet
+  );
 async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
   const { provider, wallet, uniRouter, sushiRouter, arbContract } =
     getChainContext(chain);
@@ -1352,13 +1377,14 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Coordinator: Run simulateAndExecuteArbChain on Each Configured Chain
 // ─────────────────────────────────────────────────────────────────────────────
-async function simulateAndExecuteArb(useFlashbots = true) {
+async function simulateAndExecuteArb(useFlashbots = true, options = {}) {
+  throwIfAborted(options.signal);
   const chains = [DEFAULT_CHAIN];
   let outcome = { executed: false, estimatedProfitInDai: BigNumber.from(0) };
 
   for (const chain of chains) {
     try {
-      const res = await simulateAndExecuteArbChain(chain, useFlashbots);
+      const res = await simulateAndExecuteArbChain(chain, useFlashbots, options);
       if (res.executed) outcome = res;
     } catch (err) {
       logger.error(`[${chain}] Fatal error in cycle: ${err.message}`);
