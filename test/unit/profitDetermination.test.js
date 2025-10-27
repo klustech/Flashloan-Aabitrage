@@ -52,21 +52,24 @@ describe("profitDetermination integrations", function () {
     const borrowWei = ethers.utils.parseUnits(borrowNumber.toString(), 18);
     const gasUsed = ethers.BigNumber.from("21000");
 
-    const result = await determineProfit(
-      providerStub,
-      cliStyleRoute,
-      borrowWei,
-      gasUsed,
-      baseSimConfig.flashloanPremiumBips,
-      baseSimConfig,
-      borrowNumber
-    );
+    const result = await determineProfit({
+      provider: providerStub,
+      route: cliStyleRoute,
+      inputAmount: borrowWei,
+      gasEstimate: gasUsed,
+      flashloanPremiumBips: baseSimConfig.flashloanPremiumBips,
+      simConfig: baseSimConfig,
+      inputAmountHuman: borrowNumber,
+      ethToDaiRate: baseSimConfig.ethToDaiRate,
+    });
 
     expect(result.aborted).to.equal(false);
     expect(result.simulatedOutput).to.be.closeTo(1100, 0.0000000000001);
     expect(result.gasCostDAI).to.be.closeTo(1.26, 0.0000000000001);
-    expect(result.totalCostDAI).to.be.greaterThan(1001);
-    expect(result.profit).to.be.closeTo(97.838, 0.01);
+    expect(result.premiumDAI).to.be.closeTo(0.9, 0.0000000000001);
+    expect(result.totalCostDAI).to.be.closeTo(1002.16, 0.001);
+    expect(result.profit).to.be.closeTo(97.84, 0.01);
+    expect(result.details.gasUsed).to.equal(gasUsed.toString());
   });
 
   it("computes profit for HTTP endpoint invocation", async function () {
@@ -74,18 +77,21 @@ describe("profitDetermination integrations", function () {
     const borrowWei = ethers.utils.parseUnits(borrowNumber.toString(), 18);
     const gasUsed = ethers.BigNumber.from("300000");
 
-    const result = await determineProfit(
-      providerStub,
-      apiStyleRoute,
-      borrowWei,
-      gasUsed,
-      baseSimConfig.flashloanPremiumBips,
-      baseSimConfig
-    );
+    const result = await determineProfit({
+      provider: providerStub,
+      route: apiStyleRoute,
+      inputAmount: borrowWei,
+      gasEstimate: gasUsed,
+      flashloanPremiumBips: baseSimConfig.flashloanPremiumBips,
+      simConfig: baseSimConfig,
+      ethToDaiRate: baseSimConfig.ethToDaiRate,
+    });
 
     expect(result.aborted).to.equal(false);
     expect(result.simulatedOutput).to.be.closeTo(5500, 0.0000000000001);
     expect(result.totalCostDAI).to.be.greaterThan(result.gasCostDAI);
+    expect(result.premiumDAI).to.be.closeTo(4.5, 0.0000000001);
+    expect(result.profit).to.be.closeTo(477.5, 0.1);
   });
 });
 

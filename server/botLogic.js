@@ -198,6 +198,34 @@ const logger = winston.createLogger({
   ],
 });
 
+const RECENT_OPPORTUNITY_LIMIT = 5;
+const recentOpportunities = [];
+
+function cloneSwapDataForStore(data) {
+  return {
+    token: data.token,
+    paths: data.paths.map((path) => [...path]),
+    minOuts: data.minOuts.map((value) =>
+      ethers.BigNumber.isBigNumber(value)
+        ? value
+        : ethers.BigNumber.from(value)
+    ),
+    minProfit: ethers.BigNumber.from(data.minProfit),
+    route: data.route,
+  };
+}
+
+function recordOpportunity(opportunity) {
+  recentOpportunities.unshift(opportunity);
+  if (recentOpportunities.length > RECENT_OPPORTUNITY_LIMIT) {
+    recentOpportunities.length = RECENT_OPPORTUNITY_LIMIT;
+  }
+}
+
+function getRecentOpportunities() {
+  return recentOpportunities.slice();
+}
+
 // Helper wrapped with safeAsync using the configured logger
 const safeFetchReserves = safeAsync(fetchMulticallReservesForRoute, logger);
 
@@ -1081,6 +1109,26 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
       18
     )} DAI.`
   );
+
+  try {
+    recordOpportunity({
+      id: bestRoute.id,
+      chain,
+      timestamp: Date.now(),
+      swapData: cloneSwapDataForStore(swapData),
+      borrowAmount: borrowDAI,
+      estimatedOut: bestOut,
+      gasEstimate: estimateGas,
+      gasPrice,
+      gasCostDai: estCostDAI,
+      premiumBips: premBps,
+      premiumWei: totalDebtDAI.sub(borrowDAI),
+      netProfit: netDAI,
+    });
+  } catch (err) {
+    logger.warn(`Failed to record opportunity snapshot: ${err.message}`);
+  }
+
   if (netDAI.lte(minProfitThreshold)) {
     logger.info(
       `[${chain}] Net profit ${ethers.utils.formatUnits(
@@ -1325,6 +1373,7 @@ module.exports.getAllRoutes = getAllRoutes;
 module.exports.DEFAULT_CHAIN = DEFAULT_CHAIN;
 module.exports.computeDailyPnL = computeDailyPnL;
 module.exports.__cache = cache;
+module.exports.getRecentOpportunities = getRecentOpportunities;
 module.exports.resetSlippagePolicy = function resetSlippagePolicy() {
   slippageAgent.resetPolicy();
   rlAction.set(0);
