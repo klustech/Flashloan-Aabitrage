@@ -33,7 +33,7 @@ const {
   rlEpsilon,
   rlAction,
 } = require("./metricsRegistry");
-const slippageAgent = require("./rl/slippageAgent");
+const { initSlippageAgent } = require("./rl/slippageAgent");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Reintroduced: CoinGecko Caching & Dynamic Slippage (exactly from original)
@@ -168,7 +168,7 @@ const { getCurveQuote } = require("./scripts/curveUtils");
 // ─────────────────────────────────────────────────────────────────────────────
 // Imports: PostgreSQL Client for Trade Persistence (server/dbClient.js)
 // ─────────────────────────────────────────────────────────────────────────────
-const { insertTrade, pool: dbPool, isDbEnabled } = require("./dbClient");
+const { insertTrade, pool: dbPool, isDbEnabled, waitForPoolReady } = require("./dbClient");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Imports: Slack Alert Utility (from server/scripts/)
@@ -316,6 +316,13 @@ const OPTIONAL_ENV_DEFAULTS = {
   TOKENS_USDT: "",
   TOKENS_UNI: "",
   ML_MODEL_ENDPOINT: undefined,
+  RL_CONTINUOUS: "false",
+  RL_MAX_OFFSET_BIPS: "40",
+  RL_EPSILON_START: "0.2",
+  RL_EPSILON_MIN: "0.05",
+  RL_EPSILON_DECAY: "0.995",
+  RL_ALPHA: "0.2",
+  RL_SAVE_DEBOUNCE_MS: "200",
 };
 
 const optionalEnv = Object.fromEntries(
@@ -359,6 +366,13 @@ const {
   TOKENS_USDT,
   TOKENS_UNI,
   ML_MODEL_ENDPOINT,
+  RL_CONTINUOUS,
+  RL_MAX_OFFSET_BIPS,
+  RL_EPSILON_START,
+  RL_EPSILON_MIN,
+  RL_EPSILON_DECAY,
+  RL_ALPHA,
+  RL_SAVE_DEBOUNCE_MS,
 } = optionalEnv;
 
 // Validate contract address early to avoid cryptic ethers errors
@@ -459,6 +473,30 @@ const TIP_MULTIPLIER_DEN_INT = parseInt(
   TIP_MULTIPLIER_DEN || OPTIONAL_ENV_DEFAULTS.TIP_MULTIPLIER_DEN,
   10
 );
+
+const slippageAgent = initSlippageAgent({
+  continuous:
+    (RL_CONTINUOUS || OPTIONAL_ENV_DEFAULTS.RL_CONTINUOUS) === "true",
+  maxOffsetBips: parseFloat(
+    RL_MAX_OFFSET_BIPS || OPTIONAL_ENV_DEFAULTS.RL_MAX_OFFSET_BIPS,
+  ),
+  epsilonStart: parseFloat(
+    RL_EPSILON_START || OPTIONAL_ENV_DEFAULTS.RL_EPSILON_START,
+  ),
+  epsilonMin: parseFloat(
+    RL_EPSILON_MIN || OPTIONAL_ENV_DEFAULTS.RL_EPSILON_MIN,
+  ),
+  epsilonDecay: parseFloat(
+    RL_EPSILON_DECAY || OPTIONAL_ENV_DEFAULTS.RL_EPSILON_DECAY,
+  ),
+  alpha: parseFloat(RL_ALPHA || OPTIONAL_ENV_DEFAULTS.RL_ALPHA),
+  saveDebounceMs: parseInt(
+    RL_SAVE_DEBOUNCE_MS || OPTIONAL_ENV_DEFAULTS.RL_SAVE_DEBOUNCE_MS,
+    10,
+  ),
+  metrics: { rlAction, rlEpsilon },
+  logger,
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Token & DEX Setup (addresses must be in .env)
@@ -769,6 +807,9 @@ async function selectBestRoute(amountIn, slippageBips, routeList) {
 let dbDisabledLogged = false;
 
 async function computeDailyPnL() {
+  if (!isDbEnabled() && dbPool && typeof waitForPoolReady === "function") {
+    await waitForPoolReady();
+  }
   if (!isDbEnabled() || !dbPool) {
     if (!dbDisabledLogged) {
       logger.info("PostgreSQL persistence disabled; skipping daily PnL computation.");
@@ -1274,17 +1315,21 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
 
       if (flashbotsSuccess) {
         arbSuccess.inc();
-        const tradeRecord = await insertTrade({
+        const tradeResult = await insertTrade({
           route: swapData.route,
           profit: netDAI,
           txHash: "flashbots-bundle",
           timestamp: Date.now(),
           status: "flashbots",
         });
-        if (isDbEnabled() && tradeRecord) {
+        if (tradeResult?.ok) {
           logger.info(`[${chain}] Trade recorded as flashbots.`);
-        } else if (!isDbEnabled()) {
+        } else if (tradeResult?.error?.code === "DB_DISABLED") {
           logger.info(`[${chain}] Persistence disabled; flashbots trade not stored.`);
+        } else if (tradeResult?.error) {
+          logger.warn(
+            `[${chain}] Failed to persist flashbots trade (${tradeResult.error.code}): ${tradeResult.error.message}`
+          );
         }
         reward = parseFloat(ethers.utils.formatUnits(netDAI, 18));
         return { executed: true, estimatedProfitInDai: netDAI };
@@ -1311,17 +1356,21 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
     await txResp.wait();
     logger.info(`[${chain}] Public TX mined: ${txResp.hash}`);
     arbSuccess.inc();
-    const tradeRecord = await insertTrade({
+    const tradeResult = await insertTrade({
       route: swapData.route,
       profit: netDAI,
       txHash: txResp.hash,
       timestamp: Date.now(),
       status: "public",
     });
-    if (isDbEnabled() && tradeRecord) {
+    if (tradeResult?.ok) {
       logger.info(`[${chain}] Trade recorded as public.`);
-    } else if (!isDbEnabled()) {
+    } else if (tradeResult?.error?.code === "DB_DISABLED") {
       logger.info(`[${chain}] Persistence disabled; public trade not stored.`);
+    } else if (tradeResult?.error) {
+      logger.warn(
+        `[${chain}] Failed to persist public trade (${tradeResult.error.code}): ${tradeResult.error.message}`
+      );
     }
     reward = parseFloat(ethers.utils.formatUnits(netDAI, 18));
     slippageAgent.update(reward);
@@ -1365,6 +1414,16 @@ module.exports.getAllRoutes = getAllRoutes;
 module.exports.DEFAULT_CHAIN = DEFAULT_CHAIN;
 module.exports.computeDailyPnL = computeDailyPnL;
 module.exports.__cache = cache;
+module.exports.resetSlippagePolicy = function resetSlippagePolicy() {
+  slippageAgent.resetPolicy();
+  rlAction.set(0);
+  rlEpsilon.set(slippageAgent.epsilon);
+  return {
+    epsilon: slippageAgent.epsilon,
+    continuous: slippageAgent.continuous,
+    actions: slippageAgent.actions ? [...slippageAgent.actions] : [],
+  };
+};
 
 if (require.main === module) {
   (async () => {

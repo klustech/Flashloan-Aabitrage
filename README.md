@@ -80,6 +80,21 @@ V3 ID for `UNISWAP_ARBITRUM_SUBGRAPH_ID` will cause `pairs` queries to fail.
 You can run `node scripts/checkSubgraphs.js` to quickly verify that each
 configured subgraph responds to queries.
 
+### PostgreSQL Persistence
+
+The bot requires a PostgreSQL instance to persist executed trades and compute
+drawdown guardrails. Populate the `PG_USER`, `PG_HOST`, `PG_DB`, `PG_PASSWORD`,
+and `PG_PORT` environment variables in `.env` (see `server/dbClient.js` for the
+exact list). On startup the server performs a health check; in production builds
+(`NODE_ENV=production`) the process exits immediately if the connection cannot
+be established so that orchestration layers can restart the service.
+
+Operational telemetry is exposed via Prometheus: the `db_enabled` gauge reports
+`1` when persistence is active and `0` otherwise, and the
+`db_insert_failures_total` counter increments each time an insert is skipped or
+fails because the database is unavailable. Monitor these metrics to trigger
+alerts when persistence is degraded.
+
 4. Start the services:
 
 ```bash

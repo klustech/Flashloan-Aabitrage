@@ -10,23 +10,52 @@ import {
   TableCell,
   TableBody,
 } from "@mui/material";
-import { getMetrics } from "../services/api";
+import { getMetrics, getTradeHistory } from "../services/api";
 
 const Dashboard = () => {
   const [metrics, setMetrics] = useState(null);
+  const [trades, setTrades] = useState([]);
+  const [tradesLoading, setTradesLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
     const fetchMetrics = async () => {
       try {
         const data = await getMetrics();
-        setMetrics(data);
+        if (isMounted) {
+          setMetrics(data);
+        }
       } catch (e) {
         console.error("metrics fetch error", e);
       }
     };
+    const fetchTrades = async () => {
+      try {
+        const data = await getTradeHistory(10);
+        if (isMounted) {
+          setTrades(Array.isArray(data) ? data : []);
+        }
+      } catch (e) {
+        console.error("trade history fetch error", e);
+        if (isMounted) {
+          setTrades([]);
+        }
+      } finally {
+        if (isMounted) {
+          setTradesLoading(false);
+        }
+      }
+    };
     fetchMetrics();
-    const id = setInterval(fetchMetrics, 30000);
-    return () => clearInterval(id);
+    fetchTrades();
+    const id = setInterval(() => {
+      fetchMetrics();
+      fetchTrades();
+    }, 30000);
+    return () => {
+      isMounted = false;
+      clearInterval(id);
+    };
   }, []);
 
   const metricMap = {};
@@ -102,12 +131,32 @@ const Dashboard = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            <TableRow>
-              <TableCell>12:00</TableCell>
-              <TableCell>ETH/BTC</TableCell>
-              <TableCell>$123.45</TableCell>
-            </TableRow>
-            {/* Additional rows rendered dynamically */}
+            {tradesLoading ? (
+              <TableRow>
+                <TableCell colSpan={3}>Loading trade history…</TableCell>
+              </TableRow>
+            ) : trades.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={3}>No trades recorded yet.</TableCell>
+              </TableRow>
+            ) : (
+              trades.map((trade) => {
+                const profitValue = Number(trade.profit);
+                const profitDisplay = Number.isFinite(profitValue)
+                  ? `${profitValue.toFixed(4)} DAI`
+                  : trade.profit || "-";
+                const timestamp = trade.timestamp
+                  ? new Date(trade.timestamp).toLocaleString()
+                  : "-";
+                return (
+                  <TableRow key={`${trade.txHash ?? "trade"}-${trade.timestamp}`}>
+                    <TableCell>{timestamp}</TableCell>
+                    <TableCell>{trade.route || trade.status || "-"}</TableCell>
+                    <TableCell>{profitDisplay}</TableCell>
+                  </TableRow>
+                );
+              })
+            )}
           </TableBody>
         </Table>
       </Paper>

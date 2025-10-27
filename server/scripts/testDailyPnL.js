@@ -18,6 +18,11 @@ async function main() {
   };
 
   const inserted = await insertTrade(tradeData);
+  if (!inserted.ok) {
+    throw new Error(
+      `insertTrade failed (${inserted.error.code}): ${inserted.error.message}`
+    );
+  }
 
   const updatedPnL = await computeDailyPnL();
   const expected = baseline.add(tradeData.profit);
@@ -36,8 +41,8 @@ async function main() {
     `PnL round-trip succeeded. Baseline=${baseline.toString()} Updated=${updatedPnL.toString()}`
   );
 
-  if (inserted && inserted.tx_hash) {
-    await pool.query("DELETE FROM trades WHERE tx_hash = $1", [inserted.tx_hash]);
+  if (inserted.data && inserted.data.tx_hash) {
+    await pool.query("DELETE FROM trades WHERE tx_hash = $1", [inserted.data.tx_hash]);
   }
 }
 

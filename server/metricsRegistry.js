@@ -27,6 +27,15 @@ const reserveIngestionConnectionState = new promClient.Gauge({
 const reserveIngestionEnabled = new promClient.Gauge({
   name: "reserve_ingestion_enabled",
   help: "Flag indicating whether live reserve ingestion is enabled (1) or disabled (0)",
+const dbEnabled = new promClient.Gauge({
+  name: "db_enabled",
+  help: "Flag indicating if PostgreSQL persistence is enabled (1) or disabled (0)",
+  registers: [register],
+});
+
+const dbInsertFailures = new promClient.Counter({
+  name: "db_insert_failures_total",
+  help: "Number of trade inserts skipped or failed because the database was unavailable",
   registers: [register],
 });
 
@@ -94,4 +103,6 @@ module.exports = {
   reserveIngestionReconnects,
   reserveIngestionConnectionState,
   reserveIngestionEnabled,
+  dbEnabled,
+  dbInsertFailures,
 };
