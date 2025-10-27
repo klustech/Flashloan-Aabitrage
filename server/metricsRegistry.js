@@ -3,6 +3,18 @@ const promClient = require("prom-client");
 const register = new promClient.Registry();
 promClient.collectDefaultMetrics({ register });
 
+const dbEnabled = new promClient.Gauge({
+  name: "db_enabled",
+  help: "Flag indicating if PostgreSQL persistence is enabled (1) or disabled (0)",
+  registers: [register],
+});
+
+const dbInsertFailures = new promClient.Counter({
+  name: "db_insert_failures_total",
+  help: "Number of trade inserts skipped or failed because the database was unavailable",
+  registers: [register],
+});
+
 const arbAttempts = new promClient.Counter({
   name: "arb_attempts_total",
   help: "Total number of arbitrage attempts",
@@ -63,4 +75,6 @@ module.exports = {
   simulationHistogram,
   rlEpsilon,
   rlAction,
+  dbEnabled,
+  dbInsertFailures,
 };
