@@ -6,8 +6,25 @@
  *   node scripts/run-bot.js
  */
 
-require("dotenv").config({ override: true });
+const runtimeConfig = require("../server/utils/runtimeConfig");
 const { simulateAndExecuteArb } = require("../server/botLogic");
+
+const { features, optional } = runtimeConfig;
+
+function featureStatus(label, enabled) {
+  return `${enabled ? "✅" : "⚠️"} ${label}${enabled ? "" : " (disabled)"}`;
+}
+
+function describePriceIngestion() {
+  const wsUrl = optional("MAINNET_WEBSOCKET").string();
+  const httpUrl = optional("MAINNET_RPC_URL").string();
+  if (wsUrl || httpUrl) {
+    return wsUrl
+      ? "✅ Price ingestion subscriptions enabled"
+      : "⚠️ Price ingestion running in HTTP polling mode";
+  }
+  return "⚠️ Price ingestion disabled (set MAINNET_WEBSOCKET or MAINNET_RPC_URL)";
+}
 
 async function delay(ms) {
   if (ms > 0) {
@@ -21,6 +38,15 @@ async function runBot({
   useFlashbots = true,
 } = {}) {
   console.log("🤖  Starting arbitrage bot...");
+  console.log(
+    featureStatus(
+      "Reinforcement learning slippage",
+      features.reinforcementLearning
+    )
+  );
+  console.log(featureStatus("Balancer routing", features.balancer));
+  console.log(featureStatus("Curve routing", features.curve));
+  console.log(describePriceIngestion());
   let cycles = 0;
   let lastResult = { executed: false, estimatedProfitInDai: null };
 
