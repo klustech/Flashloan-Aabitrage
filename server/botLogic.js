@@ -8,16 +8,13 @@
  * Added comprehensive logger.info statements at each major step.
  */
 
-require("dotenv").config({
-  path: require("path").resolve(__dirname, "../.env"),
-});
-
-const { getEnv, loadRequired } = require("../utils/config");
+const runtimeConfig = require("./utils/runtimeConfig");
 const fs = require("fs");
 const path = require("path");
 const axios = require("axios");
 const winston = require("winston");
 const { ethers, BigNumber } = require("ethers");
+const { env: envConfig, optional, features } = runtimeConfig;
 const {
   FlashbotsBundleProvider,
 } = require("@flashbots/ethers-provider-bundle");
@@ -33,7 +30,26 @@ const {
   rlEpsilon,
   rlAction,
 } = require("./metricsRegistry");
-const slippageAgent = require("./rl/slippageAgent");
+function createDisabledSlippageAgent() {
+  return {
+    epsilon: 0,
+    lastAction: 0,
+    select(baseBips) {
+      this.lastAction = 0;
+      return baseBips;
+    },
+    update() {},
+  };
+}
+
+const slippageAgent = features.reinforcementLearning
+  ? require("./rl/slippageAgent")
+  : createDisabledSlippageAgent();
+
+if (!features.reinforcementLearning) {
+  rlAction.set(0);
+  rlEpsilon.set(0);
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Reintroduced: CoinGecko Caching & Dynamic Slippage (exactly from original)
@@ -159,8 +175,15 @@ const {
 // Imports: DEX Quote Utilities (from server/scripts/)
 // ─────────────────────────────────────────────────────────────────────────────
 const { getV3Quote } = require("./scripts/v3Utils");
-const { initBalancer, getBalancerQuote } = require("./scripts/balancerUtils");
-const { getCurveQuote } = require("./scripts/curveUtils");
+let initBalancer;
+let getBalancerQuote;
+if (features.balancer) {
+  ({ initBalancer, getBalancerQuote } = require("./scripts/balancerUtils"));
+}
+let getCurveQuote;
+if (features.curve) {
+  ({ getCurveQuote } = require("./scripts/curveUtils"));
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Imports: PostgreSQL Client for Trade Persistence (server/dbClient.js)
@@ -224,16 +247,7 @@ const {
   TOKENS_WETH,
   UNISWAP_ROUTER_ADDRESS,
   SUSHISWAP_ROUTER_ADDRESS,
-} = loadRequired([
-  "PRIVATE_KEY",
-  "CONTRACT_ADDRESS",
-  "AAVE_LENDING_POOL_ADDRESS_PROVIDER",
-  "MAINNET_RPC_URL",
-  "TOKENS_DAI",
-  "TOKENS_WETH",
-  "UNISWAP_ROUTER_ADDRESS",
-  "SUSHISWAP_ROUTER_ADDRESS",
-]);
+} = envConfig;
 
 // Optional configuration defaults. These document the baseline behaviour while
 // still allowing deployments to override any value via environment variables.
@@ -276,7 +290,7 @@ const OPTIONAL_ENV_DEFAULTS = {
 const optionalEnv = Object.fromEntries(
   Object.entries(OPTIONAL_ENV_DEFAULTS).map(([key, defaultValue]) => [
     key,
-    getEnv(key, defaultValue),
+    optional(key).string(defaultValue),
   ])
 );
 
@@ -331,26 +345,38 @@ try {
 // ─────────────────────────────────────────────────────────────────────────────
 const DEFAULT_CHAIN = "ethereum";
 
-const providers = {
-  [DEFAULT_CHAIN]: new ethers.providers.JsonRpcProvider({
-    url: MAINNET_RPC_URL,
-    timeout: 120_000,
-  }),
-};
+const chainContexts = new Map();
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Wallets for each chain
-// ─────────────────────────────────────────────────────────────────────────────
-const wallets = {
-  [DEFAULT_CHAIN]: new ethers.Wallet(PRIVATE_KEY, providers[DEFAULT_CHAIN]),
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Arbitrage contract addresses per chain (must be set in .env)
-// ─────────────────────────────────────────────────────────────────────────────
-const arbContractAddresses = {
-  [DEFAULT_CHAIN]: VALID_CONTRACT_ADDRESS,
-};
+function getChainContext(chain) {
+  if (!chainContexts.has(chain)) {
+    const provider = new ethers.providers.JsonRpcProvider({
+      url: MAINNET_RPC_URL,
+      timeout: 120_000,
+    });
+    const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+    const context = {
+      provider,
+      wallet,
+      arbContract: new ethers.Contract(
+        VALID_CONTRACT_ADDRESS,
+        arbitrageABI,
+        wallet
+      ),
+    };
+    context.uniRouter = new ethers.Contract(
+      UNISWAP_ROUTER_ADDRESS,
+      minimalRouterABI,
+      wallet
+    );
+    context.sushiRouter = new ethers.Contract(
+      SUSHISWAP_ROUTER_ADDRESS,
+      minimalRouterABI,
+      wallet
+    );
+    chainContexts.set(chain, context);
+  }
+  return chainContexts.get(chain);
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Global constants (parsed as ints/floats)
@@ -448,23 +474,6 @@ const minimalRouterABI = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Helpers to instantiate DEX routers per chain
-// ─────────────────────────────────────────────────────────────────────────────
-function getUniRouter(chain) {
-  return new ethers.Contract(
-    UNISWAP_ROUTER_ADDRESS,
-    minimalRouterABI,
-    wallets[chain]
-  );
-}
-function getSushiRouter(chain) {
-  return new ethers.Contract(
-    SUSHISWAP_ROUTER_ADDRESS,
-    minimalRouterABI,
-    wallets[chain]
-  );
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Heuristic state
 // ─────────────────────────────────────────────────────────────────────────────
@@ -480,11 +489,12 @@ function calculateMinOut(amountOut, slippageBips) {
 }
 
 async function getAvailableLiquidity(token, chain) {
+  const { provider } = getChainContext(chain);
   const providerAddr = AAVE_LENDING_POOL_ADDRESS_PROVIDER;
   const lpProvider = new ethers.Contract(
     providerAddr,
     ["function getLendingPool() view returns (address)"],
-    providers[chain]
+    provider
   );
   let poolAddr;
   try {
@@ -500,7 +510,7 @@ async function getAvailableLiquidity(token, chain) {
     [
       "function getReserveData(address) view returns (uint256 totalLiquidity, uint256 availableLiquidity, uint256 totalStableDebt, uint256 totalVariableDebt, uint256 liquidityRate, uint256 variableBorrowRate, uint256 stableBorrowRate, uint256 averageStableBorrowRate, uint256 liquidityIndex, uint256 variableBorrowIndex, uint40 lastUpdateTimestamp)",
     ],
-    providers[chain]
+    provider
   );
   try {
     const reserveData = await lendingPool.getReserveData(tokenAddresses[token]);
@@ -753,15 +763,8 @@ async function computeDailyPnL() {
 // Main Simulation & Execution Loop for One Chain
 // ─────────────────────────────────────────────────────────────────────────────
 async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
-  const provider = providers[chain];
-  const wallet = wallets[chain];
-  const uniRouter = getUniRouter(chain);
-  const sushiRouter = getSushiRouter(chain);
-  const arbContract = new ethers.Contract(
-    arbContractAddresses[chain],
-    arbitrageABI,
-    wallet
-  );
+  const { provider, wallet, uniRouter, sushiRouter, arbContract } =
+    getChainContext(chain);
 
   let currentSlippage = SLIPPAGE_DEFAULT_INT;
   let reward = -1;
