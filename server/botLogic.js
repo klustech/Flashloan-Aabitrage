@@ -165,7 +165,7 @@ const { getCurveQuote } = require("./scripts/curveUtils");
 // ─────────────────────────────────────────────────────────────────────────────
 // Imports: PostgreSQL Client for Trade Persistence (server/dbClient.js)
 // ─────────────────────────────────────────────────────────────────────────────
-const { insertTrade, pool: dbPool, isDbEnabled } = require("./dbClient");
+const { insertTrade, pool: dbPool, isDbEnabled, waitForPoolReady } = require("./dbClient");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Imports: Slack Alert Utility (from server/scripts/)
@@ -724,6 +724,9 @@ async function selectBestRoute(amountIn, slippageBips, routeList) {
 let dbDisabledLogged = false;
 
 async function computeDailyPnL() {
+  if (!isDbEnabled() && dbPool && typeof waitForPoolReady === "function") {
+    await waitForPoolReady();
+  }
   if (!isDbEnabled() || !dbPool) {
     if (!dbDisabledLogged) {
       logger.info("PostgreSQL persistence disabled; skipping daily PnL computation.");
@@ -1185,17 +1188,21 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
 
       if (flashbotsSuccess) {
         arbSuccess.inc();
-        const tradeRecord = await insertTrade({
+        const tradeResult = await insertTrade({
           route: swapData.route,
           profit: netDAI,
           txHash: "flashbots-bundle",
           timestamp: Date.now(),
           status: "flashbots",
         });
-        if (isDbEnabled() && tradeRecord) {
+        if (tradeResult?.ok) {
           logger.info(`[${chain}] Trade recorded as flashbots.`);
-        } else if (!isDbEnabled()) {
+        } else if (tradeResult?.error?.code === "DB_DISABLED") {
           logger.info(`[${chain}] Persistence disabled; flashbots trade not stored.`);
+        } else if (tradeResult?.error) {
+          logger.warn(
+            `[${chain}] Failed to persist flashbots trade (${tradeResult.error.code}): ${tradeResult.error.message}`
+          );
         }
         reward = parseFloat(ethers.utils.formatUnits(netDAI, 18));
         return { executed: true, estimatedProfitInDai: netDAI };
@@ -1222,17 +1229,21 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
     await txResp.wait();
     logger.info(`[${chain}] Public TX mined: ${txResp.hash}`);
     arbSuccess.inc();
-    const tradeRecord = await insertTrade({
+    const tradeResult = await insertTrade({
       route: swapData.route,
       profit: netDAI,
       txHash: txResp.hash,
       timestamp: Date.now(),
       status: "public",
     });
-    if (isDbEnabled() && tradeRecord) {
+    if (tradeResult?.ok) {
       logger.info(`[${chain}] Trade recorded as public.`);
-    } else if (!isDbEnabled()) {
+    } else if (tradeResult?.error?.code === "DB_DISABLED") {
       logger.info(`[${chain}] Persistence disabled; public trade not stored.`);
+    } else if (tradeResult?.error) {
+      logger.warn(
+        `[${chain}] Failed to persist public trade (${tradeResult.error.code}): ${tradeResult.error.message}`
+      );
     }
     reward = parseFloat(ethers.utils.formatUnits(netDAI, 18));
     slippageAgent.update(reward);
