@@ -1,6 +1,10 @@
 // frontend/src/services/api.js
 
 import axios from "axios";
+import {
+  settingsResponseSchema,
+  settingsUpdateSchema,
+} from "../validation/settingsSchema";
 
 const API_BASE_URL =
   process.env.REACT_APP_API_BASE_URL || "http://localhost:3001";
@@ -106,13 +110,17 @@ export const getBotLogs = async () => {
 // Get current settings
 export const getSettings = async () => {
   const response = await API.get("/api/settings");
-  return response.data;
+  return settingsResponseSchema.parse(response.data);
 };
 
 // Update settings (including minBorrowAmount and simulationInputAmount)
 export const updateSettings = async (settings) => {
-  const response = await API.post("/api/settings", settings);
-  return response.data;
+  const payload = settingsUpdateSchema.parse(settings);
+
+  const response = await API.post("/api/settings", payload);
+  const parsedSettings = settingsResponseSchema.parse(response.data.settings);
+
+  return { ...response.data, settings: parsedSettings };
 };
 
 // Start the bot

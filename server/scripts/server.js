@@ -19,6 +19,12 @@ const {
   determineProfit,
   getSimulationConfig,
 } = require("../../utils/profitDetermination");
+const {
+  settingsSchema,
+  settingsUpdateSchema,
+  settingsDefaults,
+  formatValidationErrors,
+} = require("../utils/settingsSchema");
 // Shared Prometheus metrics (registry + concrete instruments)
 const {
   register,
@@ -148,16 +154,47 @@ app.use((req, _res, next) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // In-memory bot settings
 // ─────────────────────────────────────────────────────────────────────────────
-let botSettings = {
-  botActive: true,
-  flashbotsDefault: process.env.FLASHBOTS_DEFAULT === "true",
-  pollingInterval: 60,
-  gasPriceCeiling: parseInt(process.env.GAS_PRICE_CEILING, 10) || 50,
-  slippageBips: parseInt(process.env.SLIPPAGE_BIPS, 10) || 50,
-  minBorrowAmount: parseInt(process.env.MIN_BORROW_AMOUNT, 10) || 100,
-  simulationInputAmount:
-    parseInt(process.env.SIMULATION_INPUT_AMOUNT, 10) || 1_000_000,
+const parseOptionalInt = (value) => {
+  if (value === undefined || value === null || value === "") return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
 };
+
+const rawInitialSettings = {
+  ...settingsDefaults,
+  flashbotsDefault:
+    process.env.FLASHBOTS_DEFAULT === undefined
+      ? settingsDefaults.flashbotsDefault
+      : process.env.FLASHBOTS_DEFAULT === "true",
+  pollingInterval:
+    parseOptionalInt(process.env.POLLING_INTERVAL) ??
+    settingsDefaults.pollingInterval,
+  gasPriceCeiling:
+    parseOptionalInt(process.env.GAS_PRICE_CEILING) ??
+    settingsDefaults.gasPriceCeiling,
+  slippageBips:
+    parseOptionalInt(process.env.SLIPPAGE_BIPS) ?? settingsDefaults.slippageBips,
+  minBorrowAmount:
+    parseOptionalInt(process.env.MIN_BORROW_AMOUNT) ??
+    settingsDefaults.minBorrowAmount,
+  simulationInputAmount:
+    parseOptionalInt(process.env.SIMULATION_INPUT_AMOUNT) ??
+    settingsDefaults.simulationInputAmount,
+};
+
+let botSettings;
+const initialSettingsResult = settingsSchema.safeParse(rawInitialSettings);
+if (!initialSettingsResult.success) {
+  const details = formatValidationErrors(initialSettingsResult.error);
+  logger.warn(
+    `Invalid initial settings detected, falling back to defaults: ${JSON.stringify(
+      details
+    )}`
+  );
+  botSettings = settingsSchema.parse(settingsDefaults);
+} else {
+  botSettings = initialSettingsResult.data;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // REST endpoints
@@ -396,27 +433,49 @@ app.get("/api/settings", (_req, res) => {
 });
 
 // POST /api/settings
-// Allowed fields: flashbotsDefault, pollingInterval, gasPriceCeiling,
-// slippageBips, minBorrowAmount, simulationInputAmount
+// Validates and updates the configurable bot settings.
 app.post("/api/settings", (req, res) => {
   try {
-    const allowed = [
-      "flashbotsDefault",
-      "pollingInterval",
-      "gasPriceCeiling",
-      "slippageBips",
-      "minBorrowAmount",
-      "simulationInputAmount",
-    ];
+    const parseResult = settingsUpdateSchema.safeParse(req.body);
 
-    allowed.forEach((k) => {
-      if (req.body[k] !== undefined) {
-        botSettings[k] = req.body[k];
-        if (k === "minBorrowAmount") updateMinBorrowAmount(req.body[k]);
-        if (k === "simulationInputAmount")
-          updateSimulationInputAmount(req.body[k]);
-      }
-    });
+    if (!parseResult.success) {
+      const details = formatValidationErrors(parseResult.error);
+      logger.warn(
+        `Settings validation failed: ${JSON.stringify(details)} | payload=${JSON.stringify(
+          req.body
+        )}`
+      );
+      return res.status(400).json({
+        status: "error",
+        message: "Invalid settings",
+        errors: details.fieldErrors,
+        formErrors: details.formErrors,
+      });
+    }
+
+    const updates = parseResult.data;
+
+    if (Object.keys(updates).length === 0) {
+      const emptyPayloadError = {
+        fieldErrors: {},
+        formErrors: ["At least one setting must be provided"],
+      };
+      return res.status(400).json({
+        status: "error",
+        message: "No settings provided",
+        errors: emptyPayloadError.fieldErrors,
+        formErrors: emptyPayloadError.formErrors,
+      });
+    }
+
+    botSettings = { ...botSettings, ...updates };
+
+    if (updates.minBorrowAmount !== undefined) {
+      updateMinBorrowAmount(updates.minBorrowAmount);
+    }
+    if (updates.simulationInputAmount !== undefined) {
+      updateSimulationInputAmount(updates.simulationInputAmount);
+    }
 
     logger.info(`Settings updated: ${JSON.stringify(botSettings)}`);
     res.json({ status: "ok", settings: botSettings });
