@@ -46,12 +46,18 @@ const {
   getCurrentMarketData,
   updateMinBorrowAmount,
   updateSimulationInputAmount,
+  resetSlippagePolicy,
 } = require("../botLogic");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Slack Alerts Utility
 // ─────────────────────────────────────────────────────────────────────────────
 const { sendSlackAlert } = require("./slackUtils");
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Trade history helpers
+// ─────────────────────────────────────────────────────────────────────────────
+const { getRecentTrades } = require("../dbClient");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DEX ABIs & Provider for real-time quotes (market-data endpoint)
@@ -240,6 +246,19 @@ app.get("/api/bot-logs", (_req, res) => {
   }
 });
 
+// GET /api/trades
+// Returns the most recent trade history entries
+app.get("/api/trades", async (req, res) => {
+  try {
+    const { limit } = req.query;
+    const trades = await getRecentTrades(limit);
+    res.json(trades);
+  } catch (err) {
+    logger.error(`trade history error: ${err.message}`);
+    res.status(500).json({ error: "failed to fetch trade history" });
+  }
+});
+
 // GET /api/simulate-profit
 // Uses profitDetermination utility for a demo route
 app.get("/api/simulate-profit", async (_req, res) => {
@@ -380,6 +399,18 @@ app.post("/api/stop-bot", (_req, res) => {
   botSettings.botActive = false;
   logger.info("Bot stopped");
   res.json({ status: "ok", settings: botSettings });
+});
+
+// POST /api/rl/reset
+app.post("/api/rl/reset", (_req, res) => {
+  try {
+    const snapshot = resetSlippagePolicy();
+    logger.info("RL slippage policy reset");
+    res.json({ status: "ok", policy: snapshot });
+  } catch (err) {
+    logger.error(`RL reset error: ${err.message}`);
+    res.status(500).json({ error: "reset failed" });
+  }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

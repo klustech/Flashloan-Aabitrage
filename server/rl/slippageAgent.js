@@ -1,29 +1,67 @@
 const fs = require("fs");
 const path = require("path");
 
+const { promises: fsp } = fs;
+
 class SlippageAgent {
-  constructor() {
-    this.file = path.resolve(__dirname, "slippage_data.json");
-    this.continuous = process.env.RL_CONTINUOUS === "true";
-    this.maxOffset = parseFloat(process.env.RL_MAX_OFFSET_BIPS || "40");
-    this.actions = this.continuous ? [] : [-20, -10, 0, 10, 20, 40];
-    this.epsilon = parseFloat(process.env.RL_EPSILON_START || "0.2");
-    this.minEpsilon = parseFloat(process.env.RL_EPSILON_MIN || "0.05");
-    this.decay = parseFloat(process.env.RL_EPSILON_DECAY || "0.995");
-    this.alpha = parseFloat(process.env.RL_ALPHA || "0.2");
+  constructor({
+    storagePath = path.resolve(__dirname, "slippage_data.json"),
+    continuous = false,
+    maxOffsetBips = 40,
+    discreteActions = [-20, -10, 0, 10, 20, 40],
+    epsilonStart = 0.2,
+    epsilonMin = 0.05,
+    epsilonDecay = 0.995,
+    alpha = 0.2,
+    saveDebounceMs = 200,
+    metrics = {},
+    logger = console,
+  } = {}) {
+    this.file = storagePath;
+    this.continuous = Boolean(continuous);
+    this.maxOffset = Number(maxOffsetBips);
+    this.discreteActions = Array.isArray(discreteActions)
+      ? [...discreteActions]
+      : [-20, -10, 0, 10, 20, 40];
+    this.actions = this.continuous ? [] : [...this.discreteActions];
+    this.initialEpsilon = Number(epsilonStart);
+    this.epsilon = this.initialEpsilon;
+    this.minEpsilon = Number(epsilonMin);
+    this.decay = Number(epsilonDecay);
+    this.alpha = Number(alpha);
+    this.saveDebounceMs = Number(saveDebounceMs);
+    this.metrics = metrics;
+    this.logger = logger || console;
     this.q = {};
     this.lastAction = null;
+    this.lastSlippage = null;
+    this.pendingWrite = null;
+    this.debounceTimer = null;
+    this.writePromise = Promise.resolve();
+    this.lastPersistError = null;
     this.load();
   }
 
   load() {
     if (fs.existsSync(this.file)) {
       try {
-        this.q = JSON.parse(fs.readFileSync(this.file, "utf8"));
-      } catch {
+        const raw = fs.readFileSync(this.file, "utf8");
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+          this.q = parsed;
+        } else {
+          this.q = {};
+        }
+      } catch (err) {
+        this.logger?.warn?.(
+          `Failed to parse slippage policy file: ${err.message}. Falling back to defaults.`
+        );
         this.q = {};
       }
+    } else {
+      this.q = {};
     }
+
     if (!this.continuous) {
       this.actions.forEach((a) => {
         if (!this.q[a]) this.q[a] = { value: 0, count: 0 };
@@ -31,8 +69,38 @@ class SlippageAgent {
     }
   }
 
-  save() {
-    fs.writeFileSync(this.file, JSON.stringify(this.q, null, 2));
+  queueSave() {
+    this.pendingWrite = JSON.stringify(this.q, null, 2);
+    if (this.debounceTimer) {
+      return;
+    }
+
+    this.debounceTimer = setTimeout(() => {
+      const payload = this.pendingWrite;
+      this.pendingWrite = null;
+      this.debounceTimer = null;
+      this.writePromise = this.writePromise
+        .catch(() => {})
+        .then(() => this.persist(payload));
+    }, this.saveDebounceMs);
+  }
+
+  async persist(payload) {
+    if (typeof payload !== "string") {
+      return;
+    }
+    try {
+      await fsp.mkdir(path.dirname(this.file), { recursive: true });
+      await fsp.writeFile(this.file, payload, "utf8");
+      this.lastPersistError = null;
+    } catch (err) {
+      this.lastPersistError = err;
+      this.logger?.error?.(
+        `Failed to persist slippage policy: ${err.message}`
+      );
+      this.metrics?.rlAction?.set?.(-1);
+      this.metrics?.rlEpsilon?.set?.(-1);
+    }
   }
 
   select(baseBips) {
@@ -73,8 +141,41 @@ class SlippageAgent {
     const entry = this.q[key];
     entry.count += 1;
     entry.value = entry.value + this.alpha * (reward - entry.value);
-    this.save();
+    this.queueSave();
+  }
+  resetPolicy({ persist = true } = {}) {
+    this.q = {};
+    if (!this.continuous) {
+      this.actions = [...this.discreteActions];
+      this.actions.forEach((a) => {
+        this.q[a] = { value: 0, count: 0 };
+      });
+    }
+    this.lastAction = null;
+    this.lastSlippage = null;
+    this.epsilon = this.initialEpsilon;
+    if (persist) {
+      this.queueSave();
+    }
   }
 }
 
-module.exports = new SlippageAgent();
+let instance = null;
+
+function initSlippageAgent(options = {}) {
+  instance = new SlippageAgent(options);
+  return instance;
+}
+
+function getSlippageAgent() {
+  if (!instance) {
+    throw new Error("SlippageAgent has not been initialised");
+  }
+  return instance;
+}
+
+module.exports = {
+  SlippageAgent,
+  initSlippageAgent,
+  getSlippageAgent,
+};
