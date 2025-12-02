@@ -48,6 +48,20 @@ loadRequired([
 // ─────────────────────────────────────────────────────────────────────────────
 // Bot logic & helpers
 // ─────────────────────────────────────────────────────────────────────────────
+const loadBotLogic = () => {
+  if (process.env.NODE_ENV === "test") {
+    return {
+      simulateAndExecuteArb: async () => ({ executed: false }),
+      getCurrentMarketData: async () => ({ opportunities: [] }),
+      updateMinBorrowAmount: () => {},
+      updateSimulationInputAmount: () => {},
+      getRecentOpportunities: () => [],
+      resetSlippagePolicy: () => ({ reset: true }),
+    };
+  }
+  return require("../botLogic");
+};
+
 const {
   simulateAndExecuteArb,
   getCurrentMarketData,
@@ -55,7 +69,7 @@ const {
   updateSimulationInputAmount,
   getRecentOpportunities,
   resetSlippagePolicy,
-} = require("../botLogic");
+} = loadBotLogic();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Slack Alerts Utility
@@ -65,7 +79,16 @@ const { sendSlackAlert } = require("./slackUtils");
 // ─────────────────────────────────────────────────────────────────────────────
 // Trade history helpers
 // ─────────────────────────────────────────────────────────────────────────────
-const { getRecentTrades } = require("../dbClient");
+const loadDbClient = () => {
+  if (process.env.NODE_ENV === "test") {
+    return {
+      getRecentTrades: async () => [],
+    };
+  }
+  return require("../dbClient");
+};
+
+const { getRecentTrades } = loadDbClient();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DEX ABIs & Provider for real-time quotes (market-data endpoint)
@@ -541,21 +564,6 @@ app.get(
   })
 );
 
-    const payload = {
-      tokenIn: "DAI",
-      tokenOut: "WETH",
-      uniswapPrice,
-      sushiPrice,
-    };
-
-    logger.info(`Market data: ${JSON.stringify(payload)}`);
-    res.json(payload);
-  } catch (err) {
-    logger.error(`Market data endpoint error: ${err.message}`);
-    res.status(500).json({ error: "failed to fetch market data" });
-  }
-});
-
 // GET /api/bot-logs
 // Streams the requested log file and returns a paginated chunk of lines
 app.get("/api/bot-logs", requireLogApiKey, async (req, res) => {
@@ -803,78 +811,60 @@ app.get(
 );
 
 // POST /api/settings
-// Allowed fields: flashbotsDefault, pollingInterval, gasPriceCeiling,
-// slippageBips, minBorrowAmount, simulationInputAmount
+// Validates and updates the configurable bot settings.
 app.post(
   "/api/settings",
   withErrorBoundary("update_settings", (req, res) => {
     try {
-      const allowed = [
-        "flashbotsDefault",
-        "pollingInterval",
-        "gasPriceCeiling",
-        "slippageBips",
-        "minBorrowAmount",
-        "simulationInputAmount",
-      ];
+      const parseResult = settingsUpdateSchema.safeParse(req.body);
 
-      allowed.forEach((k) => {
-        if (req.body[k] !== undefined) {
-          botSettings[k] = req.body[k];
-          if (k === "minBorrowAmount") updateMinBorrowAmount(req.body[k]);
-          if (k === "simulationInputAmount")
-            updateSimulationInputAmount(req.body[k]);
-        }
-      });
-// Validates and updates the configurable bot settings.
-app.post("/api/settings", (req, res) => {
-  try {
-    const parseResult = settingsUpdateSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        const details = formatValidationErrors(parseResult.error);
+        logger.warn(
+          `Settings validation failed: ${JSON.stringify(details)} | payload=${JSON.stringify(
+            req.body
+          )}`
+        );
 
-    if (!parseResult.success) {
-      const details = formatValidationErrors(parseResult.error);
-      logger.warn(
-        `Settings validation failed: ${JSON.stringify(details)} | payload=${JSON.stringify(
-          req.body
-        )}`
-      );
-      return res.status(400).json({
-        status: "error",
-        message: "Invalid settings",
-        errors: details.fieldErrors,
-        formErrors: details.formErrors,
-      });
-    }
+        const validationError = new Error("Invalid settings");
+        validationError.statusCode = 400;
+        validationError.publicMessage = "Invalid settings";
+        validationError.details = {
+          fieldErrors: details.fieldErrors,
+          formErrors: details.formErrors,
+        };
+        validationError.metricReason = "settings_validation";
+        throw validationError;
+      }
 
-    const updates = parseResult.data;
+      const updates = parseResult.data;
 
-    if (Object.keys(updates).length === 0) {
-      const emptyPayloadError = {
-        fieldErrors: {},
-        formErrors: ["At least one setting must be provided"],
-      };
-      return res.status(400).json({
-        status: "error",
-        message: "No settings provided",
-        errors: emptyPayloadError.fieldErrors,
-        formErrors: emptyPayloadError.formErrors,
-      });
-    }
+      if (Object.keys(updates).length === 0) {
+        const emptyPayloadError = new Error("No settings provided");
+        emptyPayloadError.statusCode = 400;
+        emptyPayloadError.publicMessage = "No settings provided";
+        emptyPayloadError.details = {
+          fieldErrors: {},
+          formErrors: ["At least one setting must be provided"],
+        };
+        emptyPayloadError.metricReason = "settings_validation";
+        throw emptyPayloadError;
+      }
 
-    botSettings = { ...botSettings, ...updates };
+      botSettings = { ...botSettings, ...updates };
 
-    if (updates.minBorrowAmount !== undefined) {
-      updateMinBorrowAmount(updates.minBorrowAmount);
-    }
-    if (updates.simulationInputAmount !== undefined) {
-      updateSimulationInputAmount(updates.simulationInputAmount);
-    }
+      if (updates.minBorrowAmount !== undefined) {
+        updateMinBorrowAmount(updates.minBorrowAmount);
+      }
+      if (updates.simulationInputAmount !== undefined) {
+        updateSimulationInputAmount(updates.simulationInputAmount);
+      }
 
       logger.info(`Settings updated: ${JSON.stringify(botSettings)}`);
       res.json({ status: "ok", settings: botSettings });
     } catch (err) {
-      err.statusCode = 500;
-      err.publicMessage = "update failed";
+      err.statusCode = err.statusCode || 500;
+      err.publicMessage = err.publicMessage || "update failed";
       err.metricReason = err.metricReason || "settings_error";
       throw err;
     }
@@ -948,52 +938,63 @@ app.post("/api/rl/reset", (_req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // Cron: scheduled arbitrage checks (once per minute)
 // ─────────────────────────────────────────────────────────────────────────────
-cron.schedule(
-  "* * * * *",
-  withCronBoundary("scheduler", async () => {
-    if (!botSettings.botActive) {
-      recordWorkerState({ running: false });
-      return;
-    }
-
-    const startTime = Date.now();
-    arbAttempts.inc();
-
-    const result = await runArbWithTimeout(
-      botSettings.flashbotsDefault,
-      "scheduler"
-    );
-    const elapsed = (Date.now() - startTime) / 1000;
-    simulationHistogram.observe(elapsed);
-    avgLatency.set(elapsed * 1000);
-
-    if (result.executed) {
-      arbSuccess.inc();
-      const estimatedProfit = result?.estimatedProfitInDai;
-      if (estimatedProfit !== undefined && estimatedProfit !== null) {
-        const formattedProfit = parseFloat(
-          ethers.utils.formatUnits(estimatedProfit, 18)
-        );
-        if (!Number.isNaN(formattedProfit)) {
-          avgProfit.set(formattedProfit);
-        }
+if (process.env.NODE_ENV !== "test") {
+  cron.schedule(
+    "* * * * *",
+    withCronBoundary("scheduler", async () => {
+      if (!botSettings.botActive) {
+        recordWorkerState({ running: false });
+        return;
       }
-      logger.info("Scheduler: executed arb");
-    } else {
-      arbFailure.labels("no_opportunity").inc();
-      logger.info("Scheduler: no opportunity");
-    }
-  })
-);
+
+      const startTime = Date.now();
+      arbAttempts.inc();
+
+      const result = await runArbWithTimeout(
+        botSettings.flashbotsDefault,
+        "scheduler"
+      );
+      const elapsed = (Date.now() - startTime) / 1000;
+      simulationHistogram.observe(elapsed);
+      avgLatency.set(elapsed * 1000);
+
+      if (result.executed) {
+        arbSuccess.inc();
+        const estimatedProfit = result?.estimatedProfitInDai;
+        if (estimatedProfit !== undefined && estimatedProfit !== null) {
+          const formattedProfit = parseFloat(
+            ethers.utils.formatUnits(estimatedProfit, 18)
+          );
+          if (!Number.isNaN(formattedProfit)) {
+            avgProfit.set(formattedProfit);
+          }
+        }
+        logger.info("Scheduler: executed arb");
+      } else {
+        arbFailure.labels("no_opportunity").inc();
+        logger.info("Scheduler: no opportunity");
+      }
+    })
+  );
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Serve React front-end build
 // ─────────────────────────────────────────────────────────────────────────────
 const buildPath = path.join(__dirname, "../../frontend/build");
-app.use(express.static(buildPath));
-app.get("*", (_req, res) => res.sendFile(path.join(buildPath, "index.html")));
+if (process.env.NODE_ENV !== "test") {
+  app.use(express.static(buildPath));
+  app.get("*", (_req, res) => res.sendFile(path.join(buildPath, "index.html")));
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Boot
 // ─────────────────────────────────────────────────────────────────────────────
-app.listen(PORT, () => logger.info(`🟢  API listening on :${PORT}`));
+const start = (port = PORT) =>
+  app.listen(port, () => logger.info(`🟢  API listening on :${port}`));
+
+if (require.main === module) {
+  start(PORT);
+}
+
+module.exports = { app, start };

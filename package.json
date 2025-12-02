@@ -50,7 +50,8 @@
     "hardhat-gas-reporter": "^2.2.3",
     "husky": "^9.1.7",
     "mocha": "^11.0.1",
-    "solidity-coverage": "^0.8.16"
+    "solidity-coverage": "^0.8.16",
+    "supertest": "^7.1.4"
   },
   "dependencies": {
     "@aave/protocol-v2": "^1.0.1",
