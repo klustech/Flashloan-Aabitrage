@@ -165,6 +165,24 @@ proxy, ensure access to `binaries.soliditylang.org`.
 npm test
 ```
 
+Tests now run against an in-memory Hardhat chain by default so they no longer
+require mainnet RPC credentials. To opt into mainnet forking, set the explicit
+flag and provide RPC URLs:
+
+```bash
+ENABLE_MAINNET_FORK=true MAINNET_RPC_URL=<https_provider> npx hardhat test
+```
+
+Fork helpers for Arbitrum and Optimism also respect the flag. Supply the
+respective `ARB_RPC_URL` or `OP_RPC_URL` variables when you need those forked
+chains.
+
+The convenience script wires the flag for you, only requiring the RPC URL:
+
+```bash
+npm run test:fork
+```
+
 ## Architecture Overview
 
 ```

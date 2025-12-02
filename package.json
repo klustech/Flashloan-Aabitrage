@@ -9,7 +9,7 @@
     "compile": "hardhat compile",
     "prepare": "husky install",
     "test": "hardhat test",
-    "test:fork": "MAINNET_RPC_URL=$MAINNET_RPC_URL hardhat test test/integration/flashloan.spec.js",
+    "test:fork": "ENABLE_MAINNET_FORK=true MAINNET_RPC_URL=$MAINNET_RPC_URL hardhat test test/integration/flashloan.spec.js",
     "bot": "node scripts/run-bot.js",
     "api": "node server/scripts/server.js",
     "docker:up": "docker-compose up --build",
