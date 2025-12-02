@@ -20,20 +20,68 @@ const {
   OP_RPC_URL,
   ARB_FORK_BLOCK_NUMBER,
   OP_FORK_BLOCK_NUMBER,
+  ENABLE_MAINNET_FORK,
 } = process.env;
+
+const isForkingEnabled = String(ENABLE_MAINNET_FORK || "").toLowerCase() === "true";
+
+const toBlockNumber = (blockNumberEnv, fallback) => {
+  if (blockNumberEnv) {
+    const parsed = parseInt(blockNumberEnv, 10);
+    if (!Number.isNaN(parsed)) {
+      return parsed;
+    }
+  }
+  return fallback;
+};
+
+const buildForkingConfig = (networkLabel, rpcUrl, blockNumberEnv, fallbackBlock) => {
+  if (!isForkingEnabled) {
+    return undefined;
+  }
+  if (!rpcUrl) {
+    console.warn(
+      `[hardhat.config] ENABLE_MAINNET_FORK=true but missing ${networkLabel} RPC URL. Forking disabled for ${networkLabel}.`
+    );
+    return undefined;
+  }
+
+  const forkingConfig = { url: rpcUrl };
+  const blockNumber = toBlockNumber(blockNumberEnv, fallbackBlock);
+  if (blockNumber) {
+    forkingConfig.blockNumber = blockNumber;
+  }
+  return forkingConfig;
+};
+
+const mainnetForkingConfig = buildForkingConfig(
+  "mainnet",
+  MAINNET_RPC_URL,
+  FORK_BLOCK_NUMBER,
+  17_000_000
+);
+
+const arbitrumForkingConfig = buildForkingConfig(
+  "arbitrum",
+  ARB_RPC_URL,
+  ARB_FORK_BLOCK_NUMBER,
+  17_000_000
+);
+
+const optimismForkingConfig = buildForkingConfig(
+  "optimism",
+  OP_RPC_URL,
+  OP_FORK_BLOCK_NUMBER,
+  17_000_000
+);
 
 module.exports = {
   defaultNetwork: "hardhat",
   networks: {
     hardhat: {
-      forking: {
-        url: MAINNET_RPC_URL || "",
-        blockNumber: FORK_BLOCK_NUMBER
-          ? parseInt(FORK_BLOCK_NUMBER, 10)
-          : 17000000,
-      },
       chainId: 1337,
       allowUnlimitedContractSize: true,
+      ...(mainnetForkingConfig ? { forking: mainnetForkingConfig } : {}),
     },
     localhost: {
       url: process.env.LOCALHOST_RPC_URL || "http://127.0.0.1:8545",
@@ -71,28 +119,24 @@ module.exports = {
       chainId: 10,
       accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
     },
-    arbitrumFork: {
-      url: MAINNET_RPC_URL || "",
-      forking: {
-        url: ARB_RPC_URL || "",
-        blockNumber: ARB_FORK_BLOCK_NUMBER
-          ? parseInt(ARB_FORK_BLOCK_NUMBER, 10)
-          : 17000000,
-      },
-      chainId: 42161,
-      allowUnlimitedContractSize: true,
-    },
-    optimismFork: {
-      url: MAINNET_RPC_URL || "",
-      forking: {
-        url: OP_RPC_URL || "",
-        blockNumber: OP_FORK_BLOCK_NUMBER
-          ? parseInt(OP_FORK_BLOCK_NUMBER, 10)
-          : 17000000,
-      },
-      chainId: 10,
-      allowUnlimitedContractSize: true,
-    },
+    ...(arbitrumForkingConfig
+      ? {
+          arbitrumFork: {
+            chainId: 42161,
+            allowUnlimitedContractSize: true,
+            forking: arbitrumForkingConfig,
+          },
+        }
+      : {}),
+    ...(optimismForkingConfig
+      ? {
+          optimismFork: {
+            chainId: 10,
+            allowUnlimitedContractSize: true,
+            forking: optimismForkingConfig,
+          },
+        }
+      : {}),
   },
   namedAccounts: {
     deployer: {
