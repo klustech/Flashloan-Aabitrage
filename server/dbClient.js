@@ -213,7 +213,9 @@ async function insertTrade(tradeData) {
 
   try {
     const res = await pool.query(query, values);
-    return { ok: true, data: res.rows[0] };
+    const inserted = res.rows[0] || null;
+    pushTradeToCache(inserted || normalizedRecord);
+    return { ok: true, data: inserted };
   } catch (err) {
     dbInsertFailures.inc();
     const poolUnavailable =
@@ -240,13 +242,6 @@ async function insertTrade(tradeData) {
       pgCode: err?.code,
     });
   }
-}
-
-module.exports = { pool, insertTrade, isDbEnabled, waitForPoolReady };
-  const res = await pool.query(query, values);
-  const inserted = res.rows[0];
-  pushTradeToCache(inserted || normalizedRecord);
-  return inserted;
 }
 
 async function getRecentTrades(limit = 50) {
@@ -277,5 +272,10 @@ async function getRecentTrades(limit = 50) {
 
   return tradeHistoryCache.slice(0, normalizedLimit);
 }
-
-module.exports = { pool, insertTrade, isDbEnabled, getRecentTrades };
+module.exports = {
+  pool,
+  insertTrade,
+  isDbEnabled,
+  waitForPoolReady,
+  getRecentTrades,
+};
