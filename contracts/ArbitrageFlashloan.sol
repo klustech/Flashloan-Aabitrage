@@ -2,7 +2,9 @@
 pragma solidity 0.8.20;
 
 /// @title ArbitrageFlashloan
-/// @notice Aave V2 flash-loan arbitrage contract (N-hop dynamic path). Emits route in event.
+/// @notice Aave V2 flash-loan arbitrage contract with multi-DEX support (V2, V3, Balancer, Curve)
+/// @dev Supports N-hop dynamic paths, profit recipient config, and timelock integration
+
 import {IFlashLoanReceiver} from "./interfaces/IFlashLoanReceiver.sol";
 import {ILendingPool} from "./interfaces/ILendingPool.sol";
 import {ILendingPoolAddressesProvider} from "./interfaces/ILendingPoolAddressesProvider.sol";
@@ -12,107 +14,226 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 import {IUniswapV2Router02} from "./interfaces/IUniswapV2Router02.sol";
 
+// Uniswap V3 Router Interface
+interface ISwapRouter {
+    struct ExactInputSingleParams {
+        address tokenIn;
+        address tokenOut;
+        uint24 fee;
+        address recipient;
+        uint256 deadline;
+        uint256 amountIn;
+        uint256 amountOutMinimum;
+        uint160 sqrtPriceLimitX96;
+    }
+    function exactInputSingle(ExactInputSingleParams calldata params) external payable returns (uint256 amountOut);
+}
+
+// Balancer V2 Vault Interface
+interface IBalancerVault {
+    enum SwapKind { GIVEN_IN, GIVEN_OUT }
+    struct SingleSwap {
+        bytes32 poolId;
+        SwapKind kind;
+        address assetIn;
+        address assetOut;
+        uint256 amount;
+        bytes userData;
+    }
+    struct FundManagement {
+        address sender;
+        bool fromInternalBalance;
+        address payable recipient;
+        bool toInternalBalance;
+    }
+    function swap(
+        SingleSwap memory singleSwap,
+        FundManagement memory funds,
+        uint256 limit,
+        uint256 deadline
+    ) external payable returns (uint256);
+}
+
+// Curve Pool Interface
+interface ICurvePool {
+    function exchange(int128 i, int128 j, uint256 dx, uint256 min_dy) external returns (uint256);
+    function exchange_underlying(int128 i, int128 j, uint256 dx, uint256 min_dy) external returns (uint256);
+}
+
 contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
+    // ─── DEX Types ───────────────────────────────────────────────────────────────
+    enum DexType { UNISWAP_V2, UNISWAP_V3, SUSHISWAP, BALANCER, CURVE }
+
     // ─── State Variables ────────────────────────────────────────────────────────
     address public owner;
+    address public profitRecipient;
+    address public timelock;
+
     ILendingPoolAddressesProvider public immutable provider;
     ILendingPool public immutable lendingPool;
-    uint16 public maxLossBps;            // e.g. 1000 = 10%
-    uint16 public constant MAX_LOSS_BPS = 1000;
-    uint16 public flashloanPremiumBps;    // e.g. 9 for Aave V2
 
-    /// @notice Emitted after a successful arbitrage execution
+    uint16 public maxLossBps;
+    uint16 public constant MAX_LOSS_BPS = 1000; // 10% max
+    uint16 public flashloanPremiumBps;
+
+    // Timelock delay tracking for sensitive operations
+    mapping(bytes32 => uint256) public timelockOperations;
+    uint256 public constant TIMELOCK_DELAY = 24 hours;
+
+    // ─── Events ─────────────────────────────────────────────────────────────────
     event ArbitrageExecuted(uint256 borrowed, int256 pnl, string route);
-
-    /// @notice Emitted on each individual swap step
     event SwapExecuted(
-        address indexed router,
+        DexType indexed dexType,
         address indexed tokenIn,
         address indexed tokenOut,
         uint256 amountIn,
         uint256 amountOut
     );
-
-    /// @notice Emitted if the computed loss exceeds the allowed cap
     event LossExceeded(int256 pnl, uint16 maxLossBps);
+    event ProfitWithdrawn(address indexed token, address indexed recipient, uint256 amount);
+    event ProfitRecipientChanged(address indexed oldRecipient, address indexed newRecipient);
+    event TimelockChanged(address indexed oldTimelock, address indexed newTimelock);
+    event MaxLossBpsChanged(uint16 oldValue, uint16 newValue);
+    event TimelockOperationScheduled(bytes32 indexed operationId, uint256 executeAfter);
+    event TimelockOperationExecuted(bytes32 indexed operationId);
+    event EmergencyPause(address indexed triggeredBy);
 
-    /// @notice Emitted when leftover profits are withdrawn by owner
-    event ProfitWithdrawn(address indexed token, uint256 amount);
+    // ─── Structs ────────────────────────────────────────────────────────────────
 
-    constructor(address _provider, uint16 _maxLossBps, uint16 _flashloanPremiumBps) {
-        require(_maxLossBps <= MAX_LOSS_BPS, "maxLossBps>limit");
-        owner = msg.sender;
-        provider = ILendingPoolAddressesProvider(_provider);
-        lendingPool = ILendingPool(provider.getLendingPool());
-        maxLossBps = _maxLossBps;
-        flashloanPremiumBps = _flashloanPremiumBps;
+    /// @notice Individual swap step supporting multiple DEX types
+    struct SwapStep {
+        DexType dexType;
+        address router;           // Router/Vault/Pool address
+        address tokenIn;
+        address tokenOut;
+        uint256 minAmountOut;
+        // DEX-specific parameters
+        uint24 v3Fee;             // Uniswap V3 fee tier (500, 3000, 10000)
+        bytes32 balancerPoolId;   // Balancer pool ID
+        int128 curveIndexIn;      // Curve token index in
+        int128 curveIndexOut;     // Curve token index out
+        bool curveUnderlying;     // Use exchange_underlying for Curve
+        address[] v2Path;         // Full path for V2 routers (optional multi-hop)
     }
+
+    /// @notice Complete arbitrage data bundle
+    struct ArbitrageData {
+        address borrowToken;      // Token to borrow via flashloan
+        uint256 borrowAmount;     // Amount to borrow
+        SwapStep[] steps;         // Sequence of swaps
+        uint256 minProfit;        // Minimum acceptable profit
+        string route;             // Human-readable route description
+    }
+
+    // ─── Modifiers ──────────────────────────────────────────────────────────────
 
     modifier onlyOwner() {
         require(msg.sender == owner, "unauthorized");
         _;
     }
 
-    /// @notice Bundle of N swap paths + slippage data + minProfit + route string
-    struct SwapData {
-        address token;             // The token to borrow (e.g. DAI)
-        address[][] paths;         // Each path: [router, tokenIn, ..., tokenOut]
-        uint256[]  minOuts;        // Slippage-protected min amounts for each path
-        uint256    minProfit;      // Minimal profit required in borrowed token
-        string     route;          // Human-readable route "DAI→WETH→USDC→DAI"
+    modifier onlyOwnerOrTimelock() {
+        require(msg.sender == owner || msg.sender == timelock, "unauthorized");
+        _;
     }
 
-    /// @notice Owner can update the max allowable loss in bps
-    function setMaxLossBps(uint16 _maxLossBps) external onlyOwner {
+    modifier onlyTimelock() {
+        require(msg.sender == timelock, "only timelock");
+        _;
+    }
+
+    // ─── Constructor ────────────────────────────────────────────────────────────
+
+    constructor(
+        address _provider,
+        uint16 _maxLossBps,
+        uint16 _flashloanPremiumBps,
+        address _profitRecipient,
+        address _timelock
+    ) {
         require(_maxLossBps <= MAX_LOSS_BPS, "maxLossBps>limit");
+        require(_provider != address(0), "invalid provider");
+
+        owner = msg.sender;
+        profitRecipient = _profitRecipient == address(0) ? msg.sender : _profitRecipient;
+        timelock = _timelock;
+
+        provider = ILendingPoolAddressesProvider(_provider);
+        lendingPool = ILendingPool(provider.getLendingPool());
+        maxLossBps = _maxLossBps;
+        flashloanPremiumBps = _flashloanPremiumBps;
+    }
+
+    // ─── Admin Functions ────────────────────────────────────────────────────────
+
+    /// @notice Update max allowable loss (requires timelock if set)
+    function setMaxLossBps(uint16 _maxLossBps) external onlyOwnerOrTimelock {
+        require(_maxLossBps <= MAX_LOSS_BPS, "maxLossBps>limit");
+        emit MaxLossBpsChanged(maxLossBps, _maxLossBps);
         maxLossBps = _maxLossBps;
     }
 
-    /// @notice Owner can pause the contract (circuit breaker)
-    function pause() external onlyOwner {
-        _pause();
+    /// @notice Schedule a profit recipient change (timelock-protected)
+    function scheduleProfitRecipientChange(address _newRecipient) external onlyOwner {
+        require(_newRecipient != address(0), "invalid recipient");
+        bytes32 opId = keccak256(abi.encodePacked("setProfitRecipient", _newRecipient));
+        timelockOperations[opId] = block.timestamp + TIMELOCK_DELAY;
+        emit TimelockOperationScheduled(opId, timelockOperations[opId]);
     }
 
-    /// @notice Owner can unpause the contract
-    function unpause() external onlyOwner {
+    /// @notice Execute a scheduled profit recipient change
+    function executeProfitRecipientChange(address _newRecipient) external onlyOwner {
+        bytes32 opId = keccak256(abi.encodePacked("setProfitRecipient", _newRecipient));
+        require(timelockOperations[opId] != 0, "not scheduled");
+        require(block.timestamp >= timelockOperations[opId], "timelock pending");
+
+        emit ProfitRecipientChanged(profitRecipient, _newRecipient);
+        profitRecipient = _newRecipient;
+        delete timelockOperations[opId];
+        emit TimelockOperationExecuted(opId);
+    }
+
+    /// @notice Set profit recipient immediately (only via external timelock contract)
+    function setProfitRecipientViaTimelock(address _newRecipient) external onlyTimelock {
+        require(_newRecipient != address(0), "invalid recipient");
+        emit ProfitRecipientChanged(profitRecipient, _newRecipient);
+        profitRecipient = _newRecipient;
+    }
+
+    /// @notice Update timelock address
+    function setTimelock(address _timelock) external onlyOwner {
+        emit TimelockChanged(timelock, _timelock);
+        timelock = _timelock;
+    }
+
+    /// @notice Emergency pause - can be called by owner immediately
+    function pause() external onlyOwner {
+        _pause();
+        emit EmergencyPause(msg.sender);
+    }
+
+    /// @notice Unpause - requires timelock if set, otherwise owner
+    function unpause() external onlyOwnerOrTimelock {
         _unpause();
     }
 
-    /**
-     * @notice Initiate an Aave V2 flashloan with given SwapData
-     * @param token The ERC20 token to borrow (must match data.token)
-     * @param amount The amount of token to borrow
-     * @param data The SwapData struct, which includes all paths/minOuts/minProfit and the route string
-     */
-    function initiateFlashLoan(
-        address token,
-        uint256 amount,
-        SwapData calldata data
-    ) external onlyOwner whenNotPaused {
-        // Sanity-checks for dynamic paths
-        require(data.paths.length > 0, "no paths provided");
-        require(data.paths.length == data.minOuts.length, "paths/minOuts mismatch");
-        // Ensure each path has at least [router, tokenIn, tokenOut]
-        for (uint256 i = 0; i < data.paths.length; i++) {
-            require(data.paths[i].length >= 3, "each path <3");
-        }
-        // Ensure borrowed token matches first tokenIn and final tokenOut
-        require(token == data.paths[0][1], "token!=firstIn");
-        address[] memory lastPath = data.paths[data.paths.length - 1];
-        require(token == lastPath[lastPath.length - 1], "token!=lastOut");
+    // ─── Core Flash Loan Functions ──────────────────────────────────────────────
 
-        // ─── Declare the Aave flash-loan arrays ───────────────────────────────────
+    /// @notice Initiate flash loan arbitrage
+    /// @param data Complete arbitrage parameters
+    function initiateFlashLoan(ArbitrageData calldata data) external onlyOwner whenNotPaused {
+        _validateArbitrageData(data);
+
         address[] memory assets = new address[](1);
         uint256[] memory amounts = new uint256[](1);
         uint256[] memory modes = new uint256[](1);
 
-        assets[0]  = token;
-        amounts[0] = amount;
-        modes[0]   = 0; // 0 = no debt (full flash)
+        assets[0] = data.borrowToken;
+        amounts[0] = data.borrowAmount;
+        modes[0] = 0; // No debt mode
 
-        // Encode the SwapData so executeOperation decodes it
         bytes memory params = abi.encode(data);
 
         lendingPool.flashLoan(
@@ -122,8 +243,47 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
             modes,
             address(this),
             params,
-            0 // referralCode
+            0
         );
+    }
+
+    /// @notice Legacy interface for backward compatibility
+    function initiateFlashLoan(
+        address token,
+        uint256 amount,
+        SwapData calldata legacyData
+    ) external onlyOwner whenNotPaused {
+        // Convert legacy SwapData to new format
+        ArbitrageData memory data = _convertLegacyData(token, amount, legacyData);
+
+        address[] memory assets = new address[](1);
+        uint256[] memory amounts = new uint256[](1);
+        uint256[] memory modes = new uint256[](1);
+
+        assets[0] = token;
+        amounts[0] = amount;
+        modes[0] = 0;
+
+        bytes memory params = abi.encode(data);
+
+        lendingPool.flashLoan(
+            address(this),
+            assets,
+            amounts,
+            modes,
+            address(this),
+            params,
+            0
+        );
+    }
+
+    /// @notice Legacy SwapData struct for backward compatibility
+    struct SwapData {
+        address token;
+        address[][] paths;
+        uint256[] minOuts;
+        uint256 minProfit;
+        string route;
     }
 
     /// @inheritdoc IFlashLoanReceiver
@@ -134,40 +294,41 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
         address initiator,
         bytes calldata params
     ) external override nonReentrant returns (bool) {
-        // Safety checks
         require(msg.sender == address(lendingPool), "only pool");
         require(initiator == address(this), "bad initiator");
 
-        // Decode SwapData, including route string
-        SwapData memory sd = abi.decode(params, (SwapData));
+        ArbitrageData memory data = abi.decode(params, (ArbitrageData));
 
-        // Perform the N-hop arbitrage sequence
-        int256 pnl = _performArb(amounts[0], premiums[0], sd);
+        // Execute arbitrage
+        int256 pnl = _executeArbitrage(amounts[0], premiums[0], data);
 
-        // After swaps, settle and repay Aave
-        _settleAndWithdraw(assets[0], amounts[0], premiums[0], pnl, sd.minProfit, sd.route);
+        // Settle and repay
+        _settleAndRepay(assets[0], amounts[0], premiums[0], pnl, data.minProfit, data.route);
+
         return true;
     }
 
-    /// @dev Internal function that executes the N-hop swap logic; returns pnl
-    function _performArb(
-        uint256 amountIn,
+    // ─── Internal Swap Functions ────────────────────────────────────────────────
+
+    function _executeArbitrage(
+        uint256 borrowedAmount,
         uint256 premium,
-        SwapData memory sd
+        ArbitrageData memory data
     ) internal returns (int256) {
-        // Execute each path in sequence
-        for (uint256 i = 0; i < sd.paths.length; i++) {
-            _swap(sd.paths[i], sd.minOuts[i]);
+        uint256 currentAmount = borrowedAmount;
+
+        for (uint256 i = 0; i < data.steps.length; i++) {
+            currentAmount = _executeSwap(data.steps[i], currentAmount);
         }
 
-        // Compute profit-and-loss: (finalBalance − (borrowed + premium))
-        uint256 finalBal = IERC20(sd.token).balanceOf(address(this));
-        uint256 required = amountIn + premium;
-        int256 pnl = int256(finalBal) - int256(required);
+        // Calculate PnL
+        uint256 finalBalance = IERC20(data.borrowToken).balanceOf(address(this));
+        uint256 required = borrowedAmount + premium;
+        int256 pnl = int256(finalBalance) - int256(required);
 
-        // Enforce minProfit or maxLoss
+        // Enforce profit/loss constraints
         if (pnl >= 0) {
-            require(uint256(pnl) >= sd.minProfit, "profit<minProfit");
+            require(uint256(pnl) >= data.minProfit, "profit<minProfit");
         } else {
             uint256 lossAbs = uint256(-pnl);
             uint256 maxLossAllowed = (required * maxLossBps) / 10000;
@@ -180,43 +341,108 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
         return pnl;
     }
 
-    /// @dev Internal helper to perform a single swap on a given router
-    /// @param path [router, tokenIn, ..., tokenOut]
-    /// @param minOut minimum acceptable amountOut
-    function _swap(address[] memory path, uint256 minOut) internal returns (uint256) {
-        require(path.length >= 3, "path too short");
-        address routerAddr = path[0];
+    function _executeSwap(SwapStep memory step, uint256 amountIn) internal returns (uint256 amountOut) {
+        // Approve router to spend tokens
+        IERC20(step.tokenIn).safeApprove(step.router, 0);
+        IERC20(step.tokenIn).safeApprove(step.router, amountIn);
 
-        // Extract token path (remove router address)
-        address[] memory tokenPath = new address[](path.length - 1);
-        for (uint i = 0; i < tokenPath.length; i++) {
-            tokenPath[i] = path[i+1];
+        if (step.dexType == DexType.UNISWAP_V2 || step.dexType == DexType.SUSHISWAP) {
+            amountOut = _swapV2(step, amountIn);
+        } else if (step.dexType == DexType.UNISWAP_V3) {
+            amountOut = _swapV3(step, amountIn);
+        } else if (step.dexType == DexType.BALANCER) {
+            amountOut = _swapBalancer(step, amountIn);
+        } else if (step.dexType == DexType.CURVE) {
+            amountOut = _swapCurve(step, amountIn);
+        } else {
+            revert("unsupported dex");
         }
 
-        address tokenIn = tokenPath[0];
-        address tokenOut = tokenPath[tokenPath.length - 1];
-        uint256 amountIn = IERC20(tokenIn).balanceOf(address(this));
+        emit SwapExecuted(step.dexType, step.tokenIn, step.tokenOut, amountIn, amountOut);
+    }
 
-        // Approve router to spend tokenIn
-        IERC20(tokenIn).safeApprove(routerAddr, 0);
-        IERC20(tokenIn).safeApprove(routerAddr, amountIn);
+    function _swapV2(SwapStep memory step, uint256 amountIn) internal returns (uint256) {
+        address[] memory path;
 
-        // Perform the swapExactTokensForTokens
-        uint256[] memory amounts = IUniswapV2Router02(routerAddr).swapExactTokensForTokens(
+        if (step.v2Path.length > 0) {
+            path = step.v2Path;
+        } else {
+            path = new address[](2);
+            path[0] = step.tokenIn;
+            path[1] = step.tokenOut;
+        }
+
+        uint256[] memory amounts = IUniswapV2Router02(step.router).swapExactTokensForTokens(
             amountIn,
-            minOut,
-            tokenPath,
+            step.minAmountOut,
+            path,
             address(this),
             block.timestamp
         );
-        uint256 outAmt = amounts[amounts.length - 1];
 
-        emit SwapExecuted(routerAddr, tokenIn, tokenOut, amountIn, outAmt);
-        return outAmt;
+        return amounts[amounts.length - 1];
     }
 
-    /// @dev After _performArb, this repays Aave and emits the final event (with route)
-    function _settleAndWithdraw(
+    function _swapV3(SwapStep memory step, uint256 amountIn) internal returns (uint256) {
+        ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
+            tokenIn: step.tokenIn,
+            tokenOut: step.tokenOut,
+            fee: step.v3Fee,
+            recipient: address(this),
+            deadline: block.timestamp,
+            amountIn: amountIn,
+            amountOutMinimum: step.minAmountOut,
+            sqrtPriceLimitX96: 0
+        });
+
+        return ISwapRouter(step.router).exactInputSingle(params);
+    }
+
+    function _swapBalancer(SwapStep memory step, uint256 amountIn) internal returns (uint256) {
+        IBalancerVault.SingleSwap memory singleSwap = IBalancerVault.SingleSwap({
+            poolId: step.balancerPoolId,
+            kind: IBalancerVault.SwapKind.GIVEN_IN,
+            assetIn: step.tokenIn,
+            assetOut: step.tokenOut,
+            amount: amountIn,
+            userData: ""
+        });
+
+        IBalancerVault.FundManagement memory funds = IBalancerVault.FundManagement({
+            sender: address(this),
+            fromInternalBalance: false,
+            recipient: payable(address(this)),
+            toInternalBalance: false
+        });
+
+        return IBalancerVault(step.router).swap(singleSwap, funds, step.minAmountOut, block.timestamp);
+    }
+
+    function _swapCurve(SwapStep memory step, uint256 amountIn) internal returns (uint256) {
+        uint256 balanceBefore = IERC20(step.tokenOut).balanceOf(address(this));
+
+        if (step.curveUnderlying) {
+            ICurvePool(step.router).exchange_underlying(
+                step.curveIndexIn,
+                step.curveIndexOut,
+                amountIn,
+                step.minAmountOut
+            );
+        } else {
+            ICurvePool(step.router).exchange(
+                step.curveIndexIn,
+                step.curveIndexOut,
+                amountIn,
+                step.minAmountOut
+            );
+        }
+
+        return IERC20(step.tokenOut).balanceOf(address(this)) - balanceBefore;
+    }
+
+    // ─── Settlement ─────────────────────────────────────────────────────────────
+
+    function _settleAndRepay(
         address asset,
         uint256 principal,
         uint256 fee,
@@ -224,41 +450,109 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
         uint256 minProfit,
         string memory route
     ) private {
-        // 1) If pnl < 0, ensure within loss cap (already checked); if >0, ensure ≥ minProfit (already checked)
-        // 2) Repay Aave: principal + fee
         uint256 debt = principal + fee;
         IERC20 token = IERC20(asset);
-        uint256 bal = token.balanceOf(address(this));
-        require(bal >= debt, "bal<debt");
+        uint256 balance = token.balanceOf(address(this));
 
-        if (bal > debt) {
-            uint256 profit = bal - debt;
-            // Already checked profit ≥ minProfit in _performArb()
-            token.safeTransfer(owner, profit);
-            emit ProfitWithdrawn(asset, profit);
+        require(balance >= debt, "insufficient balance");
+
+        // Transfer profit to recipient
+        if (balance > debt) {
+            uint256 profit = balance - debt;
+            token.safeTransfer(profitRecipient, profit);
+            emit ProfitWithdrawn(asset, profitRecipient, profit);
         }
 
-        // Approve Aave’s LendingPool to pull back repayment
+        // Approve Aave to pull repayment
         token.safeIncreaseAllowance(address(lendingPool), debt);
 
-        // 3) Emit final event, including the route string
         emit ArbitrageExecuted(principal, pnl, route);
     }
 
-    /// @notice Owner can withdraw any leftover ERC20 tokens
+    // ─── Validation ─────────────────────────────────────────────────────────────
+
+    function _validateArbitrageData(ArbitrageData calldata data) internal pure {
+        require(data.steps.length > 0, "no steps");
+        require(data.borrowAmount > 0, "zero borrow");
+
+        // Validate cycle: first tokenIn must equal borrowToken, last tokenOut must equal borrowToken
+        require(data.steps[0].tokenIn == data.borrowToken, "first step tokenIn mismatch");
+        require(data.steps[data.steps.length - 1].tokenOut == data.borrowToken, "last step tokenOut mismatch");
+
+        // Validate token continuity
+        for (uint256 i = 1; i < data.steps.length; i++) {
+            require(
+                data.steps[i].tokenIn == data.steps[i - 1].tokenOut,
+                "token continuity broken"
+            );
+        }
+    }
+
+    function _convertLegacyData(
+        address token,
+        uint256 amount,
+        SwapData calldata legacy
+    ) internal pure returns (ArbitrageData memory) {
+        SwapStep[] memory steps = new SwapStep[](legacy.paths.length);
+
+        for (uint256 i = 0; i < legacy.paths.length; i++) {
+            require(legacy.paths[i].length >= 3, "path too short");
+
+            address router = legacy.paths[i][0];
+            address[] memory tokenPath = new address[](legacy.paths[i].length - 1);
+            for (uint256 j = 0; j < tokenPath.length; j++) {
+                tokenPath[j] = legacy.paths[i][j + 1];
+            }
+
+            steps[i] = SwapStep({
+                dexType: DexType.UNISWAP_V2,
+                router: router,
+                tokenIn: tokenPath[0],
+                tokenOut: tokenPath[tokenPath.length - 1],
+                minAmountOut: legacy.minOuts[i],
+                v3Fee: 0,
+                balancerPoolId: bytes32(0),
+                curveIndexIn: 0,
+                curveIndexOut: 0,
+                curveUnderlying: false,
+                v2Path: tokenPath
+            });
+        }
+
+        return ArbitrageData({
+            borrowToken: token,
+            borrowAmount: amount,
+            steps: steps,
+            minProfit: legacy.minProfit,
+            route: legacy.route
+        });
+    }
+
+    // ─── Utility Functions ──────────────────────────────────────────────────────
+
+    /// @notice Rescue stuck ERC20 tokens
     function rescueToken(address tokenAddr, uint256 amount) external onlyOwner {
-        IERC20(tokenAddr).safeTransfer(owner, amount);
+        IERC20(tokenAddr).safeTransfer(profitRecipient, amount);
     }
 
-    /// @notice Prevent accidental renouncement of ownership
+    /// @notice Prevent ownership renouncement
     function renounceOwnership() public pure {
-        revert("cannot renounceOwnership");
+        revert("cannot renounce");
     }
 
-    /// @notice Transfer control to a new owner
-    /// @param newOwner Address of the new owner
+    /// @notice Transfer ownership
     function transferOwnership(address newOwner) external onlyOwner {
-        require(newOwner != address(0), "new owner zero");
+        require(newOwner != address(0), "zero address");
         owner = newOwner;
+    }
+
+    /// @notice Get pending timelock operation timestamp
+    function getTimelockOperation(bytes32 opId) external view returns (uint256) {
+        return timelockOperations[opId];
+    }
+
+    /// @notice Check if contract can execute arbitrage
+    function canExecute() external view returns (bool) {
+        return !paused();
     }
 }

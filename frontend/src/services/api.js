@@ -177,3 +177,36 @@ export const getTradeHistory = async (limit) => {
   const response = await API.get("/api/trades", Object.keys(params).length ? { params } : undefined);
   return response.data;
 };
+
+// Fetch live arbitrage opportunities
+export const getOpportunities = async () => {
+  const response = await API.get("/api/opportunities");
+  return response.data;
+};
+
+// Run profit simulation
+export const simulateProfit = async (params) => {
+  const response = await API.post("/api/simulate-profit", params);
+  return response.data;
+};
+
+// Get bot health status
+export const getHealth = async () => {
+  const response = await API.get("/api/health");
+  return response.data;
+};
+
+// Get current market data with specific token pair
+export const getMarketData = async (tokenA, tokenB) => {
+  const params = {};
+  if (tokenA) params.tokenA = tokenA;
+  if (tokenB) params.tokenB = tokenB;
+  const response = await API.get("/api/market-data", { params });
+  return response.data;
+};
+
+// Get daily statistics
+export const getDailyStats = async () => {
+  const response = await API.get("/api/daily-stats");
+  return response.data;
+};

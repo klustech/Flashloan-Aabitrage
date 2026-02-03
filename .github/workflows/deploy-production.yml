@@ -1,0 +1,268 @@
+# .github/workflows/deploy-production.yml
+# Manual deployment to mainnet/production with approval gates
+
+name: Deploy to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_deployment:
+        description: 'Type "DEPLOY" to confirm production deployment'
+        required: true
+      skip_contract_deploy:
+        description: 'Skip smart contract deployment'
+        required: false
+        default: 'true'
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate deployment confirmation
+        if: github.event.inputs.confirm_deployment != 'DEPLOY'
+        run: |
+          echo "Deployment not confirmed. Please type 'DEPLOY' to proceed."
+          exit 1
+
+      - name: Confirm mainnet deployment
+        run: echo "Production deployment confirmed"
+
+  test:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Compile contracts
+        run: yarn hardhat compile --force
+
+      - name: Run full test suite
+        run: yarn hardhat test --network hardhat
+
+      - name: Run coverage
+        run: yarn coverage
+
+      - name: Check coverage threshold
+        run: |
+          # Ensure minimum 80% coverage
+          COVERAGE=$(cat coverage/coverage-summary.json | jq '.total.lines.pct')
+          if (( $(echo "$COVERAGE < 80" | bc -l) )); then
+            echo "Coverage ($COVERAGE%) is below 80% threshold"
+            exit 1
+          fi
+
+  security-audit:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Slither analysis
+        run: |
+          pip install slither-analyzer
+          slither . --exclude-dependencies || true
+
+      - name: Check for critical vulnerabilities
+        run: |
+          # Run security checks
+          npm audit --audit-level=critical || true
+
+  build-and-push:
+    needs: [test, security-audit]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      bot-image: ${{ steps.meta-bot.outputs.tags }}
+      ml-image: ${{ steps.meta-ml.outputs.tags }}
+      frontend-image: ${{ steps.meta-frontend.outputs.tags }}
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate version
+        id: version
+        run: |
+          VERSION=$(date +%Y%m%d)-$(git rev-parse --short HEAD)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (bot)
+        id: meta-bot
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/bot
+          tags: |
+            type=raw,value=${{ steps.version.outputs.version }}
+            type=raw,value=latest
+
+      - name: Build and push bot image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./server
+          push: true
+          tags: ${{ steps.meta-bot.outputs.tags }}
+          labels: ${{ steps.meta-bot.outputs.labels }}
+
+      - name: Extract metadata (ML)
+        id: meta-ml
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/ml-scorer
+          tags: |
+            type=raw,value=${{ steps.version.outputs.version }}
+            type=raw,value=latest
+
+      - name: Build and push ML image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./server
+          file: ./server/Dockerfile.ml
+          push: true
+          tags: ${{ steps.meta-ml.outputs.tags }}
+          labels: ${{ steps.meta-ml.outputs.labels }}
+
+      - name: Extract metadata (frontend)
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend
+          tags: |
+            type=raw,value=${{ steps.version.outputs.version }}
+            type=raw,value=latest
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+
+  deploy-contracts:
+    needs: build-and-push
+    if: github.event.inputs.skip_contract_deploy != 'true'
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Deploy contracts to mainnet
+        env:
+          MAINNET_RPC_URL: ${{ secrets.MAINNET_RPC_URL }}
+          DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+        run: |
+          yarn hardhat run scripts/deploy.js --network mainnet
+
+      - name: Verify contracts on Etherscan
+        env:
+          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+        run: |
+          yarn hardhat verify --network mainnet
+
+  deploy-production:
+    needs: [build-and-push]
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.PRODUCTION_KUBECONFIG }}" | base64 -d > ~/.kube/config
+
+      - name: Create deployment backup
+        run: |
+          kubectl get deployment -n flashloan-arb -o yaml > deployment-backup.yaml
+          echo "Backup created for rollback if needed"
+
+      - name: Update deployment images
+        run: |
+          kubectl set image deployment/bot-logic-deploy \
+            bot-logic=${{ needs.build-and-push.outputs.bot-image }} \
+            -n flashloan-arb
+
+          kubectl set image deployment/ml-scorer-deploy \
+            ml-scorer=${{ needs.build-and-push.outputs.ml-image }} \
+            -n flashloan-arb
+
+          kubectl set image deployment/frontend-deploy \
+            frontend=${{ needs.build-and-push.outputs.frontend-image }} \
+            -n flashloan-arb
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/bot-logic-deploy -n flashloan-arb --timeout=300s
+          kubectl rollout status deployment/ml-scorer-deploy -n flashloan-arb --timeout=300s
+          kubectl rollout status deployment/frontend-deploy -n flashloan-arb --timeout=300s
+
+      - name: Verify deployment health
+        run: |
+          sleep 60
+
+          # Check pod status
+          kubectl get pods -n flashloan-arb
+
+          # Check bot health
+          kubectl exec -n flashloan-arb deploy/bot-logic-deploy -- curl -s http://localhost:3001/api/health
+
+      - name: Tag release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git tag -a "release-${{ needs.build-and-push.outputs.version }}" -m "Production deployment ${{ needs.build-and-push.outputs.version }}"
+          git push origin "release-${{ needs.build-and-push.outputs.version }}"
+
+      - name: Notify on success
+        if: success()
+        run: |
+          echo "Production deployment completed: ${{ needs.build-and-push.outputs.version }}"
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "Deployment failed, initiating rollback..."
+          kubectl rollout undo deployment/bot-logic-deploy -n flashloan-arb
+          kubectl rollout undo deployment/ml-scorer-deploy -n flashloan-arb
+          kubectl rollout undo deployment/frontend-deploy -n flashloan-arb

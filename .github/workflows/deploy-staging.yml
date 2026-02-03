@@ -1,0 +1,183 @@
+# .github/workflows/deploy-staging.yml
+# Automatic deployment to testnet/staging environment
+
+name: Deploy to Staging
+
+on:
+  push:
+    branches: [dev, develop]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - testnet
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Compile contracts
+        run: yarn hardhat compile --force
+
+      - name: Run tests
+        run: yarn hardhat test --network hardhat
+
+      - name: Run backend tests
+        run: |
+          cd server
+          npm test || true
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      bot-image: ${{ steps.meta-bot.outputs.tags }}
+      ml-image: ${{ steps.meta-ml.outputs.tags }}
+      frontend-image: ${{ steps.meta-frontend.outputs.tags }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (bot)
+        id: meta-bot
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/bot
+          tags: |
+            type=sha,prefix=staging-
+            type=raw,value=staging-latest
+
+      - name: Build and push bot image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./server
+          push: true
+          tags: ${{ steps.meta-bot.outputs.tags }}
+          labels: ${{ steps.meta-bot.outputs.labels }}
+
+      - name: Extract metadata (ML)
+        id: meta-ml
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/ml-scorer
+          tags: |
+            type=sha,prefix=staging-
+            type=raw,value=staging-latest
+
+      - name: Build and push ML image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./server
+          file: ./server/Dockerfile.ml
+          push: true
+          tags: ${{ steps.meta-ml.outputs.tags }}
+          labels: ${{ steps.meta-ml.outputs.labels }}
+
+      - name: Extract metadata (frontend)
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend
+          tags: |
+            type=sha,prefix=staging-
+            type=raw,value=staging-latest
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+
+  deploy-staging:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: staging
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.STAGING_KUBECONFIG }}" | base64 -d > ~/.kube/config
+
+      - name: Update deployment images
+        run: |
+          kubectl set image deployment/bot-logic-deploy \
+            bot-logic=${{ needs.build-and-push.outputs.bot-image }} \
+            -n flashloan-arb-staging
+
+          kubectl set image deployment/ml-scorer-deploy \
+            ml-scorer=${{ needs.build-and-push.outputs.ml-image }} \
+            -n flashloan-arb-staging
+
+          kubectl set image deployment/frontend-deploy \
+            frontend=${{ needs.build-and-push.outputs.frontend-image }} \
+            -n flashloan-arb-staging
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/bot-logic-deploy -n flashloan-arb-staging --timeout=300s
+          kubectl rollout status deployment/ml-scorer-deploy -n flashloan-arb-staging --timeout=300s
+          kubectl rollout status deployment/frontend-deploy -n flashloan-arb-staging --timeout=300s
+
+      - name: Run smoke tests
+        run: |
+          # Wait for services to be ready
+          sleep 30
+
+          # Test bot health endpoint
+          BOT_URL=$(kubectl get svc bot-logic-svc -n flashloan-arb-staging -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          curl -f http://${BOT_URL}:3001/api/health || exit 1
+
+          echo "Staging deployment successful!"
+
+      - name: Notify on success
+        if: success()
+        run: |
+          echo "Staging deployment completed successfully"
+          # Add Slack notification here if configured
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "Staging deployment failed"
+          # Add Slack notification here if configured

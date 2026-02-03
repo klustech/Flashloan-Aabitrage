@@ -1,20 +1,157 @@
 # infra/prometheus-arbitrage-alerts.yml
+# Enhanced alert rules for Flashloan Arbitrage Bot
+
 groups:
-  - name: arbitrage.rules
+  - name: arbitrage-critical
     rules:
       - alert: ArbitrageScriptError
-        expr: increase(arbitrage_script_errors_total[5m]) > 0
+        expr: increase(arb_failure_total[5m]) > 0
         for: 1m
         labels:
           severity: critical
         annotations:
-          summary: "Arbitrage script error occurred"
-          description: "The arbitrage bot has encountered an error in the last 5 minutes."
+          summary: "Arbitrage failures detected"
+          description: "{{ $value }} arbitrage failures in the last 5 minutes."
+
+      - alert: BotStopped
+        expr: bot_active == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Arbitrage bot is not active"
+          description: "Bot has been inactive for more than 2 minutes."
+
+      - alert: CircuitBreakerTriggered
+        expr: increase(circuit_breaker_triggered_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Circuit breaker triggered"
+          description: "Circuit breaker was triggered due to consecutive losses."
+
+      - alert: HighConsecutiveFailures
+        expr: consecutive_failures >= 3
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Multiple consecutive failures"
+          description: "{{ $value }} consecutive negative PnL cycles."
+
+      - alert: DailyLossLimit
+        expr: daily_pnl_dai < -500
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Daily loss limit exceeded"
+          description: "Daily P&L is {{ $value }} DAI."
+
+  - name: arbitrage-warning
+    rules:
       - alert: ArbitrageProfitNegative
-        expr: avg_over_time(arbitrage_profit[5m]) < 0
+        expr: avg_over_time(daily_pnl_dai[5m]) < 0
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "Negative arbitrage profit"
-          description: "The average arbitrage profit is negative over the last 5 minutes."
+          summary: "Negative average profit"
+          description: "Daily P&L has been negative for 5 minutes ({{ $value }} DAI)."
+
+      - alert: HighFailureRate
+        expr: rate(arb_failure_total[10m]) / (rate(arb_success_total[10m]) + rate(arb_failure_total[10m]) + 0.001) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High trade failure rate"
+          description: "More than 50% of trades are failing."
+
+      - alert: NoArbitrageAttempts
+        expr: increase(arb_attempts_total[10m]) == 0 and bot_active == 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No arbitrage attempts in 10 minutes"
+          description: "Bot is active but not attempting any arbitrage."
+
+      - alert: GasPriceHigh
+        expr: gas_price_gwei > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Gas price is very high"
+          description: "Current gas price is {{ $value }} Gwei."
+
+      - alert: LowRouteDiscovery
+        expr: routes_discovered_total < 5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low number of routes discovered"
+          description: "Only {{ $value }} routes discovered."
+
+  - name: service-health
+    rules:
+      - alert: MLServiceDown
+        expr: ml_service_available == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ML scoring service unavailable"
+          description: "ML service has been down for 2 minutes."
+
+      - alert: DatabaseConnectionLost
+        expr: db_enabled == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Database persistence disabled"
+          description: "Trade history is not being saved."
+
+      - alert: RedisConnectionLost
+        expr: redis_available == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis connection lost"
+          description: "Multi-instance coordination may be affected."
+
+  - name: flashbots-alerts
+    rules:
+      - alert: FlashbotsLowInclusionRate
+        expr: rate(flashbots_inclusions_total[30m]) / (rate(flashbots_submissions_total[30m]) + 0.001) < 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low Flashbots inclusion rate"
+          description: "Less than 50% of bundles are being included."
+
+  - name: performance-alerts
+    rules:
+      - alert: HighSimulationLatency
+        expr: histogram_quantile(0.95, rate(simulation_time_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Route simulation is slow"
+          description: "95th percentile simulation time is {{ $value }}s."
+
+      - alert: HighSlippageEvents
+        expr: histogram_quantile(0.95, rate(slippage_actual_bps_bucket[10m])) > 200
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Experiencing high slippage"
+          description: "95th percentile slippage is {{ $value }} bps."
