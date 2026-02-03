@@ -190,14 +190,6 @@ async function insertTrade(tradeData) {
     status: normalizeValue(status),
   };
 
-  if (!isDbEnabled()) {
-    console.info(
-      `[dbClient] insertTrade skipped (persistence disabled): ${JSON.stringify(tradeData)}`
-    );
-    pushTradeToCache(normalizedRecord);
-    return null;
-  }
-
   const query = `
     INSERT INTO trades (route, profit, tx_hash, timestamp, status)
     VALUES ($1, $2::numeric, $3, $4, $5) RETURNING *;

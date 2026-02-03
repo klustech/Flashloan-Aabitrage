@@ -3,7 +3,7 @@ const path = require("path");
 const dotenv = require("dotenv");
 const { ethers } = require("ethers");
 
-const envPath = path.resolve(__dirname, "../.env");
+const envPath = path.resolve(__dirname, "../../.env");
 if (!process.env.RUNTIME_CONFIG_LOADED) {
   if (fs.existsSync(envPath)) {
     dotenv.config({ path: envPath });

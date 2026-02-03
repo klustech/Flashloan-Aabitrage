@@ -34,11 +34,17 @@ function createDisabledSlippageAgent() {
   return {
     epsilon: 0,
     lastAction: 0,
+    continuous: false,
+    actions: [],
     select(baseBips) {
       this.lastAction = 0;
       return baseBips;
     },
     update() {},
+    resetPolicy() {
+      this.epsilon = 0;
+      this.lastAction = 0;
+    },
   };
 }
 
@@ -1382,6 +1388,61 @@ async function simulateAndExecuteArb(useFlashbots = true, options = {}) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Configuration Update Functions (for server API)
+// ─────────────────────────────────────────────────────────────────────────────
+let minBorrowAmountOverride = null;
+let simulationInputAmountOverride = null;
+
+function updateMinBorrowAmount(amount) {
+  if (amount === null || amount === undefined) {
+    minBorrowAmountOverride = null;
+    logger.info("Min borrow amount override cleared");
+    return;
+  }
+  minBorrowAmountOverride = BigNumber.from(amount.toString());
+  logger.info(`Min borrow amount override set to: ${ethers.utils.formatUnits(minBorrowAmountOverride, 18)}`);
+}
+
+function updateSimulationInputAmount(amount) {
+  if (amount === null || amount === undefined) {
+    simulationInputAmountOverride = null;
+    logger.info("Simulation input amount override cleared");
+    return;
+  }
+  simulationInputAmountOverride = BigNumber.from(amount.toString());
+  logger.info(`Simulation input amount override set to: ${ethers.utils.formatUnits(simulationInputAmountOverride, 18)}`);
+}
+
+async function getCurrentMarketData() {
+  const { provider } = getChainContext(DEFAULT_CHAIN);
+
+  try {
+    const gasPrice = await provider.getGasPrice();
+    const slippage = await getDynamicSlippage();
+    const dailyPnL = await computeDailyPnL();
+
+    return {
+      gasPrice: ethers.utils.formatUnits(gasPrice, "gwei"),
+      gasPriceWei: gasPrice.toString(),
+      slippageBips: slippage,
+      dailyPnL: ethers.utils.formatUnits(dailyPnL, 18),
+      dailyPnLWei: dailyPnL.toString(),
+      minBorrowOverride: minBorrowAmountOverride ? ethers.utils.formatUnits(minBorrowAmountOverride, 18) : null,
+      simulationInputOverride: simulationInputAmountOverride ? ethers.utils.formatUnits(simulationInputAmountOverride, 18) : null,
+      rlEpsilon: slippageAgent.epsilon,
+      rlLastAction: slippageAgent.lastAction,
+      timestamp: Date.now(),
+    };
+  } catch (err) {
+    logger.error(`getCurrentMarketData error: ${err.message}`);
+    return {
+      error: err.message,
+      timestamp: Date.now(),
+    };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Exports & Standalone Loop
 // ─────────────────────────────────────────────────────────────────────────────
 module.exports.simulateAndExecuteArb = simulateAndExecuteArb;
@@ -1391,6 +1452,9 @@ module.exports.DEFAULT_CHAIN = DEFAULT_CHAIN;
 module.exports.computeDailyPnL = computeDailyPnL;
 module.exports.__cache = cache;
 module.exports.getRecentOpportunities = getRecentOpportunities;
+module.exports.getCurrentMarketData = getCurrentMarketData;
+module.exports.updateMinBorrowAmount = updateMinBorrowAmount;
+module.exports.updateSimulationInputAmount = updateSimulationInputAmount;
 module.exports.resetSlippagePolicy = function resetSlippagePolicy() {
   slippageAgent.resetPolicy();
   rlAction.set(0);

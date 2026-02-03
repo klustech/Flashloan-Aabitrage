@@ -12,7 +12,7 @@ import {
 } from "@mui/material";
 import { getMetrics, getTradeHistory } from "../services/api";
 
-const Dashboard = () => {
+const Dashboard = ({ adminMode = false }) => {
   const [metrics, setMetrics] = useState(null);
   const [trades, setTrades] = useState([]);
   const [tradesLoading, setTradesLoading] = useState(true);
@@ -83,7 +83,7 @@ const Dashboard = () => {
   return (
     <Box sx={{ maxWidth: 1200, mx: "auto", p: 2 }}>
       <Typography variant="h4" color="primary" gutterBottom>
-        Dashboard
+        Dashboard {adminMode && <Typography component="span" variant="subtitle1" color="secondary">(Admin Mode)</Typography>}
       </Typography>
       <Grid container spacing={2} mb={4}>
         <Grid item xs={12} md={4}>

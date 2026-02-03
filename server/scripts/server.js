@@ -147,9 +147,16 @@ app.use(
 );
 
 // Optional x-api-key auth (if you set API_KEY in .env)
+const apiKeyWarningLogged = { value: false };
 app.use((req, res, next) => {
-  const { API_KEY } = process.env;
-  if (!API_KEY) return next();
+  const { API_KEY, NODE_ENV } = process.env;
+  if (!API_KEY) {
+    if (NODE_ENV === "production" && !apiKeyWarningLogged.value) {
+      console.warn("[SECURITY WARNING] API_KEY not set in production - all endpoints are unprotected!");
+      apiKeyWarningLogged.value = true;
+    }
+    return next();
+  }
   if (req.headers["x-api-key"] !== API_KEY) return res.sendStatus(401);
   next();
 });
