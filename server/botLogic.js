@@ -42,7 +42,7 @@ function createDisabledSlippageAgent() {
   };
 }
 
-const slippageAgent = features.reinforcementLearning
+let slippageAgent = features.reinforcementLearning
   ? require("./rl/slippageAgent")
   : createDisabledSlippageAgent();
 
@@ -494,7 +494,7 @@ const TIP_MULTIPLIER_DEN_INT = parseInt(
   10
 );
 
-const slippageAgent = initSlippageAgent({
+slippageAgent = initSlippageAgent({
   continuous:
     (RL_CONTINUOUS || OPTIONAL_ENV_DEFAULTS.RL_CONTINUOUS) === "true",
   maxOffsetBips: parseFloat(
@@ -842,22 +842,8 @@ async function computeDailyPnL() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Simulation & Execution Loop for One Chain
 // ─────────────────────────────────────────────────────────────────────────────
-async function simulateAndExecuteArbChain(
-  chain,
-  useFlashbots = true,
-  options = {}
-) {
+async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = {}) {
   throwIfAborted(options.signal);
-  const provider = providers[chain];
-  const wallet = wallets[chain];
-  const uniRouter = getUniRouter(chain);
-  const sushiRouter = getSushiRouter(chain);
-  const arbContract = new ethers.Contract(
-    arbContractAddresses[chain],
-    arbitrageABI,
-    wallet
-  );
-async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
   const { provider, wallet, uniRouter, sushiRouter, arbContract } =
     getChainContext(chain);
 
@@ -1073,8 +1059,9 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true) {
   // 10. Encode SwapData and estimate gas
   let paramsEncoded;
   try {
+    const swapDataTupleType = "tuple(address token,address[][] paths,uint256[] minOuts,uint256 minProfit,string route)";
     paramsEncoded = ethers.utils.defaultAbiCoder.encode(
-      ["SwapData"],
+      [swapDataTupleType],
       [swapData]
     );
     logger.info(`[${chain}] Encoded SwapData successfully.`);

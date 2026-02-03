@@ -9,9 +9,10 @@ import {ILendingPoolAddressesProvider} from "./interfaces/ILendingPoolAddressesP
 import {IERC20, SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 import {IUniswapV2Router02} from "./interfaces/IUniswapV2Router02.sol";
 
-contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard {
+contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
     // ─── State Variables ────────────────────────────────────────────────────────
@@ -69,6 +70,16 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard {
         maxLossBps = _maxLossBps;
     }
 
+    /// @notice Owner can pause the contract (circuit breaker)
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    /// @notice Owner can unpause the contract
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
     /**
      * @notice Initiate an Aave V2 flashloan with given SwapData
      * @param token The ERC20 token to borrow (must match data.token)
@@ -79,7 +90,7 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard {
         address token,
         uint256 amount,
         SwapData calldata data
-    ) external onlyOwner {
+    ) external onlyOwner whenNotPaused {
         // Sanity-checks for dynamic paths
         require(data.paths.length > 0, "no paths provided");
         require(data.paths.length == data.minOuts.length, "paths/minOuts mismatch");

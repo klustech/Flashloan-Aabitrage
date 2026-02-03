@@ -12,6 +12,15 @@ contract ConnextAdapter {
     IConnext public immutable connext;
     uint32 public immutable destinationDomain;
     address public immutable destinationContract;
+    address public owner;
+
+    /// @notice Emitted when ownership is transferred
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "ConnextAdapter: not owner");
+        _;
+    }
 
     constructor(
         address _connext,
@@ -21,13 +30,21 @@ contract ConnextAdapter {
         connext = IConnext(_connext);
         destinationDomain = _destinationDomain;
         destinationContract = _destinationContract;
+        owner = msg.sender;
+    }
+
+    /// @notice Transfer ownership to a new address
+    function transferOwnership(address newOwner) external onlyOwner {
+        require(newOwner != address(0), "ConnextAdapter: zero address");
+        emit OwnershipTransferred(owner, newOwner);
+        owner = newOwner;
     }
 
     function forwardArbitrage(
         address token,
         uint256 amount,
         uint256 relayerFee
-    ) external payable {
+    ) external payable onlyOwner {
         // Pull 'amount' from msg.sender into this contract
         IERC20 tokenContract = IERC20(token);
         require(tokenContract.allowance(msg.sender, address(this)) >= amount, "Approve tokens");

@@ -42,3 +42,32 @@ coverage/
 *.patch
 *.diff
 *.bak
+
+# Bot log
+bot.log
+
+# Database files
+database/*.db
+*.sqlite
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+
+# ML models (large files)
+ml/*.pkl
+ml/*.joblib
+
+# Gas reports
+gas-report.txt
+
+# Secrets
+*.pem
+*.key
+credentials.json
+
+# Foundry
+out/
+forge-cache/
