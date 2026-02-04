@@ -2533,6 +2533,131 @@ module.exports.getTier1FeatureStatus = () => ({
 });
 
 /**
+ * Execute a backrun opportunity detected from mempool
+ * @param {Object} opportunity - Backrun opportunity from mempool monitor
+ * @param {string} chain - Chain identifier
+ */
+async function executeBackrun(opportunity, chain = DEFAULT_CHAIN) {
+  const MIN_BACKRUN_PROFIT_ETH = parseFloat(process.env.MIN_BACKRUN_PROFIT_ETH || "0.005");
+
+  try {
+    // Check minimum profit threshold
+    if (opportunity.estimatedProfitEth < MIN_BACKRUN_PROFIT_ETH) {
+      logger.debug(`[Backrun] Skipped: profit ${opportunity.estimatedProfitEth} ETH below threshold`);
+      return { executed: false, reason: "below_threshold" };
+    }
+
+    // Validate with risk manager
+    if (ENABLE_RISK_MANAGER) {
+      const validation = validateTrade({
+        volumeDai: opportunity.estimatedProfitEth * 2000, // Rough ETH->DAI conversion
+        expectedProfitDai: opportunity.estimatedProfitEth * 2000,
+        route: `backrun-${opportunity.targetTx.slice(0, 10)}`,
+      });
+
+      if (!validation.valid) {
+        logger.warn(`[Backrun] Risk validation failed: ${validation.errors.join(", ")}`);
+        return { executed: false, reason: "risk_validation_failed", errors: validation.errors };
+      }
+    }
+
+    const { provider, wallet, arbContract, uniRouter } = getChainContext(chain);
+
+    // Get current gas price and calculate competitive priority fee
+    const gasPrice = await provider.getGasPrice();
+    const targetGasPrice = ethers.BigNumber.from(opportunity.targetGasPrice || gasPrice);
+
+    // Our gas price must be higher than target to be included after
+    const ourPriorityFee = targetGasPrice.mul(110).div(100); // 10% higher
+    const baseFee = gasPrice.sub(ethers.utils.parseUnits("2", "gwei")); // Estimate base fee
+
+    logger.info(
+      `[Backrun] Executing backrun for target ${opportunity.targetTx.slice(0, 10)}... ` +
+      `estimated profit: ${opportunity.estimatedProfitEth.toFixed(6)} ETH`
+    );
+
+    // Build the backrun swap transaction
+    // For a backrun, we swap in the opposite direction of the target
+    if (!opportunity.path || opportunity.path.length < 2) {
+      logger.warn("[Backrun] No path available for backrun");
+      return { executed: false, reason: "no_path" };
+    }
+
+    const reversePath = [...opportunity.path].reverse();
+    const amountIn = ethers.utils.parseEther(
+      (opportunity.estimatedProfitEth * 10).toFixed(6) // Size the trade based on profit
+    );
+
+    // Build swap transaction
+    const deadline = Math.floor(Date.now() / 1000) + 120; // 2 minutes
+    const swapData = uniRouter.interface.encodeFunctionData(
+      "swapExactTokensForTokens",
+      [
+        amountIn,
+        0, // Accept any amount out (we're backrunning, price is favorable)
+        reversePath,
+        arbContract.address,
+        deadline,
+      ]
+    );
+
+    const tx = {
+      to: uniRouter.address,
+      data: swapData,
+      gasLimit: ethers.BigNumber.from(300_000),
+      maxFeePerGas: baseFee.add(ourPriorityFee),
+      maxPriorityFeePerGas: ourPriorityFee,
+      chainId: parseInt(process.env.CHAIN_ID || "1"),
+      nonce: await wallet.getTransactionCount(),
+      type: 2,
+    };
+
+    const signedTx = await wallet.signTransaction(tx);
+    const blockNumber = await provider.getBlockNumber();
+    const targetBlock = blockNumber + 1;
+
+    // Submit via multi-relay if enabled
+    if (ENABLE_MULTI_RELAY) {
+      const relayResults = await submitToAllRelays(wallet, [signedTx], targetBlock, {
+        timeout: 3000, // Faster timeout for backruns
+      });
+
+      logger.info(
+        `[Backrun] Multi-relay submission: ${relayResults.successful}/${relayResults.totalRelays} succeeded`
+      );
+
+      if (relayResults.successful > 0) {
+        // Record to risk manager
+        if (ENABLE_RISK_MANAGER) {
+          recordTrade({
+            profitDai: (opportunity.estimatedProfitEth * 2000).toString(),
+            volumeDai: (opportunity.estimatedProfitEth * 2000 * 10).toString(),
+            gasUsed: "300000",
+            gasCostDai: ethers.utils.formatUnits(
+              tx.maxFeePerGas.mul(300000),
+              18
+            ),
+            route: `backrun-${opportunity.targetTx.slice(0, 10)}`,
+            success: true,
+          });
+        }
+
+        return { executed: true, relayResults };
+      }
+    } else {
+      // Direct submission (not recommended for backruns due to MEV)
+      logger.warn("[Backrun] Multi-relay disabled, skipping backrun to avoid MEV");
+      return { executed: false, reason: "multi_relay_disabled" };
+    }
+
+    return { executed: false, reason: "no_relay_success" };
+  } catch (err) {
+    logger.error(`[Backrun] Execution failed: ${err.message}`);
+    return { executed: false, reason: "error", error: err.message };
+  }
+}
+
+/**
  * Initialize Tier-1 features (call once at startup)
  */
 async function initializeTier1Features(provider) {
@@ -2561,12 +2686,23 @@ async function initializeTier1Features(provider) {
       await mempoolMonitor.start();
 
       // Listen for backrun opportunities
-      mempoolMonitor.on("backrun_opportunity", (opportunity) => {
+      mempoolMonitor.on("backrun_opportunity", async (opportunity) => {
         logger.info(
           `[Tier1] Backrun opportunity detected: ${opportunity.estimatedProfitEth.toFixed(6)} ETH ` +
           `(target tx: ${opportunity.targetTx.slice(0, 10)}...)`
         );
-        // TODO: Execute backrun if profitable and within risk limits
+
+        // Execute backrun if profitable and within risk limits
+        try {
+          const result = await executeBackrun(opportunity, DEFAULT_CHAIN);
+          if (result.executed) {
+            logger.info(`[Tier1] Backrun executed successfully`);
+          } else {
+            logger.debug(`[Tier1] Backrun skipped: ${result.reason}`);
+          }
+        } catch (err) {
+          logger.warn(`[Tier1] Backrun execution error: ${err.message}`);
+        }
       });
 
       results.mempoolMonitor = true;
@@ -2587,6 +2723,7 @@ async function initializeTier1Features(provider) {
 }
 
 module.exports.initializeTier1Features = initializeTier1Features;
+module.exports.executeBackrun = executeBackrun;
 
 if (require.main === module) {
   (async () => {

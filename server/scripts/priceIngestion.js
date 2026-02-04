@@ -14,6 +14,23 @@ const runtimeConfig = require("../utils/runtimeConfig");
 
 const { optional } = runtimeConfig;
 
+// Incremental graph integration (lazy loaded to avoid circular deps)
+let incrementalGraphHandlers = null;
+const ENABLE_INCREMENTAL_GRAPH = process.env.INCREMENTAL_GRAPH_ENABLED === "true";
+
+function getIncrementalGraphHandlers() {
+  if (!incrementalGraphHandlers && ENABLE_INCREMENTAL_GRAPH) {
+    try {
+      const { handleSyncEvent, handleV3SwapEvent, addPool } = require("./incrementalGraph");
+      incrementalGraphHandlers = { handleSyncEvent, handleV3SwapEvent, addPool };
+    } catch (err) {
+      console.warn(`[priceIngestion] Incremental graph not available: ${err.message}`);
+      incrementalGraphHandlers = null;
+    }
+  }
+  return incrementalGraphHandlers;
+}
+
 // Simple Multicall contract interface. We only need the aggregate function to
 // batch fetch reserves for a list of pools.
 const MULTICALL_ABI = [
@@ -437,6 +454,10 @@ async function initSubscriptions(pools) {
     if (!addr || !ethers.utils.isAddress(addr)) continue;
     if (subscriptions.has(addr)) continue;
 
+    // Get token addresses for incremental graph (lazy fetch)
+    let token0 = null;
+    let token1 = null;
+
     const handler = (r0, r1) => {
       reserveCache.set(addr, {
         reserve0: r0.toString(),
@@ -444,6 +465,12 @@ async function initSubscriptions(pools) {
         timestamp: Date.now(),
       });
       lastSuccessfulFetch = Date.now();
+
+      // Update incremental graph if enabled
+      const graphHandlers = getIncrementalGraphHandlers();
+      if (graphHandlers && token0 && token1) {
+        graphHandlers.handleSyncEvent(addr, r0.toString(), r1.toString(), "uniswap_v2");
+      }
     };
 
     const contract = new ethers.Contract(addr, PAIR_ABI, activeProvider);
@@ -451,7 +478,28 @@ async function initSubscriptions(pools) {
     subscriptions.set(addr, { handler, contract });
 
     try {
+      // Fetch tokens for incremental graph
       const [reserve0, reserve1] = await contract.getReserves();
+      try {
+        [token0, token1] = await Promise.all([contract.token0(), contract.token1()]);
+
+        // Initialize pool in incremental graph
+        const graphHandlers = getIncrementalGraphHandlers();
+        if (graphHandlers) {
+          graphHandlers.addPool({
+            poolAddress: addr,
+            token0,
+            token1,
+            dex: "uniswap_v2",
+            reserve0: reserve0.toString(),
+            reserve1: reserve1.toString(),
+            fee: 30, // 0.3% default
+          });
+        }
+      } catch (tokenErr) {
+        // Token fetch failed, graph won't be updated for this pool
+      }
+
       handler(reserve0, reserve1);
     } catch (err) {
       console.warn(
@@ -520,6 +568,11 @@ async function initV3Subscriptions(pools) {
     if (!addr || !ethers.utils.isAddress(addr)) continue;
     if (v3Subscriptions.has(addr)) continue;
 
+    // Get token addresses for incremental graph (lazy fetch)
+    let token0 = null;
+    let token1 = null;
+    let fee = 3000; // Default 0.3%
+
     const handler = (sender, recipient, amount0, amount1, sqrtPriceX96, liquidity, tick) => {
       v3PriceCache.set(addr, {
         sqrtPriceX96: sqrtPriceX96.toString(),
@@ -532,6 +585,12 @@ async function initV3Subscriptions(pools) {
         timestamp: Date.now(),
       });
       lastSuccessfulFetch = Date.now();
+
+      // Update incremental graph if enabled
+      const graphHandlers = getIncrementalGraphHandlers();
+      if (graphHandlers && token0 && token1) {
+        graphHandlers.handleV3SwapEvent(addr, sqrtPriceX96.toString(), liquidity.toString(), "uniswap_v3");
+      }
     };
 
     const contract = new ethers.Contract(addr, V3_POOL_ABI, activeProvider);
@@ -544,6 +603,32 @@ async function initV3Subscriptions(pools) {
         contract.slot0(),
         contract.liquidity(),
       ]);
+
+      // Fetch tokens for incremental graph
+      try {
+        [token0, token1, fee] = await Promise.all([
+          contract.token0(),
+          contract.token1(),
+          contract.fee(),
+        ]);
+
+        // Initialize pool in incremental graph
+        const graphHandlers = getIncrementalGraphHandlers();
+        if (graphHandlers) {
+          graphHandlers.addPool({
+            poolAddress: addr,
+            token0,
+            token1,
+            dex: "uniswap_v3",
+            sqrtPriceX96: slot0.sqrtPriceX96.toString(),
+            liquidity: liquidity.toString(),
+            fee: Math.floor(fee / 100), // Convert from bps
+          });
+        }
+      } catch (tokenErr) {
+        // Token fetch failed, graph won't be updated for this pool
+      }
+
       v3PriceCache.set(addr, {
         sqrtPriceX96: slot0.sqrtPriceX96.toString(),
         liquidity: liquidity.toString(),
