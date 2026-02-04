@@ -67,11 +67,16 @@ const {
   checkAutoForward,
   getAccumulatedProfits,
   getDestinationInfo,
+  checkTransferStatus,
+  getTransferHistory,
+  getPendingTransfers,
+  TransferStatus,
 } = require("./scripts/connextClient");
 
 // Connext state
 let connextInitialized = false;
 let connextConfig = null;
+let connextAutoForwardEnabled = false;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Reintroduced: CoinGecko Caching & Dynamic Slippage (exactly from original)
@@ -218,6 +223,7 @@ const { insertTrade, pool: dbPool, isDbEnabled, waitForPoolReady } = require("./
 const { sendSlackAlert } = require("./scripts/slackUtils");
 const { buildStepsFromHops } = require("../utils/buildStepsFromHops");
 const safeAsync = require("../utils/safeAsync");
+const eventBus = require("./utils/eventBus");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Prometheus Metrics Setup
@@ -265,6 +271,9 @@ function recordOpportunity(opportunity) {
   if (recentOpportunities.length > RECENT_OPPORTUNITY_LIMIT) {
     recentOpportunities.length = RECENT_OPPORTUNITY_LIMIT;
   }
+
+  // Emit event for real-time WebSocket broadcast
+  eventBus.emitOpportunity(opportunity);
 }
 
 function getRecentOpportunities() {
@@ -1538,6 +1547,8 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
 
 /**
  * Initialize Connext client for cross-chain profit forwarding
+ * NOTE: Connext is ENABLED BY DEFAULT when CONNEXT_ADAPTER_ADDRESS is set.
+ * Set CONNEXT_AUTO_FORWARD=false to disable auto-forwarding.
  */
 async function initConnext(chain) {
   const connextAdapterAddress = process.env.CONNEXT_ADAPTER_ADDRESS;
@@ -1546,6 +1557,11 @@ async function initConnext(chain) {
     return false;
   }
 
+  // Auto-forward is ENABLED by default when adapter is configured
+  // Set CONNEXT_AUTO_FORWARD=false to explicitly disable
+  const autoForwardEnv = process.env.CONNEXT_AUTO_FORWARD;
+  connextAutoForwardEnabled = autoForwardEnv !== "false"; // Enabled unless explicitly "false"
+
   try {
     const { provider, wallet } = getChainContext(chain);
     connextConfig = await initConnextClient({
@@ -1553,7 +1569,7 @@ async function initConnext(chain) {
       provider,
       signer: wallet,
       config: {
-        autoForwardEnabled: process.env.CONNEXT_AUTO_FORWARD === "true",
+        autoForwardEnabled: connextAutoForwardEnabled,
         autoForwardThreshold: ethers.utils.parseUnits(
           process.env.CONNEXT_AUTO_FORWARD_THRESHOLD || "100",
           18
@@ -1566,6 +1582,7 @@ async function initConnext(chain) {
     });
     connextInitialized = true;
     logger.info(`[Connext] Initialized - destination domain: ${connextConfig.destinationDomain}`);
+    logger.info(`[Connext] Auto-forward: ${connextAutoForwardEnabled ? "ENABLED" : "DISABLED"}`);
     return true;
   } catch (err) {
     logger.error(`[Connext] Initialization failed: ${err.message}`);
@@ -1577,15 +1594,34 @@ async function initConnext(chain) {
  * Check and forward profits via Connext if threshold is met
  * @param {string} token - Token address to forward
  * @param {BigNumber} profitAmount - Amount of profit from latest trade
+ * @returns {Object} - Detailed Connext status including forwarding result
  */
 async function checkAndForwardProfits(token, profitAmount) {
   if (!connextInitialized) {
-    return { forwarded: false, reason: "Connext not initialized" };
+    return {
+      forwarded: false,
+      reason: "Connext not initialized",
+      connextEnabled: false,
+      autoForwardEnabled: false,
+    };
   }
 
   try {
+    // Get current accumulated profits for status
+    const accumulatedBalance = await getAccumulatedProfits(token);
+    const pendingTransfersList = getPendingTransfers();
+
     // Check if auto-forward should be triggered
     const autoForwardCheck = await checkAutoForward(token);
+
+    const baseStatus = {
+      connextEnabled: true,
+      autoForwardEnabled: connextAutoForwardEnabled,
+      accumulatedProfits: accumulatedBalance.toString(),
+      accumulatedProfitsFormatted: ethers.utils.formatUnits(accumulatedBalance, 18),
+      pendingTransfers: pendingTransfersList.length,
+      threshold: autoForwardCheck.threshold ? ethers.utils.formatUnits(autoForwardCheck.threshold, 18) : null,
+    };
 
     if (autoForwardCheck.shouldForward) {
       logger.info(`[Connext] Auto-forward threshold reached, forwarding ${ethers.utils.formatUnits(autoForwardCheck.balance, 18)} tokens`);
@@ -1598,22 +1634,44 @@ async function checkAndForwardProfits(token, profitAmount) {
       if (result.success) {
         logger.info(`[Connext] Profits forwarded successfully! TX: ${result.txHash}, Transfer ID: ${result.transferId}`);
         return {
+          ...baseStatus,
           forwarded: true,
           txHash: result.txHash,
           transferId: result.transferId,
           amount: result.amount,
+          amountFormatted: ethers.utils.formatUnits(result.amount, 18),
+          relayerFee: result.relayerFee,
+          tracked: result.tracked,
         };
       } else {
         logger.warn(`[Connext] Forward failed: ${result.error || result.reason}`);
-        return { forwarded: false, reason: result.error || result.reason };
+        return {
+          ...baseStatus,
+          forwarded: false,
+          reason: result.error || result.reason,
+        };
       }
     } else {
-      logger.info(`[Connext] Below auto-forward threshold: ${ethers.utils.formatUnits(autoForwardCheck.balance || 0, 18)} / ${ethers.utils.formatUnits(autoForwardCheck.threshold || 0, 18)}`);
-      return { forwarded: false, reason: autoForwardCheck.reason };
+      const balanceFormatted = autoForwardCheck.balance
+        ? ethers.utils.formatUnits(autoForwardCheck.balance, 18)
+        : "0";
+      logger.info(`[Connext] Below auto-forward threshold: ${balanceFormatted} / ${baseStatus.threshold || "N/A"}`);
+      return {
+        ...baseStatus,
+        forwarded: false,
+        reason: autoForwardCheck.reason,
+        currentBalance: balanceFormatted,
+      };
     }
   } catch (err) {
     logger.error(`[Connext] Error checking/forwarding profits: ${err.message}`);
-    return { forwarded: false, reason: err.message };
+    return {
+      connextEnabled: true,
+      autoForwardEnabled: connextAutoForwardEnabled,
+      forwarded: false,
+      reason: err.message,
+      error: true,
+    };
   }
 }
 
@@ -1639,23 +1697,89 @@ async function manualForwardProfits(token, amount) {
  * Get Connext status and accumulated profits
  */
 async function getConnextStatus(token) {
+  const adapterConfigured = !!process.env.CONNEXT_ADAPTER_ADDRESS;
+
   if (!connextInitialized) {
-    return { initialized: false };
+    return {
+      initialized: false,
+      configured: adapterConfigured,
+      autoForwardEnabled: false,
+      reason: adapterConfigured ? "Initialization pending or failed" : "Adapter not configured",
+    };
   }
 
   try {
     const destInfo = await getDestinationInfo();
     const accumulated = token ? await getAccumulatedProfits(token) : BigNumber.from(0);
+    const pendingTransfersList = getPendingTransfers();
+    const recentHistory = getTransferHistory(10);
 
     return {
       initialized: true,
+      configured: true,
+      autoForwardEnabled: connextAutoForwardEnabled,
       destination: destInfo,
       accumulatedProfits: accumulated.toString(),
       accumulatedProfitsFormatted: ethers.utils.formatUnits(accumulated, 18),
+      pendingTransfers: {
+        count: pendingTransfersList.length,
+        transfers: pendingTransfersList,
+      },
+      recentTransfers: {
+        count: recentHistory.length,
+        transfers: recentHistory,
+      },
+      thresholds: {
+        autoForwardThreshold: process.env.CONNEXT_AUTO_FORWARD_THRESHOLD || "100",
+        minForwardAmount: process.env.CONNEXT_MIN_FORWARD_AMOUNT || "10",
+      },
     };
   } catch (err) {
-    return { initialized: true, error: err.message };
+    return {
+      initialized: true,
+      configured: true,
+      autoForwardEnabled: connextAutoForwardEnabled,
+      error: err.message,
+    };
   }
+}
+
+/**
+ * Get Connext transfer history
+ * @param {number} limit - Max entries to return
+ */
+function getConnextTransferHistory(limit = 20) {
+  if (!connextInitialized) {
+    return { error: "Connext not initialized", transfers: [] };
+  }
+  return {
+    transfers: getTransferHistory(limit),
+    pendingCount: getPendingTransfers().length,
+  };
+}
+
+/**
+ * Get pending Connext transfers
+ */
+function getPendingConnextTransfers() {
+  if (!connextInitialized) {
+    return { error: "Connext not initialized", transfers: [] };
+  }
+  return {
+    transfers: getPendingTransfers(),
+    count: getPendingTransfers().length,
+  };
+}
+
+/**
+ * Check status of a specific Connext transfer
+ * @param {string} transferId - Transfer ID to check
+ */
+async function checkConnextTransferStatus(transferId) {
+  if (!connextInitialized) {
+    return { error: "Connext not initialized" };
+  }
+  return checkTransferStatus(transferId);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1678,12 +1802,24 @@ async function simulateAndExecuteArb(useFlashbots = true, options = {}) {
         outcome = res;
 
         // Check and forward profits after successful arbitrage
-        if (connextInitialized && process.env.CONNEXT_AUTO_FORWARD === "true") {
+        // Connext is enabled by default when adapter address is configured
+        if (connextInitialized) {
           const forwardResult = await checkAndForwardProfits(
             tokenAddresses.DAI,
             res.estimatedProfitInDai
           );
           outcome.connextForward = forwardResult;
+          outcome.connextStatus = {
+            initialized: true,
+            autoForwardEnabled: connextAutoForwardEnabled,
+            ...forwardResult,
+          };
+        } else if (process.env.CONNEXT_ADAPTER_ADDRESS) {
+          // Connext configured but not initialized - include status
+          outcome.connextStatus = {
+            initialized: false,
+            reason: "Adapter configured but initialization failed",
+          };
         }
       }
     } catch (err) {
@@ -1778,6 +1914,9 @@ module.exports.initConnext = initConnext;
 module.exports.checkAndForwardProfits = checkAndForwardProfits;
 module.exports.manualForwardProfits = manualForwardProfits;
 module.exports.getConnextStatus = getConnextStatus;
+module.exports.getConnextTransferHistory = getConnextTransferHistory;
+module.exports.getPendingConnextTransfers = getPendingConnextTransfers;
+module.exports.checkConnextTransferStatus = checkConnextTransferStatus;
 
 // Network configuration exports
 module.exports.getTokenAddresses = getTokenAddresses;

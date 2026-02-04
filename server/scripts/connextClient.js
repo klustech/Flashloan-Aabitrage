@@ -50,6 +50,19 @@ let provider = null;
 let signer = null;
 let config = { ...DEFAULT_CONFIG };
 
+// Pending transfers tracking
+const pendingTransfers = new Map();
+const transferHistory = [];
+const MAX_HISTORY_SIZE = 100;
+
+// Transfer status enum
+const TransferStatus = {
+  PENDING: "pending",
+  COMPLETED: "completed",
+  FAILED: "failed",
+  UNKNOWN: "unknown",
+};
+
 /**
  * Initialize the Connext client
  * @param {Object} params - Initialization parameters
@@ -181,6 +194,17 @@ async function forwardProfits(params) {
     const event = receipt.events?.find(e => e.event === "ProfitsForwarded");
     const transferId = event?.args?.transferId;
 
+    // Track the transfer
+    if (transferId) {
+      trackTransfer({
+        transferId,
+        txHash: tx.hash,
+        token,
+        amount: amountBN,
+        relayerFee,
+      });
+    }
+
     return {
       success: true,
       txHash: tx.hash,
@@ -188,6 +212,7 @@ async function forwardProfits(params) {
       amount: amountBN.toString(),
       relayerFee: relayerFee.toString(),
       blockNumber: receipt.blockNumber,
+      tracked: !!transferId,
     };
   } catch (err) {
     console.error(`[connextClient] Forward failed: ${err.message}`);
@@ -199,18 +224,116 @@ async function forwardProfits(params) {
 }
 
 /**
+ * Track a new transfer
+ * @param {Object} transferData - Transfer data
+ */
+function trackTransfer(transferData) {
+  const {
+    transferId,
+    txHash,
+    token,
+    amount,
+    relayerFee,
+    timestamp = Date.now(),
+  } = transferData;
+
+  const transfer = {
+    transferId,
+    txHash,
+    token,
+    amount: amount.toString(),
+    relayerFee: relayerFee.toString(),
+    status: TransferStatus.PENDING,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
+
+  pendingTransfers.set(transferId, transfer);
+
+  // Add to history
+  transferHistory.unshift(transfer);
+  if (transferHistory.length > MAX_HISTORY_SIZE) {
+    transferHistory.pop();
+  }
+
+  return transfer;
+}
+
+/**
+ * Update transfer status
+ * @param {string} transferId - Transfer ID
+ * @param {string} status - New status
+ * @param {Object} extraData - Additional data to merge
+ */
+function updateTransferStatus(transferId, status, extraData = {}) {
+  const transfer = pendingTransfers.get(transferId);
+  if (transfer) {
+    transfer.status = status;
+    transfer.updatedAt = Date.now();
+    Object.assign(transfer, extraData);
+
+    // Remove from pending if completed or failed
+    if (status === TransferStatus.COMPLETED || status === TransferStatus.FAILED) {
+      pendingTransfers.delete(transferId);
+    }
+
+    // Update in history
+    const historyEntry = transferHistory.find(t => t.transferId === transferId);
+    if (historyEntry) {
+      Object.assign(historyEntry, transfer);
+    }
+  }
+  return transfer;
+}
+
+/**
  * Check pending cross-chain transfers
- * @param {string} transferId - Connext transfer ID
+ * @param {string} transferId - Connext transfer ID (optional)
  * @returns {Object} - Transfer status
  */
 async function checkTransferStatus(transferId) {
-  // In production, query Connext subgraph or API
-  // For now, return placeholder
+  // If specific transfer ID provided, check that one
+  if (transferId) {
+    const tracked = pendingTransfers.get(transferId) ||
+      transferHistory.find(t => t.transferId === transferId);
+
+    if (tracked) {
+      // TODO: In production, also query Connext API for real-time status
+      return {
+        ...tracked,
+        apiStatus: "Query Connext subgraph for real-time updates",
+      };
+    }
+
+    return {
+      transferId,
+      status: TransferStatus.UNKNOWN,
+      message: "Transfer not found in local tracking",
+    };
+  }
+
+  // Return all pending transfers
   return {
-    transferId,
-    status: "pending",
-    message: "Query Connext API for real-time status",
+    pending: Array.from(pendingTransfers.values()),
+    count: pendingTransfers.size,
   };
+}
+
+/**
+ * Get transfer history
+ * @param {number} limit - Max entries to return
+ * @returns {Array} - Transfer history
+ */
+function getTransferHistory(limit = 20) {
+  return transferHistory.slice(0, limit);
+}
+
+/**
+ * Get all pending transfers
+ * @returns {Array} - Pending transfers
+ */
+function getPendingTransfers() {
+  return Array.from(pendingTransfers.values());
 }
 
 /**
@@ -324,6 +447,13 @@ module.exports = {
   updateDestination,
   getDomainId,
   checkAutoForward,
+  // Transfer tracking
+  trackTransfer,
+  updateTransferStatus,
+  getTransferHistory,
+  getPendingTransfers,
+  TransferStatus,
+  // Constants
   CONNEXT_DOMAINS,
   CONNEXT_ADAPTER_ABI,
   DEFAULT_CONFIG,

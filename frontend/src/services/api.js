@@ -266,14 +266,33 @@ export const cancelTimelockOperation = async (operationId) => {
 };
 
 // Get Connext cross-chain status
-export const getConnextStatus = async () => {
-  const response = await API.get("/api/connext/status");
+export const getConnextStatus = async (token) => {
+  const params = token ? { token } : {};
+  const response = await API.get("/api/connext/status", { params });
   return response.data;
 };
 
 // Forward profits via Connext
 export const forwardProfits = async (params) => {
   const response = await API.post("/api/connext/forward", params);
+  return response.data;
+};
+
+// Get Connext transfer history
+export const getConnextTransferHistory = async (limit = 20) => {
+  const response = await API.get("/api/connext/transfers", { params: { limit } });
+  return response.data;
+};
+
+// Get pending Connext transfers
+export const getPendingConnextTransfers = async () => {
+  const response = await API.get("/api/connext/transfers/pending");
+  return response.data;
+};
+
+// Check specific Connext transfer status
+export const checkConnextTransferStatus = async (transferId) => {
+  const response = await API.get(`/api/connext/transfers/${transferId}`);
   return response.data;
 };
 

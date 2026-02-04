@@ -15,6 +15,19 @@ const fs = require("fs");
 const readline = require("readline");
 const winston = require("winston");
 const { ethers } = require("ethers");
+const http = require("http");
+
+// WebSocket support for real-time updates
+let WebSocket;
+try {
+  WebSocket = require("ws");
+} catch (e) {
+  // ws package not installed, WebSocket support disabled
+  WebSocket = null;
+}
+
+// Event bus for cross-module communication
+const eventBus = require("../utils/eventBus");
 const { getEnv, loadRequired } = require("../../utils/config");
 const {
   determineProfit,
@@ -60,6 +73,9 @@ const loadBotLogic = () => {
       initConnext: async () => false,
       getConnextStatus: async () => ({ initialized: false }),
       manualForwardProfits: async () => ({ success: false }),
+      getConnextTransferHistory: () => ({ transfers: [] }),
+      getPendingConnextTransfers: () => ({ transfers: [], count: 0 }),
+      checkConnextTransferStatus: async () => ({ status: "unknown" }),
       getAllRoutes: async () => [],
     };
   }
@@ -76,6 +92,9 @@ const {
   initConnext,
   getConnextStatus,
   manualForwardProfits,
+  getConnextTransferHistory,
+  getPendingConnextTransfers,
+  checkConnextTransferStatus,
   getAllRoutes,
 } = loadBotLogic();
 
@@ -463,26 +482,93 @@ const parseOptionalInt = (value) => {
   return Number.isFinite(parsed) ? parsed : undefined;
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Persistent Settings Storage
+// ─────────────────────────────────────────────────────────────────────────────
+const SETTINGS_FILE = process.env.SETTINGS_FILE || path.join(__dirname, "../.settings.json");
+
+/**
+ * Load persisted settings from disk
+ * @returns {Object|null} Parsed settings or null if not found
+ */
+function loadPersistedSettings() {
+  try {
+    if (!fs.existsSync(SETTINGS_FILE)) {
+      logger.info("[Settings] No persisted settings file found, using defaults");
+      return null;
+    }
+    const data = fs.readFileSync(SETTINGS_FILE, "utf8");
+    const settings = JSON.parse(data);
+    logger.info(`[Settings] Loaded persisted settings from ${SETTINGS_FILE}`);
+    return settings;
+  } catch (err) {
+    logger.warn(`[Settings] Failed to load persisted settings: ${err.message}`);
+    return null;
+  }
+}
+
+/**
+ * Save settings to disk
+ * @param {Object} settings - Settings to persist
+ * @returns {boolean} Success status
+ */
+function savePersistedSettings(settings) {
+  try {
+    // Create a clean copy without internal state
+    const toSave = {
+      botActive: settings.botActive,
+      flashbotsDefault: settings.flashbotsDefault,
+      pollingInterval: settings.pollingInterval,
+      gasPriceCeiling: settings.gasPriceCeiling,
+      slippageBips: settings.slippageBips,
+      minBorrowAmount: settings.minBorrowAmount,
+      simulationInputAmount: settings.simulationInputAmount,
+      _savedAt: new Date().toISOString(),
+    };
+    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(toSave, null, 2), "utf8");
+    logger.info(`[Settings] Persisted settings to ${SETTINGS_FILE}`);
+    return true;
+  } catch (err) {
+    logger.error(`[Settings] Failed to persist settings: ${err.message}`);
+    return false;
+  }
+}
+
+// Load persisted settings if available
+const persistedSettings = loadPersistedSettings();
+
+// Priority: Environment variables > Persisted settings > Defaults
 const rawInitialSettings = {
   ...settingsDefaults,
+  // Apply persisted settings (if available)
+  ...(persistedSettings || {}),
+  // Environment variables take precedence over persisted settings
   flashbotsDefault:
     process.env.FLASHBOTS_DEFAULT === undefined
-      ? settingsDefaults.flashbotsDefault
+      ? (persistedSettings?.flashbotsDefault ?? settingsDefaults.flashbotsDefault)
       : process.env.FLASHBOTS_DEFAULT === "true",
   pollingInterval:
     parseOptionalInt(process.env.POLLING_INTERVAL) ??
+    persistedSettings?.pollingInterval ??
     settingsDefaults.pollingInterval,
   gasPriceCeiling:
     parseOptionalInt(process.env.GAS_PRICE_CEILING) ??
+    persistedSettings?.gasPriceCeiling ??
     settingsDefaults.gasPriceCeiling,
   slippageBips:
-    parseOptionalInt(process.env.SLIPPAGE_BIPS) ?? settingsDefaults.slippageBips,
+    parseOptionalInt(process.env.SLIPPAGE_BIPS) ??
+    persistedSettings?.slippageBips ??
+    settingsDefaults.slippageBips,
   minBorrowAmount:
     parseOptionalInt(process.env.MIN_BORROW_AMOUNT) ??
+    persistedSettings?.minBorrowAmount ??
     settingsDefaults.minBorrowAmount,
   simulationInputAmount:
     parseOptionalInt(process.env.SIMULATION_INPUT_AMOUNT) ??
+    persistedSettings?.simulationInputAmount ??
     settingsDefaults.simulationInputAmount,
+  // Don't auto-start bot from persisted settings for safety
+  botActive: process.env.BOT_AUTO_START === "true" ? true : false,
 };
 
 let botSettings;
@@ -902,7 +988,33 @@ app.post(
 app.get(
   "/api/settings",
   withErrorBoundary("get_settings", (_req, res) => {
-    res.json(botSettings);
+    res.json({
+      ...botSettings,
+      _persisted: fs.existsSync(SETTINGS_FILE),
+      _settingsFile: SETTINGS_FILE,
+    });
+  })
+);
+
+// POST /api/settings/reset - Reset settings to defaults
+app.post(
+  "/api/settings/reset",
+  withErrorBoundary("reset_settings", (_req, res) => {
+    // Reset to defaults (keep bot inactive for safety)
+    botSettings = { ...settingsDefaults, botActive: false };
+
+    // Remove persisted settings file
+    try {
+      if (fs.existsSync(SETTINGS_FILE)) {
+        fs.unlinkSync(SETTINGS_FILE);
+        logger.info(`[Settings] Removed persisted settings file: ${SETTINGS_FILE}`);
+      }
+    } catch (err) {
+      logger.warn(`[Settings] Failed to remove settings file: ${err.message}`);
+    }
+
+    logger.info("Settings reset to defaults");
+    res.json({ status: "ok", settings: botSettings, message: "Settings reset to defaults" });
   })
 );
 
@@ -956,8 +1068,11 @@ app.post(
         updateSimulationInputAmount(updates.simulationInputAmount);
       }
 
+      // Persist settings to disk
+      savePersistedSettings(botSettings);
+
       logger.info(`Settings updated: ${JSON.stringify(botSettings)}`);
-      res.json({ status: "ok", settings: botSettings });
+      res.json({ status: "ok", settings: botSettings, persisted: true });
     } catch (err) {
       err.statusCode = err.statusCode || 500;
       err.publicMessage = err.publicMessage || "update failed";
@@ -972,6 +1087,7 @@ app.post(
   "/api/start-bot",
   withErrorBoundary("start_bot", (_req, res) => {
     botSettings.botActive = true;
+    savePersistedSettings(botSettings);
     logger.info("Bot started");
     recordWorkerState({ lastTimeoutAt: null, lastErrorMessage: null });
     res.json({ status: "ok", settings: botSettings });
@@ -983,6 +1099,7 @@ app.post(
   "/api/stop-bot",
   withErrorBoundary("stop_bot", (_req, res) => {
     botSettings.botActive = false;
+    savePersistedSettings(botSettings);
     logger.info("Bot stopped");
     recordWorkerState({ running: false });
     res.json({ status: "ok", settings: botSettings });
@@ -1262,6 +1379,41 @@ app.post("/api/connext/forward", async (req, res) => {
   }
 });
 
+// GET /api/connext/transfers - Get transfer history
+app.get("/api/connext/transfers", async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit, 10) || 20;
+    const history = getConnextTransferHistory(limit);
+    res.json(history);
+  } catch (err) {
+    logger.error(`connext transfers error: ${err.message}`);
+    res.status(500).json({ error: "failed to get transfer history" });
+  }
+});
+
+// GET /api/connext/transfers/pending - Get pending transfers
+app.get("/api/connext/transfers/pending", async (_req, res) => {
+  try {
+    const pending = getPendingConnextTransfers();
+    res.json(pending);
+  } catch (err) {
+    logger.error(`connext pending transfers error: ${err.message}`);
+    res.status(500).json({ error: "failed to get pending transfers" });
+  }
+});
+
+// GET /api/connext/transfers/:transferId - Check specific transfer status
+app.get("/api/connext/transfers/:transferId", async (req, res) => {
+  try {
+    const { transferId } = req.params;
+    const status = await checkConnextTransferStatus(transferId);
+    res.json(status);
+  } catch (err) {
+    logger.error(`connext transfer status error: ${err.message}`);
+    res.status(500).json({ error: "failed to check transfer status" });
+  }
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Timelock Governance API
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1477,8 +1629,9 @@ if (process.env.NODE_ENV !== "test") {
       if (result.executed) {
         arbSuccess.inc();
         const estimatedProfit = result?.estimatedProfitInDai;
+        let formattedProfit = 0;
         if (estimatedProfit !== undefined && estimatedProfit !== null) {
-          const formattedProfit = parseFloat(
+          formattedProfit = parseFloat(
             ethers.utils.formatUnits(estimatedProfit, 18)
           );
           if (!Number.isNaN(formattedProfit)) {
@@ -1486,6 +1639,14 @@ if (process.env.NODE_ENV !== "test") {
           }
         }
         logger.info("Scheduler: executed arb");
+
+        // Broadcast trade execution to WebSocket clients
+        broadcastTradeExecuted({
+          executed: true,
+          profit: formattedProfit,
+          connextStatus: result.connextStatus,
+          timestamp: Date.now(),
+        });
       } else {
         arbFailure.labels("no_opportunity").inc();
         logger.info("Scheduler: no opportunity");
@@ -1504,6 +1665,169 @@ if (process.env.NODE_ENV !== "test") {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// WebSocket Server for Real-Time Updates
+// ─────────────────────────────────────────────────────────────────────────────
+let wss = null;
+const wsClients = new Set();
+
+/**
+ * Broadcast a message to all connected WebSocket clients
+ * @param {string} type - Message type (e.g., "opportunity", "price_update", "trade_executed")
+ * @param {Object} payload - Message payload
+ */
+function broadcastToClients(type, payload) {
+  if (!wss || wsClients.size === 0) return;
+
+  const message = JSON.stringify({ type, payload, timestamp: Date.now() });
+
+  wsClients.forEach((client) => {
+    if (client.readyState === WebSocket?.OPEN) {
+      try {
+        client.send(message);
+      } catch (err) {
+        logger.warn(`WebSocket send error: ${err.message}`);
+      }
+    }
+  });
+}
+
+/**
+ * Broadcast a new arbitrage opportunity
+ * Transforms the internal opportunity format to the frontend format
+ */
+function broadcastOpportunity(opportunity) {
+  // Transform BigNumber values to strings for JSON serialization
+  const formatBigNumber = (bn) => {
+    if (!bn) return "0";
+    if (typeof bn === "string") return bn;
+    if (bn._isBigNumber || bn.type === "BigNumber") {
+      return ethers.utils.formatUnits(bn, 18);
+    }
+    return String(bn);
+  };
+
+  // Extract DEX path from swap data
+  const extractDexPath = (swapData) => {
+    if (!swapData || !swapData.paths) return [];
+    // The paths array contains token addresses; we need to determine DEX from route
+    if (swapData.route && typeof swapData.route === "string") {
+      // Try to parse DEX names from the route string
+      const dexes = [];
+      if (swapData.route.includes("uniswap_v2")) dexes.push("uniswap_v2");
+      if (swapData.route.includes("uniswap_v3")) dexes.push("uniswap_v3");
+      if (swapData.route.includes("sushiswap")) dexes.push("sushiswap");
+      if (swapData.route.includes("balancer")) dexes.push("balancer");
+      if (swapData.route.includes("curve")) dexes.push("curve");
+      return dexes.length > 0 ? dexes : ["uniswap_v2"]; // Default
+    }
+    return ["uniswap_v2"];
+  };
+
+  const formatted = {
+    id: opportunity.id,
+    chain: opportunity.chain || "ethereum",
+    timestamp: opportunity.timestamp,
+    route: opportunity.swapData?.route || "Unknown Route",
+    dexPath: extractDexPath(opportunity.swapData),
+    borrowAmount: formatBigNumber(opportunity.borrowAmount),
+    estimatedOut: formatBigNumber(opportunity.estimatedOut),
+    netProfit: formatBigNumber(opportunity.netProfit),
+    gasCost: formatBigNumber(opportunity.gasCostDai),
+    gasPrice: opportunity.gasPrice ? ethers.utils.formatUnits(opportunity.gasPrice, "gwei") : "0",
+    mlScore: opportunity.mlScore || 0.5, // Default if not available
+  };
+
+  broadcastToClients("opportunity", formatted);
+}
+
+/**
+ * Broadcast price update
+ */
+function broadcastPriceUpdate(priceData) {
+  broadcastToClients("price_update", priceData);
+}
+
+/**
+ * Broadcast trade execution result
+ */
+function broadcastTradeExecuted(tradeResult) {
+  broadcastToClients("trade_executed", tradeResult);
+}
+
+/**
+ * Initialize WebSocket server
+ */
+function initWebSocketServer(server) {
+  if (!WebSocket) {
+    logger.info("[WebSocket] ws package not installed, real-time updates disabled");
+    return null;
+  }
+
+  wss = new WebSocket.Server({ server, path: "/ws" });
+
+  wss.on("connection", (ws, req) => {
+    const clientIp = req.socket.remoteAddress;
+    logger.info(`[WebSocket] Client connected from ${clientIp}`);
+    wsClients.add(ws);
+
+    // Send welcome message
+    ws.send(JSON.stringify({
+      type: "connected",
+      payload: {
+        message: "Connected to Flashloan Arbitrage Bot",
+        serverTime: Date.now(),
+      },
+    }));
+
+    ws.on("message", (data) => {
+      try {
+        const message = JSON.parse(data);
+        // Handle client messages (e.g., subscribe to specific updates)
+        if (message.type === "ping") {
+          ws.send(JSON.stringify({ type: "pong", timestamp: Date.now() }));
+        }
+      } catch (err) {
+        logger.warn(`[WebSocket] Invalid message: ${err.message}`);
+      }
+    });
+
+    ws.on("close", () => {
+      wsClients.delete(ws);
+      logger.info(`[WebSocket] Client disconnected (${wsClients.size} remaining)`);
+    });
+
+    ws.on("error", (err) => {
+      logger.warn(`[WebSocket] Client error: ${err.message}`);
+      wsClients.delete(ws);
+    });
+  });
+
+  // Subscribe to event bus events and broadcast to clients
+  eventBus.on("opportunity", (opportunity) => {
+    broadcastOpportunity(opportunity);
+  });
+
+  eventBus.on("trade_executed", (result) => {
+    broadcastTradeExecuted(result);
+  });
+
+  eventBus.on("price_update", (priceData) => {
+    broadcastPriceUpdate(priceData);
+  });
+
+  eventBus.on("connext_transfer", (transferData) => {
+    broadcastToClients("connext_transfer", transferData);
+  });
+
+  eventBus.on("circuit_breaker", (state) => {
+    broadcastToClients("circuit_breaker", state);
+  });
+
+  logger.info(`[WebSocket] Server initialized on /ws path`);
+  return wss;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Boot
 // ─────────────────────────────────────────────────────────────────────────────
 const start = async (port = PORT) => {
@@ -1518,11 +1842,31 @@ const start = async (port = PORT) => {
     });
   }
 
-  return app.listen(port, () => logger.info(`🟢  API listening on :${port}`));
+  // Create HTTP server for both Express and WebSocket
+  const server = http.createServer(app);
+
+  // Initialize WebSocket server
+  initWebSocketServer(server);
+
+  return new Promise((resolve) => {
+    server.listen(port, () => {
+      logger.info(`API listening on :${port}`);
+      logger.info(`WebSocket available at ws://localhost:${port}/ws`);
+      resolve(server);
+    });
+  });
 };
 
 if (require.main === module) {
   start(PORT);
 }
 
-module.exports = { app, start };
+module.exports = {
+  app,
+  start,
+  // WebSocket broadcast functions for real-time updates
+  broadcastOpportunity,
+  broadcastPriceUpdate,
+  broadcastTradeExecuted,
+  broadcastToClients,
+};
