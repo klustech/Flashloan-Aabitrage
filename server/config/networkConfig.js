@@ -430,6 +430,113 @@ function validateNetworkConfig(network) {
   };
 }
 
+/**
+ * Get complete deployment configuration for a network
+ * This is the primary function to use when switching networks
+ * @param {string} network - Network name
+ * @param {Object} overrides - Optional address overrides from environment
+ * @returns {Object} Complete deployment configuration
+ */
+function getDeploymentConfig(network, overrides = {}) {
+  const config = getNetworkConfig(network);
+  const validation = validateNetworkConfig(network);
+
+  if (!validation.valid) {
+    throw new Error(`Invalid network configuration for ${network}: ${validation.errors.join(", ")}`);
+  }
+
+  // Merge environment overrides
+  const mergedTokens = { ...config.tokens };
+  const mergedDexRouters = { ...config.dexRouters };
+
+  // Apply token address overrides from environment
+  if (overrides.TOKENS_DAI) mergedTokens.DAI = overrides.TOKENS_DAI;
+  if (overrides.TOKENS_WETH) mergedTokens.WETH = overrides.TOKENS_WETH;
+  if (overrides.TOKENS_USDC) mergedTokens.USDC = overrides.TOKENS_USDC;
+  if (overrides.TOKENS_USDT) mergedTokens.USDT = overrides.TOKENS_USDT;
+
+  // Apply DEX router overrides from environment
+  if (overrides.UNISWAP_ROUTER_ADDRESS && mergedDexRouters.uniswap_v2) {
+    mergedDexRouters.uniswap_v2.router = overrides.UNISWAP_ROUTER_ADDRESS;
+  }
+  if (overrides.SUSHISWAP_ROUTER_ADDRESS && mergedDexRouters.sushiswap) {
+    mergedDexRouters.sushiswap.router = overrides.SUSHISWAP_ROUTER_ADDRESS;
+  }
+
+  // Apply RPC URL override
+  const rpcUrl = overrides.RPC_URL || config.rpcUrl;
+
+  return {
+    network,
+    chainId: config.chainId,
+    tokens: mergedTokens,
+    dexRouters: mergedDexRouters,
+    aave: config.aave,
+    connext: config.connext,
+    flashbotsRelays: config.flashbotsRelays,
+    gasDefaults: config.gasDefaults,
+    rpcUrl,
+    // Computed helpers
+    hasFlashLoans: !!config.aave?.v2 || !!config.aave?.v3,
+    hasConnext: !!config.connext?.connext,
+    supportedDexes: Object.keys(mergedDexRouters),
+    supportedTokens: Object.keys(mergedTokens),
+  };
+}
+
+/**
+ * Create ethers provider configuration for a network
+ * @param {string} network - Network name
+ * @returns {Object} Provider configuration for ethers.js
+ */
+function getProviderConfig(network) {
+  const config = getNetworkConfig(network);
+  return {
+    url: config.rpcUrl,
+    chainId: config.chainId,
+    timeout: 120000,
+  };
+}
+
+/**
+ * Check if a network supports a specific feature
+ * @param {string} network - Network name
+ * @param {string} feature - Feature name (flashloans, connext, uniswap_v2, etc.)
+ * @returns {boolean}
+ */
+function networkSupportsFeature(network, feature) {
+  const config = getNetworkConfig(network);
+
+  switch (feature.toLowerCase()) {
+    case "flashloans":
+    case "aave":
+      return !!config.aave?.v2 || !!config.aave?.v3;
+    case "connext":
+      return !!config.connext?.connext;
+    case "flashbots":
+      return config.flashbotsRelays?.length > 0;
+    default:
+      // Check DEXes
+      return !!config.dexRouters?.[feature];
+  }
+}
+
+/**
+ * Get the primary flash loan provider for a network
+ * @param {string} network - Network name
+ * @returns {Object|null} Aave configuration (prefer v3 if available)
+ */
+function getFlashLoanProvider(network) {
+  const config = getNetworkConfig(network);
+  if (config.aave?.v3) {
+    return { version: 3, ...config.aave.v3 };
+  }
+  if (config.aave?.v2) {
+    return { version: 2, ...config.aave.v2 };
+  }
+  return null;
+}
+
 module.exports = {
   CHAIN_IDS,
   TOKENS,
@@ -447,4 +554,9 @@ module.exports = {
   getSupportedDexes,
   getSupportedNetworks,
   validateNetworkConfig,
+  // New multi-network helpers
+  getDeploymentConfig,
+  getProviderConfig,
+  networkSupportsFeature,
+  getFlashLoanProvider,
 };

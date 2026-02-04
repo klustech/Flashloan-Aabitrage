@@ -114,27 +114,9 @@ const ProfitSimulator = () => {
       const response = await simulateArbitrage(params);
       setResult(response);
     } catch (err) {
-      // Mock result for demo if API not available
-      setResult({
-        success: true,
-        simulation: {
-          borrowAmount: parseFloat(borrowAmount),
-          borrowToken,
-          expectedReturn: parseFloat(borrowAmount) * 1.005, // 0.5% return
-          grossProfit: parseFloat(borrowAmount) * 0.005,
-          gasCost: (gasPrice * 300000 * 1e-9).toFixed(6),
-          netProfit: (parseFloat(borrowAmount) * 0.005 - gasPrice * 300000 * 1e-9).toFixed(6),
-          slippage: (slippageBps / 100).toFixed(2),
-          priceImpact: "0.15",
-          mlScore: 0.76,
-          hops: route.map((hop, i) => ({
-            ...hop,
-            inputAmount: i === 0 ? borrowAmount : "varies",
-            outputAmount: "varies",
-            priceImpact: (Math.random() * 0.1).toFixed(4),
-          })),
-        },
-      });
+      // Show actual error instead of mock data
+      const errorMessage = err.response?.data?.error || err.message || "Simulation failed";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

@@ -98,6 +98,35 @@ const {
   getAllRoutes,
 } = loadBotLogic();
 
+// Connext monitoring functions (direct import to avoid circular deps)
+const loadConnextMonitoring = () => {
+  if (process.env.NODE_ENV === "test") {
+    return {
+      startMonitoring: () => {},
+      stopMonitoring: () => {},
+      getMonitoringStatus: () => ({ enabled: false, running: false }),
+      updateMonitoringConfig: () => ({ enabled: false }),
+    };
+  }
+  try {
+    return require("./connextClient");
+  } catch (e) {
+    return {
+      startMonitoring: () => {},
+      stopMonitoring: () => {},
+      getMonitoringStatus: () => ({ enabled: false, running: false }),
+      updateMonitoringConfig: () => ({ enabled: false }),
+    };
+  }
+};
+
+const {
+  startMonitoring: startConnextMonitoring,
+  stopMonitoring: stopConnextMonitoring,
+  getMonitoringStatus: getConnextMonitoringStatus,
+  updateMonitoringConfig: updateConnextMonitoringConfig,
+} = loadConnextMonitoring();
+
 // Timelock client state
 let timelockInitialized = false;
 let timelockInfo = null;
@@ -1414,6 +1443,53 @@ app.get("/api/connext/transfers/:transferId", async (req, res) => {
   }
 });
 
+// GET /api/connext/monitoring - Get monitoring status
+app.get("/api/connext/monitoring", async (_req, res) => {
+  try {
+    const status = getConnextMonitoringStatus();
+    res.json(status);
+  } catch (err) {
+    logger.error(`connext monitoring status error: ${err.message}`);
+    res.status(500).json({ error: "failed to get monitoring status" });
+  }
+});
+
+// POST /api/connext/monitoring/start - Start monitoring
+app.post("/api/connext/monitoring/start", async (_req, res) => {
+  try {
+    startConnextMonitoring();
+    const status = getConnextMonitoringStatus();
+    res.json({ message: "Monitoring started", ...status });
+  } catch (err) {
+    logger.error(`connext start monitoring error: ${err.message}`);
+    res.status(500).json({ error: "failed to start monitoring" });
+  }
+});
+
+// POST /api/connext/monitoring/stop - Stop monitoring
+app.post("/api/connext/monitoring/stop", async (_req, res) => {
+  try {
+    stopConnextMonitoring();
+    const status = getConnextMonitoringStatus();
+    res.json({ message: "Monitoring stopped", ...status });
+  } catch (err) {
+    logger.error(`connext stop monitoring error: ${err.message}`);
+    res.status(500).json({ error: "failed to stop monitoring" });
+  }
+});
+
+// POST /api/connext/monitoring/config - Update monitoring configuration
+app.post("/api/connext/monitoring/config", async (req, res) => {
+  try {
+    const newConfig = req.body;
+    const status = updateConnextMonitoringConfig(newConfig);
+    res.json({ message: "Configuration updated", ...status });
+  } catch (err) {
+    logger.error(`connext monitoring config error: ${err.message}`);
+    res.status(500).json({ error: "failed to update monitoring config" });
+  }
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Timelock Governance API
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1840,6 +1916,12 @@ const start = async (port = PORT) => {
     await initConnext("ethereum").catch(err => {
       logger.warn(`Connext initialization failed: ${err.message}`);
     });
+
+    // Start Connext transfer monitoring
+    if (process.env.CONNEXT_MONITORING !== "false") {
+      startConnextMonitoring();
+      logger.info("[Connext] Transfer monitoring started");
+    }
   }
 
   // Create HTTP server for both Express and WebSocket

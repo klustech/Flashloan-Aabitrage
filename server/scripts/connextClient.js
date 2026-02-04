@@ -6,6 +6,23 @@
  */
 
 const { ethers } = require("ethers");
+const axios = require("axios");
+
+// Import event bus for alerts
+let eventBus;
+try {
+  eventBus = require("../utils/eventBus");
+} catch (e) {
+  eventBus = null;
+}
+
+// Import Slack utils for alerts
+let sendSlackAlert;
+try {
+  ({ sendSlackAlert } = require("./slackUtils"));
+} catch (e) {
+  sendSlackAlert = async (msg) => console.log(`[Connext Alert] ${msg}`);
+}
 
 // ConnextAdapter ABI (from deployed contract)
 const CONNEXT_ADAPTER_ABI = [
@@ -42,7 +59,27 @@ const DEFAULT_CONFIG = {
   // Auto-forward on profit threshold
   autoForwardEnabled: false,
   autoForwardThreshold: ethers.utils.parseUnits("100", 18), // 100 tokens
+
+  // Monitoring configuration
+  monitoringEnabled: true,
+  monitoringIntervalMs: 60000, // Check every minute
+  stuckTransferThresholdMs: 30 * 60 * 1000, // 30 minutes
+  alertOnCompletion: true,
+  alertOnFailure: true,
+  alertOnStuck: true,
 };
+
+// Connext subgraph endpoints by network
+const CONNEXT_SUBGRAPH_URLS = {
+  ethereum: "https://api.thegraph.com/subgraphs/name/connext/amarok-runtime-v0-mainnet",
+  optimism: "https://api.thegraph.com/subgraphs/name/connext/amarok-runtime-v0-optimism",
+  arbitrum: "https://api.thegraph.com/subgraphs/name/connext/amarok-runtime-v0-arbitrum-one",
+  polygon: "https://api.thegraph.com/subgraphs/name/connext/amarok-runtime-v0-polygon",
+};
+
+// Monitoring state
+let monitoringInterval = null;
+let sourceChain = "ethereum";
 
 // State
 let connextAdapter = null;
@@ -437,6 +474,257 @@ async function checkAutoForward(token) {
   };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Automated Monitoring & Alerts
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Query Connext subgraph for transfer status
+ * @param {string} transferId - Transfer ID to check
+ * @returns {Object} - Transfer status from subgraph
+ */
+async function queryConnextSubgraph(transferId) {
+  const subgraphUrl = CONNEXT_SUBGRAPH_URLS[sourceChain];
+  if (!subgraphUrl) {
+    return { error: `No subgraph URL for chain: ${sourceChain}` };
+  }
+
+  const query = `
+    query GetTransfer($transferId: ID!) {
+      originTransfer(id: $transferId) {
+        transferId
+        status
+        originDomain
+        destinationDomain
+        asset
+        amount
+        bridgedAmount
+        timestamp
+        txHash
+      }
+      destinationTransfer(id: $transferId) {
+        transferId
+        status
+        executedTxHash
+        reconciledTxHash
+        timestamp
+      }
+    }
+  `;
+
+  try {
+    const response = await axios.post(
+      subgraphUrl,
+      { query, variables: { transferId } },
+      { timeout: 10000 }
+    );
+
+    const { originTransfer, destinationTransfer } = response.data?.data || {};
+
+    return {
+      origin: originTransfer,
+      destination: destinationTransfer,
+      status: destinationTransfer?.status || originTransfer?.status || "unknown",
+      completed: destinationTransfer?.status === "Executed" ||
+                 destinationTransfer?.status === "Reconciled",
+    };
+  } catch (err) {
+    console.warn(`[Connext] Subgraph query failed: ${err.message}`);
+    return { error: err.message };
+  }
+}
+
+/**
+ * Check all pending transfers and update their status
+ */
+async function checkPendingTransfersStatus() {
+  const pending = getPendingTransfers();
+  if (pending.length === 0) return;
+
+  console.log(`[Connext Monitor] Checking ${pending.length} pending transfers...`);
+
+  for (const transfer of pending) {
+    try {
+      const subgraphStatus = await queryConnextSubgraph(transfer.transferId);
+      const now = Date.now();
+      const age = now - transfer.createdAt;
+
+      // Check if completed
+      if (subgraphStatus.completed) {
+        updateTransferStatus(transfer.transferId, TransferStatus.COMPLETED, {
+          completedAt: now,
+          destinationTxHash: subgraphStatus.destination?.executedTxHash,
+        });
+
+        // Send completion alert
+        if (config.alertOnCompletion) {
+          const amount = ethers.utils.formatUnits(transfer.amount, 18);
+          await sendSlackAlert(
+            `✅ [Connext] Cross-chain transfer completed!\n` +
+            `Transfer ID: ${transfer.transferId}\n` +
+            `Amount: ${amount} tokens\n` +
+            `Duration: ${Math.round(age / 60000)} minutes`
+          );
+        }
+
+        // Emit event
+        if (eventBus) {
+          eventBus.emitConnextTransfer({
+            type: "completed",
+            transfer: { ...transfer, status: TransferStatus.COMPLETED },
+          });
+        }
+      }
+      // Check if failed
+      else if (subgraphStatus.status === "Failed" || subgraphStatus.status === "Cancelled") {
+        updateTransferStatus(transfer.transferId, TransferStatus.FAILED, {
+          failedAt: now,
+          failureReason: subgraphStatus.status,
+        });
+
+        // Send failure alert
+        if (config.alertOnFailure) {
+          const amount = ethers.utils.formatUnits(transfer.amount, 18);
+          await sendSlackAlert(
+            `❌ [Connext] Cross-chain transfer FAILED!\n` +
+            `Transfer ID: ${transfer.transferId}\n` +
+            `Amount: ${amount} tokens\n` +
+            `Reason: ${subgraphStatus.status}\n` +
+            `Original TX: ${transfer.txHash}`
+          );
+        }
+
+        // Emit event
+        if (eventBus) {
+          eventBus.emitConnextTransfer({
+            type: "failed",
+            transfer: { ...transfer, status: TransferStatus.FAILED },
+          });
+        }
+      }
+      // Check if stuck
+      else if (age > config.stuckTransferThresholdMs) {
+        // Mark as potentially stuck (but don't change status yet)
+        if (!transfer.stuckAlertSent) {
+          transfer.stuckAlertSent = true;
+
+          if (config.alertOnStuck) {
+            const amount = ethers.utils.formatUnits(transfer.amount, 18);
+            await sendSlackAlert(
+              `⚠️ [Connext] Transfer may be stuck!\n` +
+              `Transfer ID: ${transfer.transferId}\n` +
+              `Amount: ${amount} tokens\n` +
+              `Age: ${Math.round(age / 60000)} minutes\n` +
+              `Status: ${subgraphStatus.status || "unknown"}\n` +
+              `Please check Connextscan: https://connextscan.io/tx/${transfer.transferId}`
+            );
+          }
+
+          // Emit event
+          if (eventBus) {
+            eventBus.emitConnextTransfer({
+              type: "stuck",
+              transfer,
+              age,
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.error(`[Connext Monitor] Error checking transfer ${transfer.transferId}: ${err.message}`);
+    }
+  }
+}
+
+/**
+ * Start automated monitoring of pending transfers
+ */
+function startMonitoring() {
+  if (monitoringInterval) {
+    console.log("[Connext Monitor] Already running");
+    return;
+  }
+
+  if (!config.monitoringEnabled) {
+    console.log("[Connext Monitor] Monitoring disabled in config");
+    return;
+  }
+
+  console.log(`[Connext Monitor] Starting (interval: ${config.monitoringIntervalMs}ms)`);
+
+  // Run immediately
+  checkPendingTransfersStatus().catch(err => {
+    console.error(`[Connext Monitor] Initial check failed: ${err.message}`);
+  });
+
+  // Schedule periodic checks
+  monitoringInterval = setInterval(() => {
+    checkPendingTransfersStatus().catch(err => {
+      console.error(`[Connext Monitor] Check failed: ${err.message}`);
+    });
+  }, config.monitoringIntervalMs);
+}
+
+/**
+ * Stop automated monitoring
+ */
+function stopMonitoring() {
+  if (monitoringInterval) {
+    clearInterval(monitoringInterval);
+    monitoringInterval = null;
+    console.log("[Connext Monitor] Stopped");
+  }
+}
+
+/**
+ * Get monitoring status
+ */
+function getMonitoringStatus() {
+  return {
+    enabled: config.monitoringEnabled,
+    running: !!monitoringInterval,
+    intervalMs: config.monitoringIntervalMs,
+    stuckThresholdMs: config.stuckTransferThresholdMs,
+    pendingCount: pendingTransfers.size,
+    alerts: {
+      onCompletion: config.alertOnCompletion,
+      onFailure: config.alertOnFailure,
+      onStuck: config.alertOnStuck,
+    },
+  };
+}
+
+/**
+ * Update monitoring configuration
+ * @param {Object} newConfig - New monitoring settings
+ */
+function updateMonitoringConfig(newConfig) {
+  const restartNeeded = newConfig.monitoringIntervalMs !== undefined &&
+    newConfig.monitoringIntervalMs !== config.monitoringIntervalMs;
+
+  Object.assign(config, newConfig);
+
+  if (restartNeeded && monitoringInterval) {
+    stopMonitoring();
+    startMonitoring();
+  }
+
+  return getMonitoringStatus();
+}
+
+/**
+ * Set the source chain for subgraph queries
+ * @param {string} chain - Chain name
+ */
+function setSourceChain(chain) {
+  if (CONNEXT_SUBGRAPH_URLS[chain]) {
+    sourceChain = chain;
+    console.log(`[Connext] Source chain set to: ${chain}`);
+  } else {
+    console.warn(`[Connext] Unknown chain: ${chain}, using ${sourceChain}`);
+  }
+}
+
 module.exports = {
   initConnextClient,
   forwardProfits,
@@ -453,8 +741,17 @@ module.exports = {
   getTransferHistory,
   getPendingTransfers,
   TransferStatus,
+  // Monitoring
+  startMonitoring,
+  stopMonitoring,
+  getMonitoringStatus,
+  updateMonitoringConfig,
+  checkPendingTransfersStatus,
+  queryConnextSubgraph,
+  setSourceChain,
   // Constants
   CONNEXT_DOMAINS,
+  CONNEXT_SUBGRAPH_URLS,
   CONNEXT_ADAPTER_ABI,
   DEFAULT_CONFIG,
 };

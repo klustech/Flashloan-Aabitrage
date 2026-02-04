@@ -27,7 +27,9 @@ import {
   AccessTime,
   LocalGasStation,
   SwapHoriz,
+  Refresh,
 } from "@mui/icons-material";
+import { getOpportunities } from "../services/api";
 
 // DEX labels for display
 const DEX_LABELS = {
@@ -44,18 +46,70 @@ const RealTimeOpportunities = ({ wsEndpoint }) => {
   const [paused, setPaused] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [autoExecute, setAutoExecute] = useState(false);
+  const [loading, setLoading] = useState(false);
   const wsRef = useRef(null);
   const audioRef = useRef(null);
+  const pollIntervalRef = useRef(null);
+
+  // Fetch opportunities via REST API (fallback when WebSocket not connected)
+  const fetchOpportunities = async () => {
+    if (connected) return; // Skip if WebSocket is connected
+    try {
+      setLoading(true);
+      const data = await getOpportunities();
+      if (data?.opportunities && Array.isArray(data.opportunities)) {
+        // Transform API data to match WebSocket format
+        const transformed = data.opportunities.map((opp, idx) => ({
+          id: opp.id || `api-${idx}-${Date.now()}`,
+          route: opp.route || opp.swapData?.route || "Unknown Route",
+          dexPath: opp.dexPath || [],
+          netProfit: opp.netProfit || opp.profit || "0",
+          gasCost: opp.gasCost || opp.gasCostDai || "0",
+          mlScore: opp.mlScore || 0.5,
+          timestamp: opp.timestamp || Date.now(),
+        }));
+        setOpportunities(transformed);
+      }
+    } catch (err) {
+      console.error("[RealTimeOpportunities] API fetch error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Sound notification for high-value opportunities
   useEffect(() => {
     audioRef.current = new Audio("/notification.mp3");
+
+    // Initial fetch
+    fetchOpportunities();
+
     return () => {
       if (wsRef.current) {
         wsRef.current.close();
       }
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
     };
   }, []);
+
+  // Start/stop polling based on WebSocket connection
+  useEffect(() => {
+    if (!connected && !paused) {
+      // Start polling when WebSocket is disconnected
+      pollIntervalRef.current = setInterval(fetchOpportunities, 15000);
+    } else if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, [connected, paused]);
 
   // WebSocket connection for real-time updates
   useEffect(() => {
@@ -154,38 +208,8 @@ const RealTimeOpportunities = ({ wsEndpoint }) => {
     return "error.main";
   };
 
-  // Demo opportunities for testing when no WebSocket
-  const demoOpportunities = [
-    {
-      id: 1,
-      route: "WETH → DAI → USDC → WETH",
-      dexPath: ["uniswap_v2", "curve", "uniswap_v3"],
-      netProfit: "0.0234",
-      gasCost: "0.008",
-      mlScore: 0.87,
-      timestamp: Date.now() - 5000,
-    },
-    {
-      id: 2,
-      route: "WETH → WBTC → USDT → WETH",
-      dexPath: ["sushiswap", "uniswap_v3", "balancer"],
-      netProfit: "0.0156",
-      gasCost: "0.012",
-      mlScore: 0.72,
-      timestamp: Date.now() - 15000,
-    },
-    {
-      id: 3,
-      route: "DAI → USDC → USDT → DAI",
-      dexPath: ["curve", "curve", "curve"],
-      netProfit: "0.0089",
-      gasCost: "0.004",
-      mlScore: 0.65,
-      timestamp: Date.now() - 45000,
-    },
-  ];
-
-  const displayOpportunities = opportunities.length > 0 ? opportunities : demoOpportunities;
+  // Use real opportunities only - no demo data
+  const displayOpportunities = opportunities;
 
   return (
     <Card>

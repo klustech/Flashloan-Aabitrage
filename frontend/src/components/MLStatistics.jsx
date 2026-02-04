@@ -78,33 +78,52 @@ const MLStatistics = () => {
     );
   }
 
-  // Default stats if API not available
-  const displayStats = stats || {
-    modelVersion: "lightgbm-v1.2",
-    lastTrained: new Date().toISOString(),
-    accuracy: 0.78,
-    precision: 0.82,
-    recall: 0.75,
-    f1Score: 0.78,
-    auc: 0.85,
-    totalPredictions: 1250,
-    correctPredictions: 975,
-    avgResponseTime: 45,
-    featureImportance: [
-      { feature: "liquidity_ratio", importance: 0.25 },
-      { feature: "price_impact", importance: 0.20 },
-      { feature: "gas_estimate", importance: 0.18 },
-      { feature: "volatility_24h", importance: 0.15 },
-      { feature: "pool_depth", importance: 0.12 },
-      { feature: "time_since_update", importance: 0.10 },
-    ],
-    recentPredictions: [
-      { id: 1, score: 0.85, actual: true, profit: 0.023 },
-      { id: 2, score: 0.72, actual: true, profit: 0.015 },
-      { id: 3, score: 0.45, actual: false, profit: 0 },
-      { id: 4, score: 0.91, actual: true, profit: 0.041 },
-      { id: 5, score: 0.38, actual: false, profit: 0 },
-    ],
+  // Check if ML model is available and has data
+  const isMLAvailable = stats?.available !== false;
+  const hasData = stats?.totalPredictions > 0 || stats?.accuracy !== null;
+
+  // Show not available state
+  if (!isMLAvailable || (!hasData && !loading)) {
+    return (
+      <Card>
+        <CardContent>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Psychology color="disabled" />
+              <Typography variant="h6">ML Model Statistics</Typography>
+            </Box>
+            <IconButton onClick={fetchStats} size="small" disabled={loading}>
+              <Refresh />
+            </IconButton>
+          </Box>
+          <Paper sx={{ p: 3, textAlign: "center", bgcolor: "background.default" }}>
+            <Psychology sx={{ fontSize: 48, opacity: 0.3, mb: 2 }} />
+            <Typography variant="body1" color="text.secondary" gutterBottom>
+              {stats?.message || "ML model not configured or no predictions yet"}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Configure ML_MODEL_ENDPOINT environment variable to enable ML scoring
+            </Typography>
+          </Paper>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Use API data with safe defaults
+  const displayStats = {
+    modelVersion: stats?.modelVersion || "unknown",
+    lastTrained: stats?.lastTrained || new Date().toISOString(),
+    accuracy: stats?.accuracy ?? null,
+    precision: stats?.precision ?? null,
+    recall: stats?.recall ?? null,
+    f1Score: stats?.f1Score ?? null,
+    auc: stats?.auc ?? null,
+    totalPredictions: stats?.totalPredictions || 0,
+    correctPredictions: stats?.correctPredictions || 0,
+    avgResponseTime: stats?.avgResponseTime || 0,
+    featureImportance: stats?.featureImportance || [],
+    recentPredictions: stats?.recentPredictions || [],
   };
 
   return (
