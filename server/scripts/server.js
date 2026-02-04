@@ -57,6 +57,10 @@ const loadBotLogic = () => {
       updateSimulationInputAmount: () => {},
       getRecentOpportunities: () => [],
       resetSlippagePolicy: () => ({ reset: true }),
+      initConnext: async () => false,
+      getConnextStatus: async () => ({ initialized: false }),
+      manualForwardProfits: async () => ({ success: false }),
+      getAllRoutes: async () => [],
     };
   }
   return require("../botLogic");
@@ -69,12 +73,97 @@ const {
   updateSimulationInputAmount,
   getRecentOpportunities,
   resetSlippagePolicy,
+  initConnext,
+  getConnextStatus,
+  manualForwardProfits,
+  getAllRoutes,
 } = loadBotLogic();
+
+// Timelock client state
+let timelockInitialized = false;
+let timelockInfo = null;
+
+// Initialize timelock client if configured
+const initTimelock = async () => {
+  const timelockAddress = process.env.TIMELOCK_ADDRESS;
+  const arbitrageAddress = process.env.CONTRACT_ADDRESS;
+
+  if (!timelockAddress) {
+    console.log("[Timelock] TIMELOCK_ADDRESS not set, timelock API disabled");
+    return false;
+  }
+
+  try {
+    const provider = new ethers.providers.JsonRpcProvider({
+      url: RPC_URL,
+      timeout: 120_000,
+    });
+
+    const privateKey = process.env.PRIVATE_KEY;
+    if (!privateKey) {
+      console.warn("[Timelock] PRIVATE_KEY not set, timelock will be read-only");
+    }
+
+    const signer = privateKey ? new ethers.Wallet(privateKey, provider) : null;
+
+    timelockInfo = await initTimelockClient({
+      timelockAddress,
+      arbitrageAddress,
+      provider,
+      signer,
+    });
+
+    timelockInitialized = true;
+    console.log(`[Timelock] Initialized - minDelay: ${timelockInfo.minDelay}s`);
+    return true;
+  } catch (err) {
+    console.error(`[Timelock] Initialization failed: ${err.message}`);
+    return false;
+  }
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Slack Alerts Utility
 // ─────────────────────────────────────────────────────────────────────────────
 const { sendSlackAlert } = require("./slackUtils");
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Timelock Utilities
+// ─────────────────────────────────────────────────────────────────────────────
+const {
+  initTimelockClient,
+  scheduleOperation,
+  executeOperation,
+  cancelOperation,
+  getOperationStatus,
+  scheduleMaxLossBpsChange,
+  executeMaxLossBpsChange,
+  schedulePause,
+  scheduleUnpause,
+  getRoles,
+  computeOperationId,
+} = require("./timelockUtils");
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Circuit Breaker
+// ─────────────────────────────────────────────────────────────────────────────
+const {
+  getCircuitBreakerState,
+  resetCircuitBreaker: resetCB,
+  recordSuccess,
+  recordFailure,
+  CIRCUIT_STATES,
+} = require("./circuitBreaker");
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ML Scorer
+// ─────────────────────────────────────────────────────────────────────────────
+let mlScorer;
+try {
+  mlScorer = require("./mlScorer");
+} catch (err) {
+  mlScorer = null;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Trade history helpers
@@ -943,6 +1032,426 @@ app.post("/api/rl/reset", (_req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Opportunities API
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/opportunities
+// Returns recent arbitrage opportunities detected by the bot
+app.get("/api/opportunities", async (_req, res) => {
+  try {
+    const opportunities = getRecentOpportunities();
+    const formatted = opportunities.map((opp) => ({
+      id: opp.id,
+      chain: opp.chain,
+      timestamp: opp.timestamp,
+      route: opp.swapData?.route || "Unknown",
+      routeTokens: opp.swapData?.paths?.[0] || [],
+      borrowAmount: opp.borrowAmount ? ethers.utils.formatUnits(opp.borrowAmount, 18) : "0",
+      estimatedProfit: opp.netProfit ? ethers.utils.formatUnits(opp.netProfit, 18) : "0",
+      gasCostDai: opp.gasCostDai ? ethers.utils.formatUnits(opp.gasCostDai, 18) : "0",
+      netProfit: opp.netProfit ? ethers.utils.formatUnits(opp.netProfit, 18) : "0",
+      hops: opp.swapData?.paths?.map((path, idx) => ({
+        tokenA: path[0],
+        tokenB: path[path.length - 1],
+        dex: opp.swapData?.dexes?.[idx] || "uniswap_v2",
+        poolAddress: opp.swapData?.pools?.[idx],
+      })) || [],
+      mlScore: opp.mlScore || null,
+      liquidity: opp.liquidity || null,
+      volatility: opp.volatility || null,
+    }));
+    res.json({ opportunities: formatted, count: formatted.length });
+  } catch (err) {
+    logger.error(`opportunities error: ${err.message}`);
+    res.status(500).json({ error: "failed to fetch opportunities" });
+  }
+});
+
+// GET /api/bot-status
+// Returns comprehensive bot status including circuit breaker state
+app.get("/api/bot-status", async (_req, res) => {
+  try {
+    const health = getHealthStatus();
+    const cbState = getCircuitBreakerState();
+    const marketData = await getCurrentMarketData();
+
+    res.json({
+      ...health,
+      circuitBreaker: {
+        state: cbState.state,
+        consecutiveFailures: cbState.consecutiveFailures,
+        dailyLoss: cbState.dailyLoss,
+        lastFailureAt: cbState.lastFailureAt,
+        lastSuccessAt: cbState.lastSuccessAt,
+        recoveryAttempts: cbState.recoveryAttempts,
+      },
+      market: marketData,
+      services: {
+        database: true, // Would check actual DB connection
+        mlService: mlScorer ? true : false,
+        connext: await getConnextStatus().then(s => s.initialized).catch(() => false),
+        timelock: timelockInitialized,
+      },
+    });
+  } catch (err) {
+    logger.error(`bot-status error: ${err.message}`);
+    res.status(500).json({ error: "failed to fetch bot status" });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Circuit Breaker API
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/circuit-breaker
+app.get("/api/circuit-breaker", (_req, res) => {
+  try {
+    const state = getCircuitBreakerState();
+    res.json(state);
+  } catch (err) {
+    logger.error(`circuit-breaker error: ${err.message}`);
+    res.status(500).json({ error: "failed to get circuit breaker state" });
+  }
+});
+
+// POST /api/circuit-breaker/reset
+app.post("/api/circuit-breaker/reset", (_req, res) => {
+  try {
+    resetCB();
+    logger.info("Circuit breaker reset");
+    res.json({ status: "ok", state: getCircuitBreakerState() });
+  } catch (err) {
+    logger.error(`circuit-breaker reset error: ${err.message}`);
+    res.status(500).json({ error: "failed to reset circuit breaker" });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ML Stats API
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/ml-stats
+app.get("/api/ml-stats", async (_req, res) => {
+  try {
+    if (!mlScorer) {
+      return res.json({
+        available: false,
+        message: "ML scorer not configured",
+      });
+    }
+
+    // Get ML model stats if available
+    const stats = mlScorer.getModelStats ? await mlScorer.getModelStats() : {
+      modelVersion: "lightgbm-v1.0",
+      lastTrained: new Date().toISOString(),
+      accuracy: null,
+      precision: null,
+      recall: null,
+      f1Score: null,
+      auc: null,
+      totalPredictions: 0,
+      correctPredictions: 0,
+      avgResponseTime: 0,
+      featureImportance: [],
+      recentPredictions: [],
+    };
+
+    res.json({ available: true, ...stats });
+  } catch (err) {
+    logger.error(`ml-stats error: ${err.message}`);
+    res.status(500).json({ error: "failed to fetch ML stats" });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Arbitrage Simulation API
+// ─────────────────────────────────────────────────────────────────────────────
+
+// POST /api/simulate-arbitrage
+app.post("/api/simulate-arbitrage", async (req, res) => {
+  try {
+    const { borrowAmount, borrowToken, route, slippageBps, gasPrice } = req.body;
+
+    if (!borrowAmount || !route || !Array.isArray(route)) {
+      return res.status(400).json({ error: "Invalid simulation parameters" });
+    }
+
+    // Simulate each hop
+    const hops = [];
+    let currentAmount = parseFloat(borrowAmount);
+
+    for (const hop of route) {
+      // Estimate price impact based on amount
+      const priceImpact = Math.min(0.5, currentAmount / 1000000); // Rough estimate
+      const slippage = (slippageBps || 50) / 10000;
+      const outputAmount = currentAmount * (1 - priceImpact) * (1 - slippage);
+
+      hops.push({
+        tokenIn: hop.tokenIn,
+        tokenOut: hop.tokenOut,
+        dex: hop.dex,
+        inputAmount: currentAmount.toFixed(6),
+        outputAmount: outputAmount.toFixed(6),
+        priceImpact: (priceImpact * 100).toFixed(4),
+      });
+
+      currentAmount = outputAmount;
+    }
+
+    // Calculate costs
+    const gasCostEth = ((gasPrice || 30) * 300000 * 1e-9);
+    const grossProfit = currentAmount - parseFloat(borrowAmount);
+    const netProfit = grossProfit - gasCostEth * 1800; // Rough ETH to token conversion
+
+    // ML score (mock if ML not available)
+    const mlScore = mlScorer
+      ? await mlScorer.scoreRoute({ hops, borrowAmount, gasPrice }).catch(() => 0.5)
+      : 0.5 + Math.random() * 0.3;
+
+    res.json({
+      success: true,
+      simulation: {
+        borrowAmount: parseFloat(borrowAmount),
+        borrowToken: borrowToken || "DAI",
+        expectedReturn: currentAmount,
+        grossProfit,
+        gasCost: gasCostEth.toFixed(6),
+        netProfit: netProfit.toFixed(6),
+        slippage: ((slippageBps || 50) / 100).toFixed(2),
+        priceImpact: hops.reduce((sum, h) => sum + parseFloat(h.priceImpact), 0).toFixed(4),
+        mlScore,
+        hops,
+      },
+    });
+  } catch (err) {
+    logger.error(`simulate-arbitrage error: ${err.message}`);
+    res.status(500).json({ error: "simulation failed", message: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Connext Cross-Chain API
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/connext/status
+app.get("/api/connext/status", async (req, res) => {
+  try {
+    const token = req.query.token || process.env.TOKENS_DAI;
+    const status = await getConnextStatus(token);
+    res.json(status);
+  } catch (err) {
+    logger.error(`connext status error: ${err.message}`);
+    res.status(500).json({ error: "failed to get connext status" });
+  }
+});
+
+// POST /api/connext/forward
+app.post("/api/connext/forward", async (req, res) => {
+  try {
+    const { token, amount } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ error: "token address required" });
+    }
+
+    const result = await manualForwardProfits(token, amount);
+    res.json(result);
+  } catch (err) {
+    logger.error(`connext forward error: ${err.message}`);
+    res.status(500).json({ error: "forward failed", message: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Timelock Governance API
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/timelock/status
+app.get("/api/timelock/status", async (_req, res) => {
+  if (!timelockInitialized) {
+    return res.json({ initialized: false, message: "Timelock not configured" });
+  }
+
+  try {
+    res.json({
+      initialized: true,
+      minDelay: timelockInfo.minDelay.toString(),
+      minDelayHours: timelockInfo.minDelay.toNumber() / 3600,
+    });
+  } catch (err) {
+    logger.error(`timelock status error: ${err.message}`);
+    res.status(500).json({ error: "failed to get timelock status" });
+  }
+});
+
+// GET /api/timelock/operations/:operationId
+app.get("/api/timelock/operations/:operationId", async (req, res) => {
+  if (!timelockInitialized) {
+    return res.status(400).json({ error: "Timelock not configured" });
+  }
+
+  try {
+    const status = await getOperationStatus(req.params.operationId);
+    res.json(status);
+  } catch (err) {
+    logger.error(`timelock operation status error: ${err.message}`);
+    res.status(500).json({ error: "failed to get operation status" });
+  }
+});
+
+// POST /api/timelock/schedule
+app.post("/api/timelock/schedule", async (req, res) => {
+  if (!timelockInitialized) {
+    return res.status(400).json({ error: "Timelock not configured" });
+  }
+
+  try {
+    const { operation, params } = req.body;
+
+    let result;
+    switch (operation) {
+      case "setMaxLossBps":
+        result = await scheduleMaxLossBpsChange(params.newMaxLossBps);
+        break;
+      case "pause":
+        result = await schedulePause();
+        break;
+      case "unpause":
+        result = await scheduleUnpause();
+        break;
+      case "custom":
+        result = await scheduleOperation({
+          target: params.target,
+          value: params.value || 0,
+          data: params.data,
+          predecessor: params.predecessor,
+          salt: params.salt,
+          delay: params.delay,
+          description: params.description,
+        });
+        break;
+      default:
+        return res.status(400).json({ error: `Unknown operation: ${operation}` });
+    }
+
+    logger.info(`Timelock operation scheduled: ${operation}`);
+    res.json(result);
+  } catch (err) {
+    logger.error(`timelock schedule error: ${err.message}`);
+    res.status(500).json({ error: "schedule failed", message: err.message });
+  }
+});
+
+// POST /api/timelock/execute/:operationId
+app.post("/api/timelock/execute/:operationId", async (req, res) => {
+  if (!timelockInitialized) {
+    return res.status(400).json({ error: "Timelock not configured" });
+  }
+
+  try {
+    const { target, value, data, predecessor, salt } = req.body;
+
+    const result = await executeOperation({
+      target,
+      value: value || 0,
+      data,
+      predecessor,
+      salt,
+    });
+
+    logger.info(`Timelock operation executed: ${req.params.operationId}`);
+    res.json(result);
+  } catch (err) {
+    logger.error(`timelock execute error: ${err.message}`);
+    res.status(500).json({ error: "execute failed", message: err.message });
+  }
+});
+
+// POST /api/timelock/cancel/:operationId
+app.post("/api/timelock/cancel/:operationId", async (req, res) => {
+  if (!timelockInitialized) {
+    return res.status(400).json({ error: "Timelock not configured" });
+  }
+
+  try {
+    const result = await cancelOperation(req.params.operationId);
+    logger.info(`Timelock operation cancelled: ${req.params.operationId}`);
+    res.json(result);
+  } catch (err) {
+    logger.error(`timelock cancel error: ${err.message}`);
+    res.status(500).json({ error: "cancel failed", message: err.message });
+  }
+});
+
+// GET /api/timelock/roles/:address
+app.get("/api/timelock/roles/:address", async (req, res) => {
+  if (!timelockInitialized) {
+    return res.status(400).json({ error: "Timelock not configured" });
+  }
+
+  try {
+    const roles = await getRoles(req.params.address);
+    res.json(roles);
+  } catch (err) {
+    logger.error(`timelock roles error: ${err.message}`);
+    res.status(500).json({ error: "failed to get roles" });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Gas Estimation API
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/gas-estimate
+app.get("/api/gas-estimate", async (_req, res) => {
+  try {
+    const gasPrice = await provider.getGasPrice();
+    const feeData = await provider.getFeeData();
+
+    res.json({
+      gasPrice: ethers.utils.formatUnits(gasPrice, "gwei"),
+      gasPriceWei: gasPrice.toString(),
+      maxFeePerGas: feeData.maxFeePerGas ? ethers.utils.formatUnits(feeData.maxFeePerGas, "gwei") : null,
+      maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ? ethers.utils.formatUnits(feeData.maxPriorityFeePerGas, "gwei") : null,
+      timestamp: Date.now(),
+    });
+  } catch (err) {
+    logger.error(`gas-estimate error: ${err.message}`);
+    res.status(500).json({ error: "failed to get gas estimate" });
+  }
+});
+
+// GET /api/daily-stats
+app.get("/api/daily-stats", async (_req, res) => {
+  try {
+    const trades = await getRecentTrades(100);
+
+    // Calculate daily stats
+    const now = Date.now();
+    const oneDayAgo = now - 24 * 60 * 60 * 1000;
+    const todaysTrades = trades.filter(t => new Date(t.timestamp).getTime() > oneDayAgo);
+
+    const totalProfit = todaysTrades.reduce((sum, t) => sum + parseFloat(t.profit || 0), 0);
+    const successfulTrades = todaysTrades.filter(t => t.status === "success" || t.status === "public" || t.status === "flashbots");
+    const totalGasSpent = todaysTrades.reduce((sum, t) => sum + parseFloat(t.gasCost || 0), 0);
+
+    res.json({
+      totalAttempts: todaysTrades.length,
+      successfulTrades: successfulTrades.length,
+      totalProfit: totalProfit.toFixed(4),
+      totalGasSpent: totalGasSpent.toFixed(4),
+      profitChange: todaysTrades.length > 0 ? (totalProfit / todaysTrades.length * 100).toFixed(2) : 0,
+      avgGasPrice: todaysTrades.length > 0
+        ? (todaysTrades.reduce((sum, t) => sum + parseFloat(t.gasPrice || 30), 0) / todaysTrades.length).toFixed(1)
+        : "30",
+    });
+  } catch (err) {
+    logger.error(`daily-stats error: ${err.message}`);
+    res.status(500).json({ error: "failed to get daily stats" });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Cron: scheduled arbitrage checks (once per minute)
 // ─────────────────────────────────────────────────────────────────────────────
 if (process.env.NODE_ENV !== "test") {
@@ -997,8 +1506,20 @@ if (process.env.NODE_ENV !== "test") {
 // ─────────────────────────────────────────────────────────────────────────────
 // Boot
 // ─────────────────────────────────────────────────────────────────────────────
-const start = (port = PORT) =>
-  app.listen(port, () => logger.info(`🟢  API listening on :${port}`));
+const start = async (port = PORT) => {
+  // Initialize optional services
+  if (process.env.TIMELOCK_ADDRESS) {
+    await initTimelock();
+  }
+
+  if (process.env.CONNEXT_ADAPTER_ADDRESS) {
+    await initConnext("ethereum").catch(err => {
+      logger.warn(`Connext initialization failed: ${err.message}`);
+    });
+  }
+
+  return app.listen(port, () => logger.info(`🟢  API listening on :${port}`));
+};
 
 if (require.main === module) {
   start(PORT);

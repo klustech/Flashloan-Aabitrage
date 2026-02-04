@@ -59,6 +59,21 @@ if (!features.reinforcementLearning) {
 const { initSlippageAgent } = require("./rl/slippageAgent");
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Imports: Connext Cross-Chain Profit Forwarding
+// ─────────────────────────────────────────────────────────────────────────────
+const {
+  initConnextClient,
+  forwardProfits,
+  checkAutoForward,
+  getAccumulatedProfits,
+  getDestinationInfo,
+} = require("./scripts/connextClient");
+
+// Connext state
+let connextInitialized = false;
+let connextConfig = null;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Reintroduced: CoinGecko Caching & Dynamic Slippage (exactly from original)
 // ─────────────────────────────────────────────────────────────────────────────
 const cache = {
@@ -402,37 +417,72 @@ try {
 // ─────────────────────────────────────────────────────────────────────────────
 // Providers for Ethereum, Arbitrum, Optimism
 // ─────────────────────────────────────────────────────────────────────────────
-const DEFAULT_CHAIN = "ethereum";
+const DEFAULT_CHAIN = process.env.DEFAULT_CHAIN || "ethereum";
+
+// RPC URL mapping for different networks
+const NETWORK_RPC_URLS = {
+  ethereum: process.env.MAINNET_RPC_URL || MAINNET_RPC_URL,
+  arbitrum: process.env.ARBITRUM_RPC_URL,
+  optimism: process.env.OPTIMISM_RPC_URL,
+  polygon: process.env.POLYGON_RPC_URL,
+  base: process.env.BASE_RPC_URL,
+};
 
 const chainContexts = new Map();
 
+/**
+ * Get chain context with network-specific configuration
+ */
 function getChainContext(chain) {
   if (!chainContexts.has(chain)) {
+    // Get network-specific RPC URL
+    const rpcUrl = NETWORK_RPC_URLS[chain] || MAINNET_RPC_URL;
+    if (!rpcUrl) {
+      throw new Error(`No RPC URL configured for chain: ${chain}`);
+    }
+
     const provider = new ethers.providers.JsonRpcProvider({
-      url: MAINNET_RPC_URL,
+      url: rpcUrl,
       timeout: 120_000,
     });
     const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+
+    // Get network-specific DEX routers
+    const dexRouters = getCachedDexRouters(chain);
+    const tokens = getCachedTokenAddresses(chain);
+
     const context = {
       provider,
       wallet,
+      chain,
+      tokens,
+      dexRouters,
       arbContract: new ethers.Contract(
         VALID_CONTRACT_ADDRESS,
         arbitrageABI,
         wallet
       ),
     };
-    context.uniRouter = new ethers.Contract(
-      UNISWAP_ROUTER_ADDRESS,
-      minimalRouterABI,
-      wallet
-    );
-    context.sushiRouter = new ethers.Contract(
-      SUSHISWAP_ROUTER_ADDRESS,
-      minimalRouterABI,
-      wallet
-    );
+
+    // Set up DEX routers with network-specific addresses
+    if (dexRouters.uniswap_v2?.router) {
+      context.uniRouter = new ethers.Contract(
+        dexRouters.uniswap_v2.router,
+        minimalRouterABI,
+        wallet
+      );
+    }
+
+    if (dexRouters.sushiswap?.router) {
+      context.sushiRouter = new ethers.Contract(
+        dexRouters.sushiswap.router,
+        minimalRouterABI,
+        wallet
+      );
+    }
+
     chainContexts.set(chain, context);
+    logger.info(`[${chain}] Chain context initialized with ${Object.keys(tokens).filter(k => tokens[k]).length} tokens`);
   }
   return chainContexts.get(chain);
 }
@@ -525,15 +575,130 @@ slippageAgent = initSlippageAgent({
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Token & DEX Setup (addresses must be in .env)
+// Network Configuration Import
 // ─────────────────────────────────────────────────────────────────────────────
-const tokenAddresses = {
-  DAI: (TOKENS_DAI || "").toLowerCase(),
-  WETH: (TOKENS_WETH || "").toLowerCase(),
-  USDC: (TOKENS_USDC || "").toLowerCase(),
-  USDT: (TOKENS_USDT || "").toLowerCase(),
-  UNI: (TOKENS_UNI || "").toLowerCase(),
-};
+const {
+  getNetworkConfig,
+  getTokenAddress,
+  getDexConfig,
+  getSupportedNetworks,
+  TOKENS: NETWORK_TOKENS,
+  DEX_ROUTERS,
+  AAVE_CONFIG,
+} = require("./config/networkConfig");
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Token & DEX Setup (network-aware with env override)
+// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * Get token addresses for a specific network
+ * Priority: Environment variable > Network config > Empty string
+ */
+function getTokenAddresses(network = "ethereum") {
+  const networkConfig = getNetworkConfig(network);
+  const networkTokens = networkConfig.tokens || {};
+
+  return {
+    DAI: (TOKENS_DAI || networkTokens.DAI || "").toLowerCase(),
+    WETH: (TOKENS_WETH || networkTokens.WETH || "").toLowerCase(),
+    USDC: (TOKENS_USDC || networkTokens.USDC || "").toLowerCase(),
+    USDT: (TOKENS_USDT || networkTokens.USDT || "").toLowerCase(),
+    UNI: (TOKENS_UNI || networkTokens.UNI || "").toLowerCase(),
+    WBTC: (networkTokens.WBTC || "").toLowerCase(),
+    LINK: (networkTokens.LINK || "").toLowerCase(),
+    AAVE: (networkTokens.AAVE || "").toLowerCase(),
+  };
+}
+
+/**
+ * Get DEX router addresses for a specific network
+ * Priority: Environment variable > Network config
+ */
+function getDexRouters(network = "ethereum") {
+  const networkConfig = getNetworkConfig(network);
+  const dexConfig = networkConfig.dexRouters || {};
+
+  return {
+    uniswap_v2: {
+      router: UNISWAP_ROUTER_ADDRESS || dexConfig.uniswap_v2?.router || "",
+      factory: dexConfig.uniswap_v2?.factory || "",
+    },
+    uniswap_v3: {
+      router: dexConfig.uniswap_v3?.router || "",
+      quoter: dexConfig.uniswap_v3?.quoter || "",
+      quoterV2: dexConfig.uniswap_v3?.quoterV2 || "",
+      factory: dexConfig.uniswap_v3?.factory || "",
+    },
+    sushiswap: {
+      router: SUSHISWAP_ROUTER_ADDRESS || dexConfig.sushiswap?.router || "",
+      factory: dexConfig.sushiswap?.factory || "",
+    },
+    balancer: {
+      vault: dexConfig.balancer?.vault || "",
+    },
+    curve: {
+      registry: dexConfig.curve?.registry || "",
+      addressProvider: dexConfig.curve?.addressProvider || "",
+    },
+  };
+}
+
+/**
+ * Get Aave configuration for a specific network
+ */
+function getAaveConfig(network = "ethereum") {
+  const networkConfig = getNetworkConfig(network);
+  const aaveConfig = networkConfig.aave || {};
+
+  // Prefer V3 if available, fall back to V2
+  if (aaveConfig.v3) {
+    return {
+      version: 3,
+      poolAddressProvider: AAVE_LENDING_POOL_ADDRESS_PROVIDER || aaveConfig.v3.poolAddressProvider,
+      pool: aaveConfig.v3.pool,
+    };
+  }
+  if (aaveConfig.v2) {
+    return {
+      version: 2,
+      poolAddressProvider: AAVE_LENDING_POOL_ADDRESS_PROVIDER || aaveConfig.v2.lendingPoolAddressProvider,
+      pool: aaveConfig.v2.lendingPool,
+    };
+  }
+
+  return {
+    version: 2,
+    poolAddressProvider: AAVE_LENDING_POOL_ADDRESS_PROVIDER || "",
+    pool: null,
+  };
+}
+
+// Default token addresses (for backward compatibility)
+const tokenAddresses = getTokenAddresses(DEFAULT_CHAIN);
+
+// Network-specific caches
+const networkTokenCache = new Map();
+const networkDexCache = new Map();
+
+/**
+ * Get cached token addresses for a network
+ */
+function getCachedTokenAddresses(network) {
+  if (!networkTokenCache.has(network)) {
+    networkTokenCache.set(network, getTokenAddresses(network));
+  }
+  return networkTokenCache.get(network);
+}
+
+/**
+ * Get cached DEX routers for a network
+ */
+function getCachedDexRouters(network) {
+  if (!networkDexCache.has(network)) {
+    networkDexCache.set(network, getDexRouters(network));
+  }
+  return networkDexCache.get(network);
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Load ABI for ArbitrageFlashloan from server/abis/
@@ -1368,6 +1533,132 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Connext Cross-Chain Profit Forwarding
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Initialize Connext client for cross-chain profit forwarding
+ */
+async function initConnext(chain) {
+  const connextAdapterAddress = process.env.CONNEXT_ADAPTER_ADDRESS;
+  if (!connextAdapterAddress) {
+    logger.info("[Connext] CONNEXT_ADAPTER_ADDRESS not set, cross-chain forwarding disabled");
+    return false;
+  }
+
+  try {
+    const { provider, wallet } = getChainContext(chain);
+    connextConfig = await initConnextClient({
+      adapterAddress: connextAdapterAddress,
+      provider,
+      signer: wallet,
+      config: {
+        autoForwardEnabled: process.env.CONNEXT_AUTO_FORWARD === "true",
+        autoForwardThreshold: ethers.utils.parseUnits(
+          process.env.CONNEXT_AUTO_FORWARD_THRESHOLD || "100",
+          18
+        ),
+        minForwardAmount: ethers.utils.parseUnits(
+          process.env.CONNEXT_MIN_FORWARD_AMOUNT || "10",
+          18
+        ),
+      },
+    });
+    connextInitialized = true;
+    logger.info(`[Connext] Initialized - destination domain: ${connextConfig.destinationDomain}`);
+    return true;
+  } catch (err) {
+    logger.error(`[Connext] Initialization failed: ${err.message}`);
+    return false;
+  }
+}
+
+/**
+ * Check and forward profits via Connext if threshold is met
+ * @param {string} token - Token address to forward
+ * @param {BigNumber} profitAmount - Amount of profit from latest trade
+ */
+async function checkAndForwardProfits(token, profitAmount) {
+  if (!connextInitialized) {
+    return { forwarded: false, reason: "Connext not initialized" };
+  }
+
+  try {
+    // Check if auto-forward should be triggered
+    const autoForwardCheck = await checkAutoForward(token);
+
+    if (autoForwardCheck.shouldForward) {
+      logger.info(`[Connext] Auto-forward threshold reached, forwarding ${ethers.utils.formatUnits(autoForwardCheck.balance, 18)} tokens`);
+
+      const result = await forwardProfits({
+        token,
+        amount: autoForwardCheck.balance,
+      });
+
+      if (result.success) {
+        logger.info(`[Connext] Profits forwarded successfully! TX: ${result.txHash}, Transfer ID: ${result.transferId}`);
+        return {
+          forwarded: true,
+          txHash: result.txHash,
+          transferId: result.transferId,
+          amount: result.amount,
+        };
+      } else {
+        logger.warn(`[Connext] Forward failed: ${result.error || result.reason}`);
+        return { forwarded: false, reason: result.error || result.reason };
+      }
+    } else {
+      logger.info(`[Connext] Below auto-forward threshold: ${ethers.utils.formatUnits(autoForwardCheck.balance || 0, 18)} / ${ethers.utils.formatUnits(autoForwardCheck.threshold || 0, 18)}`);
+      return { forwarded: false, reason: autoForwardCheck.reason };
+    }
+  } catch (err) {
+    logger.error(`[Connext] Error checking/forwarding profits: ${err.message}`);
+    return { forwarded: false, reason: err.message };
+  }
+}
+
+/**
+ * Manually forward accumulated profits
+ * @param {string} token - Token address
+ * @param {BigNumber|string} amount - Amount to forward (optional, forwards all if not specified)
+ */
+async function manualForwardProfits(token, amount) {
+  if (!connextInitialized) {
+    throw new Error("Connext not initialized");
+  }
+
+  let forwardAmount = amount;
+  if (!forwardAmount) {
+    forwardAmount = await getAccumulatedProfits(token);
+  }
+
+  return forwardProfits({ token, amount: forwardAmount });
+}
+
+/**
+ * Get Connext status and accumulated profits
+ */
+async function getConnextStatus(token) {
+  if (!connextInitialized) {
+    return { initialized: false };
+  }
+
+  try {
+    const destInfo = await getDestinationInfo();
+    const accumulated = token ? await getAccumulatedProfits(token) : BigNumber.from(0);
+
+    return {
+      initialized: true,
+      destination: destInfo,
+      accumulatedProfits: accumulated.toString(),
+      accumulatedProfitsFormatted: ethers.utils.formatUnits(accumulated, 18),
+    };
+  } catch (err) {
+    return { initialized: true, error: err.message };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Coordinator: Run simulateAndExecuteArbChain on Each Configured Chain
 // ─────────────────────────────────────────────────────────────────────────────
 async function simulateAndExecuteArb(useFlashbots = true, options = {}) {
@@ -1375,10 +1666,26 @@ async function simulateAndExecuteArb(useFlashbots = true, options = {}) {
   const chains = [DEFAULT_CHAIN];
   let outcome = { executed: false, estimatedProfitInDai: BigNumber.from(0) };
 
+  // Initialize Connext on first run if not already done
+  if (!connextInitialized && process.env.CONNEXT_ADAPTER_ADDRESS) {
+    await initConnext(DEFAULT_CHAIN);
+  }
+
   for (const chain of chains) {
     try {
       const res = await simulateAndExecuteArbChain(chain, useFlashbots, options);
-      if (res.executed) outcome = res;
+      if (res.executed) {
+        outcome = res;
+
+        // Check and forward profits after successful arbitrage
+        if (connextInitialized && process.env.CONNEXT_AUTO_FORWARD === "true") {
+          const forwardResult = await checkAndForwardProfits(
+            tokenAddresses.DAI,
+            res.estimatedProfitInDai
+          );
+          outcome.connextForward = forwardResult;
+        }
+      }
     } catch (err) {
       logger.error(`[${chain}] Fatal error in cycle: ${err.message}`);
     }
@@ -1465,6 +1772,19 @@ module.exports.resetSlippagePolicy = function resetSlippagePolicy() {
     actions: slippageAgent.actions ? [...slippageAgent.actions] : [],
   };
 };
+
+// Connext cross-chain exports
+module.exports.initConnext = initConnext;
+module.exports.checkAndForwardProfits = checkAndForwardProfits;
+module.exports.manualForwardProfits = manualForwardProfits;
+module.exports.getConnextStatus = getConnextStatus;
+
+// Network configuration exports
+module.exports.getTokenAddresses = getTokenAddresses;
+module.exports.getDexRouters = getDexRouters;
+module.exports.getAaveConfig = getAaveConfig;
+module.exports.getCachedTokenAddresses = getCachedTokenAddresses;
+module.exports.getCachedDexRouters = getCachedDexRouters;
 
 if (require.main === module) {
   (async () => {
