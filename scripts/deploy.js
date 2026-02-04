@@ -140,54 +140,7 @@ async function main() {
   console.log();
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 1. Deploy ArbitrageFlashloan
-  // ─────────────────────────────────────────────────────────────────────────────
-  console.log("🚀  Deploying ArbitrageFlashloan...");
-  const ArbFactory = await ethers.getContractFactory(
-    "ArbitrageFlashloan",
-    deployer
-  );
-  const arbitrage = await ArbFactory.deploy(
-    AAVE_LENDING_POOL_ADDRESS_PROVIDER,
-    parseInt(MAX_LOSS_BPS, 10),
-    parseInt(FLASHLOAN_PREMIUM_BIPS, 10),
-    {
-      maxFeePerGas,
-      maxPriorityFeePerGas,
-    }
-  );
-  await arbitrage.deployed();
-  console.log(`✅  ArbitrageFlashloan deployed at: ${arbitrage.address}\n`);
-
-  // ─── Verify ArbitrageFlashloan on Etherscan ─────────────────────────────────
-  if (ETHERSCAN_API_KEY) {
-    console.log("🔍  Verifying ArbitrageFlashloan on Etherscan...");
-    try {
-      await run("verify:verify", {
-        address: arbitrage.address,
-        constructorArguments: [
-          AAVE_LENDING_POOL_ADDRESS_PROVIDER,
-          parseInt(MAX_LOSS_BPS, 10),
-          parseInt(FLASHLOAN_PREMIUM_BIPS, 10),
-        ],
-      });
-      console.log("✅  Verification of ArbitrageFlashloan succeeded!\n");
-    } catch (e) {
-      console.warn("⚠  Verification of ArbitrageFlashloan failed:", e.message);
-      console.log(
-        `    To verify manually:\n` +
-          `      npx hardhat verify --network ${network.name} ${arbitrage.address} ` +
-          `${AAVE_LENDING_POOL_ADDRESS_PROVIDER} ${MAX_LOSS_BPS} ${FLASHLOAN_PREMIUM_BIPS}\n`
-      );
-    }
-  } else {
-    console.log(
-      "⚠  No ETHERSCAN_API_KEY set; skipping ArbitrageFlashloan verification.\n"
-    );
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // 2. Deploy ArbitrageTimelock
+  // 1. Deploy ArbitrageTimelock FIRST (needed for ArbitrageFlashloan constructor)
   // ─────────────────────────────────────────────────────────────────────────────
   console.log("🚀  Deploying ArbitrageTimelock...");
   const TimelockFactory = await ethers.getContractFactory(
@@ -198,7 +151,7 @@ async function main() {
   const executors = TIMELOCK_EXECUTORS.split(",").map((addr) => addr.trim());
   const minDelayNs = ethers.BigNumber.from(TIMELOCK_MIN_DELAY_SEC);
 
-  // NOTE: OZ TimelockController constructor: (uint256 minDelay, address[] memory proposers, address[] memory executors, address admin)
+  // OZ TimelockController constructor: (uint256 minDelay, address[] proposers, address[] executors, address admin)
   const timelock = await TimelockFactory.deploy(
     minDelayNs,
     proposers,
@@ -212,14 +165,31 @@ async function main() {
   await timelock.deployed();
   console.log(`✅  ArbitrageTimelock deployed at: ${timelock.address}\n`);
 
-  // Transfer ownership of ArbitrageFlashloan to the Timelock
-  console.log(
-    "🔐  Transferring ownership of ArbitrageFlashloan to Timelock..."
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 2. Deploy ArbitrageFlashloan with all 5 constructor arguments
+  // ─────────────────────────────────────────────────────────────────────────────
+  console.log("🚀  Deploying ArbitrageFlashloan...");
+  const ArbFactory = await ethers.getContractFactory(
+    "ArbitrageFlashloan",
+    deployer
   );
-  await arbitrage.transferOwnership(timelock.address);
-  console.log(
-    `✅  Ownership of ArbitrageFlashloan transferred to: ${timelock.address}\n`
+
+  // Get profit recipient from env or default to deployer
+  const profitRecipient = process.env.PROFIT_RECIPIENT || deployer.address;
+
+  const arbitrage = await ArbFactory.deploy(
+    AAVE_LENDING_POOL_ADDRESS_PROVIDER,    // _provider
+    parseInt(MAX_LOSS_BPS, 10),             // _maxLossBps
+    parseInt(FLASHLOAN_PREMIUM_BIPS, 10),   // _flashloanPremiumBps
+    profitRecipient,                        // _profitRecipient
+    timelock.address,                       // _timelock
+    {
+      maxFeePerGas,
+      maxPriorityFeePerGas,
+    }
   );
+  await arbitrage.deployed();
+  console.log(`✅  ArbitrageFlashloan deployed at: ${arbitrage.address}\n`);
 
   // ─── Verify ArbitrageTimelock on Etherscan ──────────────────────────────────
   if (ETHERSCAN_API_KEY) {
@@ -248,6 +218,35 @@ async function main() {
   } else {
     console.log(
       "⚠  No ETHERSCAN_API_KEY set; skipping ArbitrageTimelock verification.\n"
+    );
+  }
+
+  // ─── Verify ArbitrageFlashloan on Etherscan ─────────────────────────────────
+  if (ETHERSCAN_API_KEY) {
+    console.log("🔍  Verifying ArbitrageFlashloan on Etherscan...");
+    try {
+      await run("verify:verify", {
+        address: arbitrage.address,
+        constructorArguments: [
+          AAVE_LENDING_POOL_ADDRESS_PROVIDER,
+          parseInt(MAX_LOSS_BPS, 10),
+          parseInt(FLASHLOAN_PREMIUM_BIPS, 10),
+          profitRecipient,
+          timelock.address,
+        ],
+      });
+      console.log("✅  Verification of ArbitrageFlashloan succeeded!\n");
+    } catch (e) {
+      console.warn("⚠  Verification of ArbitrageFlashloan failed:", e.message);
+      console.log(
+        `    To verify manually:\n` +
+          `      npx hardhat verify --network ${network.name} ${arbitrage.address} ` +
+          `${AAVE_LENDING_POOL_ADDRESS_PROVIDER} ${MAX_LOSS_BPS} ${FLASHLOAN_PREMIUM_BIPS} ${profitRecipient} ${timelock.address}\n`
+      );
+    }
+  } else {
+    console.log(
+      "⚠  No ETHERSCAN_API_KEY set; skipping ArbitrageFlashloan verification.\n"
     );
   }
 

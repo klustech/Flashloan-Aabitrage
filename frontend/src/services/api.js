@@ -210,3 +210,75 @@ export const getDailyStats = async () => {
   const response = await API.get("/api/daily-stats");
   return response.data;
 };
+
+// Get ML model statistics
+export const getMLStats = async () => {
+  const response = await API.get("/api/ml-stats");
+  return response.data;
+};
+
+// Run arbitrage simulation with custom route
+export const simulateArbitrage = async (params) => {
+  const response = await API.post("/api/simulate-arbitrage", params);
+  return response.data;
+};
+
+// Get bot status including circuit breaker state
+export const getBotStatus = async () => {
+  const response = await API.get("/api/bot-status");
+  return response.data;
+};
+
+// Get circuit breaker status
+export const getCircuitBreakerStatus = async () => {
+  const response = await API.get("/api/circuit-breaker");
+  return response.data;
+};
+
+// Reset circuit breaker
+export const resetCircuitBreaker = async () => {
+  const response = await API.post("/api/circuit-breaker/reset");
+  return response.data;
+};
+
+// Get timelock operations
+export const getTimelockOperations = async () => {
+  const response = await API.get("/api/timelock/operations");
+  return response.data;
+};
+
+// Schedule timelock operation
+export const scheduleTimelockOperation = async (operation) => {
+  const response = await API.post("/api/timelock/schedule", operation);
+  return response.data;
+};
+
+// Execute timelock operation
+export const executeTimelockOperation = async (operationId) => {
+  const response = await API.post(`/api/timelock/execute/${operationId}`);
+  return response.data;
+};
+
+// Cancel timelock operation
+export const cancelTimelockOperation = async (operationId) => {
+  const response = await API.post(`/api/timelock/cancel/${operationId}`);
+  return response.data;
+};
+
+// Get Connext cross-chain status
+export const getConnextStatus = async () => {
+  const response = await API.get("/api/connext/status");
+  return response.data;
+};
+
+// Forward profits via Connext
+export const forwardProfits = async (params) => {
+  const response = await API.post("/api/connext/forward", params);
+  return response.data;
+};
+
+// Get gas price recommendations
+export const getGasEstimate = async () => {
+  const response = await API.get("/api/gas-estimate");
+  return response.data;
+};
