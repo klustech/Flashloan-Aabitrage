@@ -196,12 +196,24 @@ const {
   initSubscriptions,
   reserveCache,
   fetchMulticallReservesForRoute,
+  // V3 real-time pricing
+  initV3Subscriptions,
+  v3PriceCache,
+  // Balancer real-time pricing
+  initBalancerSubscriptions,
+  balancerCache,
+  // Curve real-time pricing
+  initCurveSubscriptions,
+  curveCache,
+  // Subscription stats
+  getSubscriptionStats,
 } = require("./scripts/priceIngestion");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Imports: DEX Quote Utilities (from server/scripts/)
 // ─────────────────────────────────────────────────────────────────────────────
 const { getV3Quote } = require("./scripts/v3Utils");
+const { getVolatility } = require("./scripts/optimalParams");
 let initBalancer;
 let getBalancerQuote;
 if (features.balancer) {
@@ -337,7 +349,7 @@ const OPTIONAL_ENV_DEFAULTS = {
   INCLUDE_UNISWAP_V2: "true",
   INCLUDE_SUSHISWAP_V2: "true",
   REALTIME_POOL_COUNT: "100",
-  ZSCORE_THRESHOLD: "3",
+  ZSCORE_THRESHOLD: "2",
   ML_TOPK: "50",
   FLASHBOTS_BUNDLE_COUNT: "3",
   PRIO_PERCENT: "10",
@@ -813,15 +825,184 @@ function computeZScore(values) {
   return values.map((p) => (p - mean) / (stdev || 1));
 }
 
+/**
+ * Compute multi-metric Z-score combining price ratio and liquidity
+ * This provides better filtering by considering both opportunity size and execution reliability.
+ *
+ * @param {Array} routes - Array of route definitions
+ * @param {object} weights - Weights for each metric { priceRatio: 0.7, liquidity: 0.3 }
+ * @returns {number[]} - Composite Z-scores
+ */
+function computeMultiMetricZScore(routes, weights = { priceRatio: 0.7, liquidity: 0.3 }) {
+  if (!routes.length) return [];
+
+  // Extract metrics
+  const priceRatios = routes.map((r) => r.estimatedPriceRatio || 1);
+  const liquidities = routes.map((r) => {
+    // Get minimum liquidity across all hops (bottleneck)
+    if (r.hops && r.hops.length > 0) {
+      const hopLiqs = r.hops.map((h) => h.liquidity || h.reserveUSD || 0).filter((l) => l > 0);
+      return hopLiqs.length > 0 ? Math.min(...hopLiqs) : 0;
+    }
+    return r.liquidity || 0;
+  });
+
+  // Compute individual Z-scores
+  const priceZScores = computeZScore(priceRatios);
+  const liquidityZScores = computeZScore(liquidities);
+
+  // Combine with weights - higher price ratio is better, higher liquidity is better
+  // For price ratio: positive Z-score means above average (good)
+  // For liquidity: positive Z-score means above average (good)
+  const compositeScores = routes.map((_, i) => {
+    const priceComponent = priceZScores[i] * weights.priceRatio;
+    const liquidityComponent = liquidityZScores[i] * weights.liquidity;
+    return priceComponent + liquidityComponent;
+  });
+
+  return compositeScores;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// ML Scoring: Attach score to each route via ML microservice
+// ML Feature Enrichment: Compute missing features for routes
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Gas cost estimates by DEX type (in gas units)
+const GAS_ESTIMATES = {
+  uniswap_v2: 60000,
+  sushiswap_v2: 60000,
+  uniswap_v3: 100000,
+  balancer: 120000,
+  curve: 150000,
+  default: 80000,
+};
+
+/**
+ * Query historical success count for routes from the database
+ * @param {Array} routeDefs - Array of route definitions
+ * @returns {Map} - Map of route hash to success count
+ */
+async function getHistoricalSuccessCounts(routeDefs) {
+  const successMap = new Map();
+
+  if (!isDbEnabled() || !dbPool) {
+    return successMap;
+  }
+
+  try {
+    // Query successful trades from last 7 days, grouped by route
+    const result = await dbPool.query(`
+      SELECT route, COUNT(*) as success_count
+      FROM trades
+      WHERE status = 'success'
+        AND timestamp > NOW() - INTERVAL '7 days'
+      GROUP BY route
+    `);
+
+    for (const row of result.rows) {
+      successMap.set(row.route, parseInt(row.success_count, 10));
+    }
+  } catch (err) {
+    logger.warn(`[enrichRoutes] Failed to query historical success: ${err.message}`);
+  }
+
+  return successMap;
+}
+
+/**
+ * Generate a unique key for a route (for matching with historical data)
+ * @param {object} route - Route definition
+ * @returns {string} - Route key
+ */
+function getRouteKey(route) {
+  if (!route.hops || !route.hops.length) return "";
+  return route.hops
+    .map((h) => `${h.poolAddress || h.tokenA}-${h.dex || "v2"}`)
+    .join("->");
+}
+
+/**
+ * Estimate gas cost for a route based on DEX types and hop count
+ * @param {object} route - Route definition
+ * @returns {number} - Estimated gas units
+ */
+function estimateGasCost(route) {
+  if (!route.hops || !route.hops.length) return GAS_ESTIMATES.default;
+
+  let totalGas = 21000; // Base transaction cost
+  for (const hop of route.hops) {
+    const dexType = hop.dex || "uniswap_v2";
+    totalGas += GAS_ESTIMATES[dexType] || GAS_ESTIMATES.default;
+  }
+
+  return totalGas;
+}
+
+/**
+ * Enrich routes with computed features for ML scoring
+ * @param {Array} routeDefs - Array of route definitions
+ * @returns {Promise<Array>} - Enriched route definitions
+ */
+async function enrichRoutesWithFeatures(routeDefs) {
+  if (!routeDefs || !routeDefs.length) return routeDefs;
+
+  // Get market volatility (cached, from CoinGecko)
+  let marketVolatility = 2; // Default 2%
+  try {
+    marketVolatility = await getVolatility();
+  } catch (err) {
+    logger.warn(`[enrichRoutes] Failed to get volatility: ${err.message}`);
+  }
+
+  // Get historical success counts
+  const successMap = await getHistoricalSuccessCounts(routeDefs);
+
+  // Enrich each route
+  for (const route of routeDefs) {
+    // 1. Volatility: Base market volatility adjusted by route complexity
+    // More hops = more compounding slippage risk
+    const hopMultiplier = route.hops ? 1 + (route.hops.length - 2) * 0.1 : 1;
+    route.volatility = marketVolatility * hopMultiplier;
+
+    // 2. Estimated gas cost based on DEX types
+    route.estimatedGasCost = estimateGasCost(route);
+
+    // 3. Historical success count from DB
+    const routeKey = getRouteKey(route);
+    route.historicalSuccessCount = successMap.get(routeKey) || 0;
+
+    // 4. Compute aggregate fee if not already set
+    if (!route.fee && route.hops) {
+      route.fee = route.hops.reduce((sum, h) => sum + (h.feeBps || h.fee || 30), 0);
+    }
+
+    // 5. Compute aggregate liquidity if not already set
+    if (!route.liquidity && route.hops) {
+      const liquidities = route.hops
+        .map((h) => h.liquidity || h.reserveUSD || 0)
+        .filter((l) => l > 0);
+      route.liquidity = liquidities.length > 0 ? Math.min(...liquidities) : 0;
+    }
+  }
+
+  logger.info(
+    `[enrichRoutes] Enriched ${routeDefs.length} routes with features (volatility=${marketVolatility.toFixed(2)}%)`
+  );
+
+  return routeDefs;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ML Scoring: Attach score to each route via ML microservice (with heuristic fallback)
+// ─────────────────────────────────────────────────────────────────────────────
+const mlScorer = require("./scripts/mlScorer");
+
 async function scoreRoutesWithML(routeDefs) {
   try {
-    if (!ML_MODEL_ENDPOINT) {
-      return routeDefs;
-    }
-    const features = routeDefs.map((r) => [
+    // First enrich routes with computed features
+    const enrichedRoutes = await enrichRoutesWithFeatures(routeDefs);
+
+    const features = enrichedRoutes.map((r) => [
       r.hops.length,
       r.liquidity || 0,
       r.fee || 3000,
@@ -829,20 +1010,22 @@ async function scoreRoutesWithML(routeDefs) {
       r.estimatedGasCost || 0,
       r.historicalSuccessCount || 0,
     ]);
-    const mlRes = await axios.post(ML_MODEL_ENDPOINT, {
-      features,
+
+    // Use mlScorer which has both ML endpoint and heuristic fallback
+    const probabilities = await mlScorer.score(features);
+
+    enrichedRoutes.forEach((r, i) => {
+      r.score = probabilities[i] || 0;
     });
-    const probabilities = mlRes.data.probabilities;
-    routeDefs.forEach((r, i) => {
-      r.score = probabilities[i];
-    });
+
     logger.info(
-      `ML scoring assigned probabilities to ${routeDefs.length} routes.`
+      `[scoreRoutesWithML] Assigned scores to ${enrichedRoutes.length} routes (using ${ML_MODEL_ENDPOINT ? "ML endpoint" : "heuristic fallback"}).`
     );
-    return routeDefs.sort((a, b) => b.score - a.score);
+
+    return enrichedRoutes.sort((a, b) => b.score - a.score);
   } catch (err) {
     logger.warn(
-      `ML scoring error: ${err.message}. Proceeding without ML ranking.`
+      `[scoreRoutesWithML] Scoring error: ${err.message}. Proceeding without ranking.`
     );
     return routeDefs;
   }
@@ -934,18 +1117,30 @@ async function selectBestRoute(amountIn, slippageBips, routeList) {
   let best = null;
   let bestOut = BigNumber.from(0);
 
-  const stableValues = routeList.map((r) => r.estimatedPriceRatio || 1);
-  const zScores = computeZScore(stableValues);
+  // Use multi-metric Z-score combining price ratio and liquidity
+  // This provides better filtering by considering both opportunity size and execution reliability
+  const multiMetricZScores = computeMultiMetricZScore(routeList);
+
+  // Filter routes with composite Z-score above threshold (positive = above average)
   let candidates = routeList.filter(
-    (r, i) => Math.abs(zScores[i]) > ZSCORE_THRESH
+    (r, i) => multiMetricZScores[i] > ZSCORE_THRESH
   );
+
   logger.info(
-    `Filtered ${routeList.length} routes down to ${candidates.length} by Z-score threshold ${ZSCORE_THRESH}.`
+    `[selectBestRoute] Multi-metric Z-score filtered ${routeList.length} routes down to ${candidates.length} (threshold=${ZSCORE_THRESH}).`
   );
+
   if (!candidates.length) {
-    candidates = routeList;
+    // Fallback: take top 50% by composite score if none exceed threshold
+    const sortedByScore = routeList
+      .map((r, i) => ({ route: r, zScore: multiMetricZScores[i] }))
+      .sort((a, b) => b.zScore - a.zScore)
+      .slice(0, Math.max(1, Math.floor(routeList.length / 2)))
+      .map((item) => item.route);
+
+    candidates = sortedByScore;
     logger.info(
-      `No routes exceeded Z-score threshold; using all ${routeList.length} as candidates.`
+      `[selectBestRoute] No routes exceeded threshold; using top ${candidates.length} by composite score.`
     );
   }
 
@@ -1101,15 +1296,81 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
     return { executed: false, estimatedProfitInDai: BigNumber.from(0) };
   }
 
-  // 3. Ensure reserveCache is up to date
-  const topPools = ROUTES_TO_CHECK.slice(0, REALTIME_POOL_LIMIT)
-    .map((r) => r.poolAddress)
-    .filter((addr) => addr && ethers.utils.isAddress(addr));
+  // 3. Ensure reserveCache is up to date - Extract all pools from route hops
+  const allPoolsFromRoutes = [];
+  for (const route of ROUTES_TO_CHECK.slice(0, REALTIME_POOL_LIMIT)) {
+    if (route.hops && Array.isArray(route.hops)) {
+      for (const hop of route.hops) {
+        if (hop.poolAddress && ethers.utils.isAddress(hop.poolAddress)) {
+          allPoolsFromRoutes.push({
+            address: hop.poolAddress,
+            dex: hop.dex || "uniswap_v2",
+            poolId: hop.poolId, // For Balancer
+          });
+        }
+      }
+    } else if (route.poolAddress && ethers.utils.isAddress(route.poolAddress)) {
+      // Fallback for flat pool structures
+      allPoolsFromRoutes.push({
+        address: route.poolAddress,
+        dex: route.dex || "uniswap_v2",
+        poolId: route.poolId,
+      });
+    }
+  }
+
+  // Deduplicate pools by address
+  const seenPools = new Set();
+  const uniquePools = allPoolsFromRoutes.filter((p) => {
+    if (seenPools.has(p.address.toLowerCase())) return false;
+    seenPools.add(p.address.toLowerCase());
+    return true;
+  });
+
+  // Classify pools by DEX type
+  const v2Pools = uniquePools
+    .filter((p) => p.dex === "uniswap_v2" || p.dex === "sushiswap_v2")
+    .map((p) => p.address);
+  const v3Pools = uniquePools
+    .filter((p) => p.dex === "uniswap_v3")
+    .map((p) => p.address);
+  const balancerPools = uniquePools
+    .filter((p) => p.dex === "balancer")
+    .map((p) => p.poolId || p.address);
+  const curvePools = uniquePools
+    .filter((p) => p.dex === "curve")
+    .map((p) => p.address);
+
   logger.info(
-    `[${chain}] Subscribing to ${topPools.length} pools for reserve updates.`
+    `[${chain}] Pool classification: V2=${v2Pools.length}, V3=${v3Pools.length}, Balancer=${balancerPools.length}, Curve=${curvePools.length}`
   );
-  await initSubscriptions(topPools);
-  for (const poolAddr of topPools) {
+
+  // 3a. Subscribe to V2 pools (Sync events)
+  if (v2Pools.length > 0) {
+    logger.info(`[${chain}] Subscribing to ${v2Pools.length} V2 pools for Sync events.`);
+    await initSubscriptions(v2Pools);
+  }
+
+  // 3b. Subscribe to V3 pools (Swap events) if INCLUDE_V3 is enabled
+  if (INCLUDE_V3 === "true" && v3Pools.length > 0) {
+    logger.info(`[${chain}] Subscribing to ${v3Pools.length} V3 pools for Swap events.`);
+    await initV3Subscriptions(v3Pools);
+  }
+
+  // 3c. Subscribe to Balancer pools if INCLUDE_BALANCER is enabled
+  if (INCLUDE_BALANCER === "true" && balancerPools.length > 0) {
+    logger.info(`[${chain}] Subscribing to ${balancerPools.length} Balancer pools for Swap events.`);
+    await initBalancerSubscriptions(balancerPools);
+  }
+
+  // 3d. Subscribe to Curve pools if INCLUDE_CURVE is enabled
+  if (INCLUDE_CURVE === "true" && curvePools.length > 0) {
+    logger.info(`[${chain}] Subscribing to ${curvePools.length} Curve pools for TokenExchange events.`);
+    await initCurveSubscriptions(curvePools);
+  }
+
+  // Fetch initial reserves for V2 pools not yet cached
+  for (const poolAddr of v2Pools) {
     if (
       !reserveCache.has(poolAddr) ||
       Date.now() - reserveCache.get(poolAddr).timestamp > 5000
@@ -1122,6 +1383,12 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
       }
     }
   }
+
+  // Log subscription stats
+  const subStats = getSubscriptionStats();
+  logger.info(
+    `[${chain}] Subscription stats: V2=${subStats.v2.subscriptions}, V3=${subStats.v3.subscriptions}, Balancer=${subStats.balancer.subscriptions}, Curve=${subStats.curve.subscriptions}`
+  );
 
   // 4. Get dynamic slippage
   let slipBips;
