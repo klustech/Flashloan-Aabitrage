@@ -1,0 +1,1222 @@
+openapi: 3.0.3
+info:
+  title: Flashloan Arbitrage Bot API
+  description: |
+    REST API for controlling and monitoring the Flashloan Arbitrage Bot.
+
+    ## Authentication
+    All endpoints require the `x-api-key` header when `API_KEY` is set in the environment.
+
+    ## Rate Limiting
+    The API is rate-limited to 30 requests per 5 minutes per IP address.
+
+    ## WebSocket
+    Real-time updates are available via WebSocket at `ws://localhost:3001/ws`
+  version: 1.0.0
+  contact:
+    name: Development Team
+
+servers:
+  - url: http://localhost:3001
+    description: Local development server
+  - url: http://localhost:3000
+    description: Alternative port
+
+tags:
+  - name: Health
+    description: Health check and status endpoints
+  - name: Bot Control
+    description: Start, stop, and configure the arbitrage bot
+  - name: Market Data
+    description: Real-time market data and price quotes
+  - name: Opportunities
+    description: Arbitrage opportunities detected by the bot
+  - name: Trades
+    description: Trade history and execution
+  - name: Simulation
+    description: Arbitrage simulation and profit estimation
+  - name: ML
+    description: Machine learning model statistics
+  - name: Connext
+    description: Cross-chain profit forwarding via Connext
+  - name: Timelock
+    description: Timelock governance operations
+  - name: Metrics
+    description: Prometheus metrics and statistics
+
+paths:
+  /healthz:
+    get:
+      summary: Health check
+      description: Returns the health status of the bot
+      tags: [Health]
+      responses:
+        '200':
+          description: Health status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+
+  /api/bot-status:
+    get:
+      summary: Comprehensive bot status
+      description: Returns detailed bot status including circuit breaker state, market data, and service status
+      tags: [Health]
+      responses:
+        '200':
+          description: Comprehensive status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BotStatus'
+
+  /api/start-bot:
+    post:
+      summary: Start the arbitrage bot
+      description: Activates automated arbitrage execution
+      tags: [Bot Control]
+      responses:
+        '200':
+          description: Bot started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  settings:
+                    $ref: '#/components/schemas/BotSettings'
+
+  /api/stop-bot:
+    post:
+      summary: Stop the arbitrage bot
+      description: Deactivates automated arbitrage execution
+      tags: [Bot Control]
+      responses:
+        '200':
+          description: Bot stopped
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  settings:
+                    $ref: '#/components/schemas/BotSettings'
+
+  /api/settings:
+    get:
+      summary: Get current settings
+      description: Returns all configurable bot settings
+      tags: [Bot Control]
+      responses:
+        '200':
+          description: Current settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BotSettings'
+    post:
+      summary: Update settings
+      description: Update one or more bot settings
+      tags: [Bot Control]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SettingsUpdate'
+      responses:
+        '200':
+          description: Settings updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  settings:
+                    $ref: '#/components/schemas/BotSettings'
+                  persisted:
+                    type: boolean
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /api/settings/reset:
+    post:
+      summary: Reset settings to defaults
+      description: Resets all settings to their default values
+      tags: [Bot Control]
+      responses:
+        '200':
+          description: Settings reset
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  settings:
+                    $ref: '#/components/schemas/BotSettings'
+                  message:
+                    type: string
+
+  /api/market-data:
+    get:
+      summary: Get market prices
+      description: Returns current DEX prices for DAI/WETH pair
+      tags: [Market Data]
+      responses:
+        '200':
+          description: Market data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketData'
+
+  /api/gas-estimate:
+    get:
+      summary: Get current gas prices
+      description: Returns current network gas prices and fee data
+      tags: [Market Data]
+      responses:
+        '200':
+          description: Gas estimate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GasEstimate'
+
+  /api/opportunities:
+    get:
+      summary: Get recent opportunities
+      description: Returns recently detected arbitrage opportunities
+      tags: [Opportunities]
+      responses:
+        '200':
+          description: List of opportunities
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  opportunities:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Opportunity'
+                  count:
+                    type: integer
+
+  /api/trigger-arbitrage:
+    post:
+      summary: Trigger manual arbitrage
+      description: Manually triggers an arbitrage attempt
+      tags: [Trades]
+      parameters:
+        - name: flashbots
+          in: query
+          schema:
+            type: boolean
+          description: Whether to use Flashbots for MEV protection
+      responses:
+        '200':
+          description: Arbitrage result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [executed, noop]
+                  message:
+                    type: string
+
+  /api/trades:
+    get:
+      summary: Get trade history
+      description: Returns recent trade execution history
+      tags: [Trades]
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+          description: Maximum number of trades to return
+      responses:
+        '200':
+          description: Trade history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Trade'
+
+  /api/daily-stats:
+    get:
+      summary: Get daily statistics
+      description: Returns aggregated statistics for the last 24 hours
+      tags: [Trades]
+      responses:
+        '200':
+          description: Daily statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DailyStats'
+
+  /api/simulate-profit:
+    get:
+      summary: Simulate profit
+      description: Simulates profit for the most recent opportunity
+      tags: [Simulation]
+      responses:
+        '200':
+          description: Simulation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfitSimulation'
+        '204':
+          description: No opportunity to simulate
+
+  /api/simulate-arbitrage:
+    post:
+      summary: Simulate custom arbitrage
+      description: Simulates an arbitrage with custom parameters
+      tags: [Simulation]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SimulationRequest'
+      responses:
+        '200':
+          description: Simulation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimulationResult'
+
+  /api/ml-stats:
+    get:
+      summary: Get ML model statistics
+      description: Returns machine learning model performance metrics
+      tags: [ML]
+      responses:
+        '200':
+          description: ML statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MLStats'
+
+  /api/circuit-breaker:
+    get:
+      summary: Get circuit breaker state
+      description: Returns the current circuit breaker status
+      tags: [Bot Control]
+      responses:
+        '200':
+          description: Circuit breaker state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CircuitBreakerState'
+
+  /api/circuit-breaker/reset:
+    post:
+      summary: Reset circuit breaker
+      description: Resets the circuit breaker to closed state
+      tags: [Bot Control]
+      responses:
+        '200':
+          description: Circuit breaker reset
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  state:
+                    $ref: '#/components/schemas/CircuitBreakerState'
+
+  /api/rl/reset:
+    post:
+      summary: Reset RL policy
+      description: Resets the reinforcement learning slippage policy
+      tags: [Bot Control]
+      responses:
+        '200':
+          description: Policy reset
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  policy:
+                    type: object
+
+  /api/connext/status:
+    get:
+      summary: Get Connext status
+      description: Returns cross-chain forwarding status and configuration
+      tags: [Connext]
+      parameters:
+        - name: token
+          in: query
+          schema:
+            type: string
+          description: Token address to check balance for
+      responses:
+        '200':
+          description: Connext status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnextStatus'
+
+  /api/connext/forward:
+    post:
+      summary: Forward profits
+      description: Manually forward accumulated profits to destination chain
+      tags: [Connext]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+                  description: Token address to forward
+                amount:
+                  type: string
+                  description: Amount to forward (optional, forwards all if not specified)
+      responses:
+        '200':
+          description: Forward result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForwardResult'
+
+  /api/connext/transfers:
+    get:
+      summary: Get transfer history
+      description: Returns Connext transfer history
+      tags: [Connext]
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Transfer history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  transfers:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ConnextTransfer'
+                  pendingCount:
+                    type: integer
+
+  /api/connext/transfers/pending:
+    get:
+      summary: Get pending transfers
+      description: Returns currently pending Connext transfers
+      tags: [Connext]
+      responses:
+        '200':
+          description: Pending transfers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  transfers:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ConnextTransfer'
+                  count:
+                    type: integer
+
+  /api/connext/transfers/{transferId}:
+    get:
+      summary: Get transfer status
+      description: Check status of a specific Connext transfer
+      tags: [Connext]
+      parameters:
+        - name: transferId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Transfer status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnextTransfer'
+
+  /api/connext/monitoring:
+    get:
+      summary: Get monitoring status
+      description: Returns Connext transfer monitoring status
+      tags: [Connext]
+      responses:
+        '200':
+          description: Monitoring status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  running:
+                    type: boolean
+                  interval:
+                    type: integer
+
+  /api/connext/monitoring/start:
+    post:
+      summary: Start monitoring
+      description: Start Connext transfer monitoring
+      tags: [Connext]
+      responses:
+        '200':
+          description: Monitoring started
+
+  /api/connext/monitoring/stop:
+    post:
+      summary: Stop monitoring
+      description: Stop Connext transfer monitoring
+      tags: [Connext]
+      responses:
+        '200':
+          description: Monitoring stopped
+
+  /api/timelock/status:
+    get:
+      summary: Get timelock status
+      description: Returns timelock contract status
+      tags: [Timelock]
+      responses:
+        '200':
+          description: Timelock status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimelockStatus'
+
+  /api/timelock/schedule:
+    post:
+      summary: Schedule operation
+      description: Schedule a timelock-protected operation
+      tags: [Timelock]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TimelockScheduleRequest'
+      responses:
+        '200':
+          description: Operation scheduled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimelockOperationResult'
+
+  /api/timelock/execute/{operationId}:
+    post:
+      summary: Execute operation
+      description: Execute a ready timelock operation
+      tags: [Timelock]
+      parameters:
+        - name: operationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                target:
+                  type: string
+                value:
+                  type: string
+                data:
+                  type: string
+                predecessor:
+                  type: string
+                salt:
+                  type: string
+      responses:
+        '200':
+          description: Operation executed
+
+  /api/timelock/cancel/{operationId}:
+    post:
+      summary: Cancel operation
+      description: Cancel a pending timelock operation
+      tags: [Timelock]
+      parameters:
+        - name: operationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Operation cancelled
+
+  /api/timelock/operations/{operationId}:
+    get:
+      summary: Get operation status
+      description: Get status of a timelock operation
+      tags: [Timelock]
+      parameters:
+        - name: operationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Operation status
+
+  /api/timelock/roles/{address}:
+    get:
+      summary: Get roles for address
+      description: Get timelock roles for a specific address
+      tags: [Timelock]
+      parameters:
+        - name: address
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Address roles
+
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      description: Returns metrics in Prometheus text format
+      tags: [Metrics]
+      responses:
+        '200':
+          description: Prometheus metrics
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /api/metrics-json:
+    get:
+      summary: Metrics as JSON
+      description: Returns metrics in JSON format
+      tags: [Metrics]
+      responses:
+        '200':
+          description: Metrics JSON
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /api/bot-logs:
+    get:
+      summary: Get bot logs
+      description: Returns paginated bot log entries
+      tags: [Health]
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+            maximum: 500
+        - name: file
+          in: query
+          schema:
+            type: string
+            default: bot.log
+      responses:
+        '200':
+          description: Log entries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogResponse'
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        healthy:
+          type: boolean
+        botActive:
+          type: boolean
+        running:
+          type: boolean
+        stale:
+          type: boolean
+        lastRunAt:
+          type: integer
+          nullable: true
+        lastSuccessAt:
+          type: integer
+          nullable: true
+        lastErrorAt:
+          type: integer
+          nullable: true
+        lastTimeoutAt:
+          type: integer
+          nullable: true
+        lastErrorMessage:
+          type: string
+          nullable: true
+
+    BotStatus:
+      allOf:
+        - $ref: '#/components/schemas/HealthStatus'
+        - type: object
+          properties:
+            circuitBreaker:
+              $ref: '#/components/schemas/CircuitBreakerState'
+            market:
+              type: object
+            services:
+              type: object
+              properties:
+                database:
+                  type: boolean
+                mlService:
+                  type: boolean
+                connext:
+                  type: boolean
+                timelock:
+                  type: boolean
+
+    BotSettings:
+      type: object
+      properties:
+        botActive:
+          type: boolean
+        flashbotsDefault:
+          type: boolean
+        pollingInterval:
+          type: integer
+          description: Polling interval in seconds
+        gasPriceCeiling:
+          type: integer
+          description: Maximum gas price in Gwei
+        slippageBips:
+          type: integer
+          description: Slippage tolerance in basis points
+        minBorrowAmount:
+          type: number
+        simulationInputAmount:
+          type: number
+
+    SettingsUpdate:
+      type: object
+      properties:
+        botActive:
+          type: boolean
+        flashbotsDefault:
+          type: boolean
+        pollingInterval:
+          type: integer
+          minimum: 10
+          maximum: 3600
+        gasPriceCeiling:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        slippageBips:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        minBorrowAmount:
+          type: number
+          minimum: 0
+        simulationInputAmount:
+          type: number
+          minimum: 0
+
+    ValidationError:
+      type: object
+      properties:
+        error:
+          type: string
+        details:
+          type: object
+          properties:
+            fieldErrors:
+              type: object
+            formErrors:
+              type: array
+              items:
+                type: string
+
+    MarketData:
+      type: object
+      properties:
+        tokenIn:
+          type: string
+        tokenOut:
+          type: string
+        uniswapPrice:
+          type: string
+        sushiPrice:
+          type: string
+
+    GasEstimate:
+      type: object
+      properties:
+        gasPrice:
+          type: string
+          description: Gas price in Gwei
+        gasPriceWei:
+          type: string
+        maxFeePerGas:
+          type: string
+          nullable: true
+        maxPriorityFeePerGas:
+          type: string
+          nullable: true
+        timestamp:
+          type: integer
+
+    Opportunity:
+      type: object
+      properties:
+        id:
+          type: string
+        chain:
+          type: string
+        timestamp:
+          type: integer
+        route:
+          type: string
+        routeTokens:
+          type: array
+          items:
+            type: string
+        borrowAmount:
+          type: string
+        estimatedProfit:
+          type: string
+        gasCostDai:
+          type: string
+        netProfit:
+          type: string
+        hops:
+          type: array
+          items:
+            type: object
+            properties:
+              tokenA:
+                type: string
+              tokenB:
+                type: string
+              dex:
+                type: string
+              poolAddress:
+                type: string
+        mlScore:
+          type: number
+          nullable: true
+        liquidity:
+          type: number
+          nullable: true
+        volatility:
+          type: number
+          nullable: true
+
+    Trade:
+      type: object
+      properties:
+        id:
+          type: integer
+        route:
+          type: string
+        profit:
+          type: string
+        txHash:
+          type: string
+        timestamp:
+          type: string
+        status:
+          type: string
+          enum: [success, failed, public, flashbots]
+        gasCost:
+          type: string
+        gasPrice:
+          type: string
+
+    DailyStats:
+      type: object
+      properties:
+        totalAttempts:
+          type: integer
+        successfulTrades:
+          type: integer
+        totalProfit:
+          type: string
+        totalGasSpent:
+          type: string
+        profitChange:
+          type: string
+        avgGasPrice:
+          type: string
+
+    ProfitSimulation:
+      type: object
+      properties:
+        route:
+          type: string
+        chain:
+          type: string
+        timestamp:
+          type: integer
+        aborted:
+          type: boolean
+        reason:
+          type: string
+          nullable: true
+        borrowAmount:
+          type: number
+        estimatedOut:
+          type: number
+        simulatedOutput:
+          type: number
+        gasCostDAI:
+          type: number
+        gasCostETH:
+          type: number
+        premiumDAI:
+          type: number
+        totalCostDAI:
+          type: number
+        profit:
+          type: number
+        gasPriceGwei:
+          type: number
+        gasUsed:
+          type: integer
+
+    SimulationRequest:
+      type: object
+      required:
+        - borrowAmount
+        - route
+      properties:
+        borrowAmount:
+          type: number
+          description: Amount to borrow
+        borrowToken:
+          type: string
+          default: DAI
+        route:
+          type: array
+          items:
+            type: object
+            properties:
+              tokenIn:
+                type: string
+              tokenOut:
+                type: string
+              dex:
+                type: string
+        slippageBps:
+          type: integer
+          default: 50
+        gasPrice:
+          type: integer
+          default: 30
+
+    SimulationResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        simulation:
+          type: object
+          properties:
+            borrowAmount:
+              type: number
+            borrowToken:
+              type: string
+            expectedReturn:
+              type: number
+            grossProfit:
+              type: number
+            gasCost:
+              type: string
+            netProfit:
+              type: string
+            slippage:
+              type: string
+            priceImpact:
+              type: string
+            mlScore:
+              type: number
+            hops:
+              type: array
+              items:
+                type: object
+
+    MLStats:
+      type: object
+      properties:
+        available:
+          type: boolean
+        message:
+          type: string
+        modelVersion:
+          type: string
+        lastTrained:
+          type: string
+        accuracy:
+          type: number
+          nullable: true
+        precision:
+          type: number
+          nullable: true
+        recall:
+          type: number
+          nullable: true
+        f1Score:
+          type: number
+          nullable: true
+        auc:
+          type: number
+          nullable: true
+        totalPredictions:
+          type: integer
+        correctPredictions:
+          type: integer
+        avgResponseTime:
+          type: number
+        featureImportance:
+          type: array
+          items:
+            type: object
+            properties:
+              feature:
+                type: string
+              importance:
+                type: number
+        recentPredictions:
+          type: array
+          items:
+            type: object
+
+    CircuitBreakerState:
+      type: object
+      properties:
+        state:
+          type: string
+          enum: [CLOSED, OPEN, HALF_OPEN]
+        consecutiveFailures:
+          type: integer
+        dailyLoss:
+          type: number
+        lastFailureAt:
+          type: integer
+          nullable: true
+        lastSuccessAt:
+          type: integer
+          nullable: true
+        recoveryAttempts:
+          type: integer
+
+    ConnextStatus:
+      type: object
+      properties:
+        initialized:
+          type: boolean
+        configured:
+          type: boolean
+        autoForwardEnabled:
+          type: boolean
+        destination:
+          type: object
+        accumulatedProfits:
+          type: string
+        accumulatedProfitsFormatted:
+          type: string
+        pendingTransfers:
+          type: object
+        recentTransfers:
+          type: object
+        thresholds:
+          type: object
+          properties:
+            autoForwardThreshold:
+              type: string
+            minForwardAmount:
+              type: string
+
+    ForwardResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        txHash:
+          type: string
+        transferId:
+          type: string
+        amount:
+          type: string
+        relayerFee:
+          type: string
+        error:
+          type: string
+
+    ConnextTransfer:
+      type: object
+      properties:
+        transferId:
+          type: string
+        status:
+          type: string
+          enum: [pending, completed, failed]
+        amount:
+          type: string
+        token:
+          type: string
+        sourceDomain:
+          type: integer
+        destinationDomain:
+          type: integer
+        txHash:
+          type: string
+        timestamp:
+          type: integer
+
+    TimelockStatus:
+      type: object
+      properties:
+        initialized:
+          type: boolean
+        minDelay:
+          type: string
+        minDelayHours:
+          type: number
+        message:
+          type: string
+
+    TimelockScheduleRequest:
+      type: object
+      required:
+        - operation
+      properties:
+        operation:
+          type: string
+          enum: [setMaxLossBps, pause, unpause, custom]
+        params:
+          type: object
+          properties:
+            newMaxLossBps:
+              type: integer
+            target:
+              type: string
+            value:
+              type: string
+            data:
+              type: string
+            predecessor:
+              type: string
+            salt:
+              type: string
+            delay:
+              type: integer
+            description:
+              type: string
+
+    TimelockOperationResult:
+      type: object
+      properties:
+        operationId:
+          type: string
+        txHash:
+          type: string
+        scheduledFor:
+          type: integer
+
+    LogResponse:
+      type: object
+      properties:
+        file:
+          type: string
+        offset:
+          type: integer
+        limit:
+          type: integer
+        logs:
+          type: array
+          items:
+            type: string
+        nextOffset:
+          type: integer
+          nullable: true
+        hasMore:
+          type: boolean
+
+security:
+  - ApiKeyAuth: []
