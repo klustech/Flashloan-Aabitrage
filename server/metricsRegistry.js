@@ -104,6 +104,40 @@ const routesByDex = new promClient.Gauge({
   registers: [register],
 });
 
+// ─── Cycle Detection Metrics ────────────────────────────────────────────────
+
+const cycleDetectionMode = new promClient.Gauge({
+  name: "cycle_detection_mode",
+  help: "Current cycle detection mode (1=Bellman-Ford, 0=DFS triangular)",
+  registers: [register],
+});
+
+const negativeCyclesFound = new promClient.Gauge({
+  name: "negative_cycles_found",
+  help: "Number of negative cycles found by Bellman-Ford in last scan",
+  registers: [register],
+});
+
+const cycleDetectionDuration = new promClient.Histogram({
+  name: "cycle_detection_duration_ms",
+  help: "Duration of cycle detection algorithm in milliseconds",
+  labelNames: ["algorithm"],
+  buckets: [10, 50, 100, 250, 500, 1000, 2500, 5000, 10000],
+  registers: [register],
+});
+
+const poolsAnalyzed = new promClient.Gauge({
+  name: "pools_analyzed_total",
+  help: "Number of pools analyzed for route discovery",
+  registers: [register],
+});
+
+const graphEdges = new promClient.Gauge({
+  name: "graph_edges_total",
+  help: "Number of edges in the route discovery graph",
+  registers: [register],
+});
+
 // ─── Gas and Cost Metrics ───────────────────────────────────────────────────
 
 const gasPrice = new promClient.Gauge({
@@ -320,6 +354,13 @@ module.exports = {
   routesDiscovered,
   profitableRoutes,
   routesByDex,
+
+  // Cycle detection
+  cycleDetectionMode,
+  negativeCyclesFound,
+  cycleDetectionDuration,
+  poolsAnalyzed,
+  graphEdges,
 
   // Gas and costs
   gasPrice,

@@ -205,8 +205,9 @@ const {
   // Curve real-time pricing
   initCurveSubscriptions,
   curveCache,
-  // Subscription stats
+  // Subscription stats and connection health
   getSubscriptionStats,
+  getConnectionStatus,
 } = require("./scripts/priceIngestion");
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1215,6 +1216,123 @@ async function computeDailyPnL() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// On-Chain Sanity Check - Verify prices before execution
+// ─────────────────────────────────────────────────────────────────────────────
+const SANITY_CHECK_MAX_DEVIATION_BPS = 100; // 1% max price deviation allowed
+
+/**
+ * Performs on-chain sanity check before execution.
+ * Verifies that pool reserves/prices haven't moved significantly since simulation.
+ * @param {Object} route - The route to check
+ * @param {Object} provider - Ethers provider for on-chain calls
+ * @returns {Promise<{passed: boolean, reason?: string, details?: Object}>}
+ */
+async function performOnChainSanityCheck(route, provider) {
+  if (!route || !route.hops || route.hops.length === 0) {
+    return { passed: true, reason: "No hops to check" };
+  }
+
+  const deviations = [];
+  const pairInterface = new ethers.utils.Interface([
+    "function getReserves() view returns (uint112,uint112,uint32)",
+  ]);
+  const v3Interface = new ethers.utils.Interface([
+    "function slot0() view returns (uint160 sqrtPriceX96, int24 tick, uint16, uint16, uint16, uint8, bool)",
+  ]);
+
+  for (const hop of route.hops) {
+    if (!hop.poolAddress || !ethers.utils.isAddress(hop.poolAddress)) continue;
+
+    try {
+      const dex = hop.dex || "uniswap_v2";
+
+      if (dex === "uniswap_v2" || dex === "sushiswap_v2") {
+        // V2 pools - check reserves
+        const cached = reserveCache.get(hop.poolAddress);
+        if (!cached) continue;
+
+        const contract = new ethers.Contract(hop.poolAddress, pairInterface, provider);
+        const [r0, r1] = await contract.getReserves();
+        const onChainR0 = r0.toString();
+        const onChainR1 = r1.toString();
+
+        // Calculate deviation for reserve0
+        const cachedR0 = BigNumber.from(cached.reserve0);
+        const freshR0 = BigNumber.from(onChainR0);
+        if (!cachedR0.isZero()) {
+          const diff0 = freshR0.sub(cachedR0).abs();
+          const devBps0 = diff0.mul(10000).div(cachedR0);
+          deviations.push({
+            pool: hop.poolAddress,
+            dex,
+            metric: "reserve0",
+            devBps: devBps0.toNumber(),
+          });
+        }
+
+        // Calculate deviation for reserve1
+        const cachedR1 = BigNumber.from(cached.reserve1);
+        const freshR1 = BigNumber.from(onChainR1);
+        if (!cachedR1.isZero()) {
+          const diff1 = freshR1.sub(cachedR1).abs();
+          const devBps1 = diff1.mul(10000).div(cachedR1);
+          deviations.push({
+            pool: hop.poolAddress,
+            dex,
+            metric: "reserve1",
+            devBps: devBps1.toNumber(),
+          });
+        }
+      } else if (dex === "uniswap_v3") {
+        // V3 pools - check sqrtPriceX96
+        const cached = v3PriceCache.get(hop.poolAddress);
+        if (!cached) continue;
+
+        const contract = new ethers.Contract(hop.poolAddress, v3Interface, provider);
+        const slot0 = await contract.slot0();
+        const onChainPrice = slot0.sqrtPriceX96.toString();
+
+        const cachedPrice = BigNumber.from(cached.sqrtPriceX96);
+        const freshPrice = BigNumber.from(onChainPrice);
+        if (!cachedPrice.isZero()) {
+          const diff = freshPrice.sub(cachedPrice).abs();
+          const devBps = diff.mul(10000).div(cachedPrice);
+          deviations.push({
+            pool: hop.poolAddress,
+            dex,
+            metric: "sqrtPriceX96",
+            devBps: devBps.toNumber(),
+          });
+        }
+      }
+    } catch (err) {
+      logger.warn(`[sanityCheck] Failed to verify pool ${hop.poolAddress}: ${err.message}`);
+      // Don't fail the check if we can't read one pool - might be a transient RPC issue
+    }
+  }
+
+  // Check if any deviation exceeds threshold
+  const maxDeviation = Math.max(...deviations.map(d => d.devBps), 0);
+  const failedPools = deviations.filter(d => d.devBps > SANITY_CHECK_MAX_DEVIATION_BPS);
+
+  if (failedPools.length > 0) {
+    const reason = `Price deviation exceeds ${SANITY_CHECK_MAX_DEVIATION_BPS / 100}% for ${failedPools.length} pool(s): ${failedPools.map(p => `${p.pool.slice(0, 10)}... (${p.devBps / 100}%)`).join(", ")}`;
+    logger.warn(`[sanityCheck] FAILED: ${reason}`);
+    return {
+      passed: false,
+      reason,
+      details: { maxDeviationBps: maxDeviation, failedPools, allDeviations: deviations },
+    };
+  }
+
+  logger.info(`[sanityCheck] PASSED: Max deviation ${maxDeviation / 100}% (threshold ${SANITY_CHECK_MAX_DEVIATION_BPS / 100}%)`);
+  return {
+    passed: true,
+    details: { maxDeviationBps: maxDeviation, checkedPools: deviations.length },
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Main Simulation & Execution Loop for One Chain
 // ─────────────────────────────────────────────────────────────────────────────
 async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = {}) {
@@ -1608,6 +1726,24 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
     return { executed: false, estimatedProfitInDai: BigNumber.from(0) };
   }
   avgProfit.set(parseFloat(ethers.utils.formatUnits(netDAI, 18)));
+
+  // 11b. On-chain sanity check before execution
+  try {
+    const sanityResult = await performOnChainSanityCheck(bestRoute, provider);
+    if (!sanityResult.passed) {
+      logger.warn(
+        `[${chain}] On-chain sanity check FAILED: ${sanityResult.reason}`
+      );
+      arbFailure.labels("sanityCheckFailed").inc();
+      slippageAgent.update(reward);
+      rlEpsilon.set(slippageAgent.epsilon);
+      return { executed: false, estimatedProfitInDai: BigNumber.from(0) };
+    }
+    logger.info(`[${chain}] On-chain sanity check PASSED.`);
+  } catch (err) {
+    logger.warn(`[${chain}] Sanity check error (proceeding anyway): ${err.message}`);
+    // Don't block execution on sanity check errors - it's a safety feature, not a hard requirement
+  }
 
   // 12. Attempt Flashbots bundle
   let flashbotsSuccess = false;
@@ -2191,6 +2327,10 @@ module.exports.getDexRouters = getDexRouters;
 module.exports.getAaveConfig = getAaveConfig;
 module.exports.getCachedTokenAddresses = getCachedTokenAddresses;
 module.exports.getCachedDexRouters = getCachedDexRouters;
+
+// WebSocket connection health exports
+module.exports.getConnectionStatus = getConnectionStatus;
+module.exports.getSubscriptionStats = getSubscriptionStats;
 
 if (require.main === module) {
   (async () => {

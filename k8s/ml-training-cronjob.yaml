@@ -1,0 +1,141 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ml-model-retraining
+  namespace: flashloan-arb
+  labels:
+    app: ml-trainer
+spec:
+  # Run daily at 2 AM UTC (low-activity period)
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 3600  # 1 hour timeout
+      template:
+        metadata:
+          labels:
+            app: ml-trainer
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: ml-trainer
+              image: ghcr.io/flashloan-arb/ml-trainer:latest
+              command:
+                - python
+                - /app/ml/train_model.py
+                - --db-url
+                - $(DATABASE_URL)
+                - --days
+                - "30"
+                - --output
+                - /models/lightgbm_model.txt
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: arb-secrets
+                      key: DATABASE_URL
+                - name: PYTHONUNBUFFERED
+                  value: "1"
+              resources:
+                requests:
+                  memory: "512Mi"
+                  cpu: "250m"
+                limits:
+                  memory: "2Gi"
+                  cpu: "1000m"
+              volumeMounts:
+                - name: model-storage
+                  mountPath: /models
+          volumes:
+            - name: model-storage
+              persistentVolumeClaim:
+                claimName: ml-model-pvc
+          imagePullSecrets:
+            - name: regcred
+---
+# PVC for model storage
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ml-model-pvc
+  namespace: flashloan-arb
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: standard
+---
+# ConfigMap for training configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ml-training-config
+  namespace: flashloan-arb
+data:
+  TRAINING_DAYS: "30"
+  MIN_SAMPLES: "100"
+  LEARNING_RATE: "0.05"
+  NUM_LEAVES: "31"
+  FEATURE_FRACTION: "0.8"
+---
+# ServiceAccount for the training job
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ml-trainer-sa
+  namespace: flashloan-arb
+---
+# Manual trigger job (for ad-hoc retraining)
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ml-model-retrain-manual
+  namespace: flashloan-arb
+  labels:
+    app: ml-trainer
+    trigger: manual
+spec:
+  backoffLimit: 1
+  activeDeadlineSeconds: 3600
+  template:
+    metadata:
+      labels:
+        app: ml-trainer
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: ml-trainer
+          image: ghcr.io/flashloan-arb/ml-trainer:latest
+          command:
+            - python
+            - /app/ml/train_model.py
+            - --synthetic
+            - "10000"
+            - --output
+            - /models/lightgbm_model.txt
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+          volumeMounts:
+            - name: model-storage
+              mountPath: /models
+      volumes:
+        - name: model-storage
+          persistentVolumeClaim:
+            claimName: ml-model-pvc
+      imagePullSecrets:
+        - name: regcred

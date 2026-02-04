@@ -37,6 +37,16 @@ class BotEventBus extends EventEmitter {
   emitConnextTransfer(transferData) {
     this.emit("connext_transfer", transferData);
   }
+
+  // Emit WebSocket connection status change
+  emitConnectionStatusChange(status) {
+    this.emit("connection_status", status);
+  }
+
+  // Emit subscription stats update
+  emitSubscriptionUpdate(stats) {
+    this.emit("subscription_update", stats);
+  }
 }
 
 // Singleton instance

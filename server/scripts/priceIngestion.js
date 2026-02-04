@@ -78,6 +78,15 @@ let reconnectTimer = null;
 let reconnectAttempts = 0;
 let currentUrls = { ws: null, http: null };
 
+// Connection health monitoring
+const MAX_RECONNECT_ATTEMPTS = 10;
+const POLL_INTERVAL_MS = 15000; // 15 second polling interval when WS unavailable
+const STALE_THRESHOLD_MS = 60000; // Data considered stale after 60 seconds
+let pollIntervalId = null;
+let connectionMode = "none"; // "websocket", "polling", "none"
+let lastSuccessfulFetch = 0;
+let healthCheckIntervalId = null;
+
 const multicallAddress = optional("MULTICALL_ADDRESS").string(
   DEFAULT_MULTICALL_ADDRESS
 );
@@ -150,6 +159,8 @@ function attachWebSocketHandlers(wsProvider) {
 
 function scheduleReconnect() {
   if (!currentUrls.ws) {
+    // No WebSocket URL, fall back to polling immediately
+    startPollingFallback();
     return null;
   }
   if (providerPromise) {
@@ -162,6 +173,16 @@ function scheduleReconnect() {
     `[priceIngestion] Attempting WebSocket reconnect in ${delay}ms (attempt ${reconnectAttempts}).`
   );
 
+  // If we've exceeded max reconnect attempts, fall back to polling
+  if (reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
+    console.warn(
+      `[priceIngestion] Max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) exceeded. Falling back to HTTP polling.`
+    );
+    startPollingFallback();
+    reconnectAttempts = 0;
+    return null;
+  }
+
   providerPromise = (async () => {
     await new Promise((resolve) => {
       reconnectTimer = setTimeout(resolve, delay);
@@ -170,6 +191,8 @@ function scheduleReconnect() {
     try {
       await setProvider(createWebSocketProvider(currentUrls.ws));
       reconnectAttempts = 0;
+      connectionMode = "websocket";
+      stopPollingFallback(); // Stop polling if it was running
       const activeProvider = provider;
       providerPromise = null;
       return activeProvider;
@@ -183,6 +206,174 @@ function scheduleReconnect() {
   })();
 
   return providerPromise;
+}
+
+/**
+ * Start HTTP polling fallback when WebSocket is unavailable
+ */
+function startPollingFallback() {
+  if (pollIntervalId) return; // Already polling
+  if (!currentUrls.http) {
+    console.error("[priceIngestion] No HTTP RPC URL available for polling fallback");
+    return;
+  }
+
+  connectionMode = "polling";
+  console.info(`[priceIngestion] Starting HTTP polling fallback (interval: ${POLL_INTERVAL_MS}ms)`);
+
+  // Create HTTP provider if needed
+  if (!provider) {
+    provider = new ethers.providers.JsonRpcProvider({
+      url: currentUrls.http,
+      timeout: 30_000,
+    });
+    multicall = new ethers.Contract(multicallAddress, MULTICALL_ABI, provider);
+  }
+
+  pollIntervalId = setInterval(async () => {
+    try {
+      await pollAllCaches();
+      lastSuccessfulFetch = Date.now();
+    } catch (err) {
+      console.warn(`[priceIngestion] Polling error: ${err?.message || err}`);
+    }
+  }, POLL_INTERVAL_MS);
+
+  // Do an immediate poll
+  pollAllCaches().catch(console.warn);
+
+  // Also try to reconnect WebSocket in the background
+  if (currentUrls.ws && !providerPromise) {
+    setTimeout(() => scheduleReconnect(), 60_000); // Try WS again after 1 minute
+  }
+}
+
+/**
+ * Stop HTTP polling fallback
+ */
+function stopPollingFallback() {
+  if (pollIntervalId) {
+    clearInterval(pollIntervalId);
+    pollIntervalId = null;
+    console.info("[priceIngestion] Stopped HTTP polling fallback (WebSocket reconnected)");
+  }
+}
+
+/**
+ * Poll all cached pools via HTTP
+ */
+async function pollAllCaches() {
+  const activeProvider = provider;
+  if (!activeProvider) return;
+
+  // Poll V2 reserves
+  const v2Pools = Array.from(subscriptions.keys());
+  if (v2Pools.length > 0) {
+    await batchFetchV2Reserves(v2Pools);
+  }
+
+  // Poll V3 pools
+  const v3Pools = Array.from(v3Subscriptions.keys());
+  if (v3Pools.length > 0) {
+    await fetchV3PoolStates(v3Pools);
+  }
+
+  // Poll Balancer pools
+  const balancerPools = Array.from(balancerSubscriptions);
+  if (balancerPools.length > 0) {
+    await fetchBalancerPoolBalances(balancerPools);
+  }
+}
+
+/**
+ * Batch fetch V2 reserves via multicall
+ */
+async function batchFetchV2Reserves(pools) {
+  if (!multicall || pools.length === 0) return;
+
+  const pairInterface = new ethers.utils.Interface(PAIR_ABI);
+  const calls = pools.map(addr => ({
+    target: addr,
+    callData: pairInterface.encodeFunctionData("getReserves"),
+  }));
+
+  try {
+    const [, returnData] = await multicall.aggregate(calls);
+    returnData.forEach((data, i) => {
+      try {
+        const [r0, r1] = pairInterface.decodeFunctionResult("getReserves", data);
+        reserveCache.set(pools[i], {
+          reserve0: r0.toString(),
+          reserve1: r1.toString(),
+          timestamp: Date.now(),
+        });
+      } catch {
+        // Individual decode failure, skip
+      }
+    });
+  } catch (err) {
+    console.warn(`[priceIngestion] Batch V2 fetch failed: ${err?.message}`);
+  }
+}
+
+/**
+ * Start connection health monitoring
+ */
+function startHealthMonitoring() {
+  if (healthCheckIntervalId) return;
+
+  healthCheckIntervalId = setInterval(() => {
+    const now = Date.now();
+    const stats = getSubscriptionStats();
+    const totalCached = stats.v2.cached + stats.v3.cached + stats.balancer.cached + stats.curve.cached;
+
+    // Check if data is stale
+    if (totalCached > 0 && lastSuccessfulFetch > 0) {
+      const staleness = now - lastSuccessfulFetch;
+      if (staleness > STALE_THRESHOLD_MS) {
+        console.warn(
+          `[priceIngestion] Data may be stale (${Math.round(staleness / 1000)}s since last update). Mode: ${connectionMode}`
+        );
+
+        // If in WebSocket mode but stale, try polling
+        if (connectionMode === "websocket") {
+          console.warn("[priceIngestion] Switching to polling due to stale data");
+          startPollingFallback();
+        }
+      }
+    }
+  }, 30_000); // Check every 30 seconds
+}
+
+/**
+ * Stop health monitoring
+ */
+function stopHealthMonitoring() {
+  if (healthCheckIntervalId) {
+    clearInterval(healthCheckIntervalId);
+    healthCheckIntervalId = null;
+  }
+}
+
+/**
+ * Get current connection status
+ */
+function getConnectionStatus() {
+  const now = Date.now();
+  const staleness = lastSuccessfulFetch > 0 ? now - lastSuccessfulFetch : null;
+
+  return {
+    mode: connectionMode,
+    isConnected: connectionMode !== "none",
+    reconnectAttempts,
+    lastSuccessfulFetch: lastSuccessfulFetch > 0 ? new Date(lastSuccessfulFetch).toISOString() : null,
+    stalenessMs: staleness,
+    isStale: staleness !== null && staleness > STALE_THRESHOLD_MS,
+    urls: {
+      wsConfigured: !!currentUrls.ws,
+      httpConfigured: !!currentUrls.http,
+    },
+  };
 }
 
 async function setProvider(newProvider) {
@@ -239,6 +430,9 @@ async function ensureMulticall() {
  */
 async function initSubscriptions(pools) {
   const activeProvider = await ensureProvider();
+  connectionMode = currentUrls.ws ? "websocket" : "polling";
+  startHealthMonitoring();
+
   for (const addr of pools) {
     if (!addr || !ethers.utils.isAddress(addr)) continue;
     if (subscriptions.has(addr)) continue;
@@ -249,6 +443,7 @@ async function initSubscriptions(pools) {
         reserve1: r1.toString(),
         timestamp: Date.now(),
       });
+      lastSuccessfulFetch = Date.now();
     };
 
     const contract = new ethers.Contract(addr, PAIR_ABI, activeProvider);
@@ -336,6 +531,7 @@ async function initV3Subscriptions(pools) {
         },
         timestamp: Date.now(),
       });
+      lastSuccessfulFetch = Date.now();
     };
 
     const contract = new ethers.Contract(addr, V3_POOL_ABI, activeProvider);
@@ -636,6 +832,13 @@ module.exports = {
   // Utility functions
   clearAllSubscriptions,
   getSubscriptionStats,
+
+  // Connection health and fallback
+  getConnectionStatus,
+  startHealthMonitoring,
+  stopHealthMonitoring,
+  startPollingFallback,
+  stopPollingFallback,
 
   // ABIs for external use
   PAIR_ABI,

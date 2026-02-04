@@ -26,6 +26,7 @@ import RealTimeOpportunities from "./RealTimeOpportunities";
 import MLStatistics from "./MLStatistics";
 import ProfitSimulator from "./ProfitSimulator";
 import BotStatus from "./BotStatus";
+import ProfitChart from "./ProfitChart";
 
 const TabPanel = ({ children, value, index }) => (
   <div hidden={value !== index} style={{ paddingTop: 16 }}>
@@ -255,6 +256,11 @@ const Dashboard = ({ adminMode = false }) => {
         {/* Overview Tab */}
         <TabPanel value={activeTab} index={0}>
           <Box sx={{ p: 2 }}>
+            {/* Profit Chart */}
+            <Box sx={{ mb: 3 }}>
+              <ProfitChart />
+            </Box>
+
             <Grid container spacing={3}>
               {/* Recent Trades */}
               <Grid item xs={12} lg={7}>

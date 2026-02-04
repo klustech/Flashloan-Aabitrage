@@ -8,6 +8,23 @@ const { ethers } = require("ethers");
 const { Graph } = require("graphlib");
 const stats = require("simple-statistics");
 
+// Import metrics for cycle detection tracking
+const {
+  cycleDetectionMode,
+  negativeCyclesFound,
+  cycleDetectionDuration,
+  poolsAnalyzed,
+  graphEdges,
+  routesDiscovered,
+} = require("../metricsRegistry");
+
+// Logger for route discovery
+const logger = {
+  info: (msg) => console.log(`[routeFinder] ${msg}`),
+  warn: (msg) => console.warn(`[routeFinder] ${msg}`),
+  debug: (msg) => process.env.DEBUG_ROUTES === "true" && console.log(`[routeFinder:debug] ${msg}`),
+};
+
 // ------------------------------------------------------------------------------------
 // Helper: turn a flat list of pools into an adjacency graph:
 //   {
@@ -383,11 +400,24 @@ async function getAllRoutes({
     "100000";
 
   // 1. Fetch pools & adjacency map
+  const startTime = Date.now();
   const { adjacencyGraph, flatPools } = await getAllPools({
     topN,
     minLiquidityUSD: minLiq,
     chain,
   });
+
+  // Track pools analyzed
+  poolsAnalyzed.set(flatPools.length);
+  logger.info(`Fetched ${flatPools.length} pools for ${chain} (topN=${topN}, minLiq=$${minLiq})`);
+
+  // Count graph edges
+  let edgeCount = 0;
+  for (const token of Object.keys(adjacencyGraph)) {
+    edgeCount += adjacencyGraph[token].length;
+  }
+  graphEdges.set(edgeCount);
+  logger.debug(`Built adjacency graph with ${Object.keys(adjacencyGraph).length} tokens, ${edgeCount} edges`);
 
   let routeDefs = [];
 
@@ -395,9 +425,23 @@ async function getAllRoutes({
     typeof allowLongCycles === "boolean"
       ? allowLongCycles
       : process.env.ALLOW_LNG_CYCLES === "true";
+
+  // Track detection mode in metrics
+  cycleDetectionMode.set(allowCycles ? 1 : 0);
+
   if (allowCycles) {
-    // 2a. Negative‐cycle detection
+    // 2a. Negative‐cycle detection via Bellman-Ford
+    logger.info(`Using Bellman-Ford negative cycle detection (ALLOW_LNG_CYCLES=true)`);
+    const bfStartTime = Date.now();
+
     const cycles = await findNegativeCycles(adjacencyGraph, flatPools);
+
+    const bfDuration = Date.now() - bfStartTime;
+    cycleDetectionDuration.labels("bellman_ford").observe(bfDuration);
+    negativeCyclesFound.set(cycles.length);
+
+    logger.info(`Bellman-Ford found ${cycles.length} negative cycles in ${bfDuration}ms`);
+
     let idx = 1;
     for (const cycleTokens of cycles) {
       const rd = convertCycleToRouteDef(cycleTokens, flatPools);
@@ -405,21 +449,42 @@ async function getAllRoutes({
         rd.id = `bf_${idx++}`;
         rd.routeTokens = [...cycleTokens];
         routeDefs.push(rd);
+        logger.debug(`Cycle ${rd.id}: ${cycleTokens.length} tokens, ${rd.hops.length} hops`);
       }
     }
   } else {
-    // 2b. ≤3-Hop enumeration
+    // 2b. ≤3-Hop enumeration via DFS
+    logger.info(`Using DFS triangular route enumeration (ALLOW_LNG_CYCLES=false)`);
+    const dfsStartTime = Date.now();
+
     const routes = enumerate3HopRoutes(flatPools);
     routeDefs = routes;
+
+    const dfsDuration = Date.now() - dfsStartTime;
+    cycleDetectionDuration.labels("dfs_triangular").observe(dfsDuration);
+    negativeCyclesFound.set(0); // Not applicable for DFS mode
+
+    logger.info(`DFS enumeration found ${routes.length} routes in ${dfsDuration}ms`);
   }
 
   /**
    * Final sanity pass – ensure every route has a non-empty hops array
    * so the worker never receives malformed data.
    */
+  const beforeFilter = routeDefs.length;
   routeDefs = routeDefs.filter(
     (r) => Array.isArray(r.hops) && r.hops.length > 0
   );
+
+  if (beforeFilter !== routeDefs.length) {
+    logger.warn(`Filtered out ${beforeFilter - routeDefs.length} malformed routes`);
+  }
+
+  // Track total routes discovered
+  routesDiscovered.set(routeDefs.length);
+
+  const totalDuration = Date.now() - startTime;
+  logger.info(`Route discovery complete: ${routeDefs.length} valid routes in ${totalDuration}ms`);
 
   return routeDefs;
 }

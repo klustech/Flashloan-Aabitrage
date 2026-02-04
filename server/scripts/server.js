@@ -77,6 +77,8 @@ const loadBotLogic = () => {
       getPendingConnextTransfers: () => ({ transfers: [], count: 0 }),
       checkConnextTransferStatus: async () => ({ status: "unknown" }),
       getAllRoutes: async () => [],
+      getConnectionStatus: () => ({ mode: "none", isConnected: false }),
+      getSubscriptionStats: () => ({ v2: { subscriptions: 0, cached: 0 }, v3: { subscriptions: 0, cached: 0 }, balancer: { subscriptions: 0, cached: 0 }, curve: { subscriptions: 0, cached: 0 } }),
     };
   }
   return require("../botLogic");
@@ -96,6 +98,8 @@ const {
   getPendingConnextTransfers,
   checkConnextTransferStatus,
   getAllRoutes,
+  getConnectionStatus,
+  getSubscriptionStats,
 } = loadBotLogic();
 
 // Connext monitoring functions (direct import to avoid circular deps)
@@ -1237,6 +1241,7 @@ app.get("/api/bot-status", async (_req, res) => {
         mlService: mlScorer ? true : false,
         connext: await getConnextStatus().then(s => s.initialized).catch(() => false),
         timelock: timelockInitialized,
+        priceIngestion: typeof getConnectionStatus === "function" ? getConnectionStatus() : { mode: "unknown" },
       },
     });
   } catch (err) {
@@ -1269,6 +1274,32 @@ app.post("/api/circuit-breaker/reset", (_req, res) => {
   } catch (err) {
     logger.error(`circuit-breaker reset error: ${err.message}`);
     res.status(500).json({ error: "failed to reset circuit breaker" });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WebSocket Connection Health API
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/connection-status
+// Returns WebSocket connection health and subscription stats
+app.get("/api/connection-status", (_req, res) => {
+  try {
+    const connectionStatus = typeof getConnectionStatus === "function"
+      ? getConnectionStatus()
+      : { mode: "unknown", isConnected: false };
+    const subscriptionStats = typeof getSubscriptionStats === "function"
+      ? getSubscriptionStats()
+      : { v2: {}, v3: {}, balancer: {}, curve: {} };
+
+    res.json({
+      connection: connectionStatus,
+      subscriptions: subscriptionStats,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    logger.error(`connection-status error: ${err.message}`);
+    res.status(500).json({ error: "failed to get connection status" });
   }
 });
 
