@@ -79,6 +79,16 @@ const loadBotLogic = () => {
       getAllRoutes: async () => [],
       getConnectionStatus: () => ({ mode: "none", isConnected: false }),
       getSubscriptionStats: () => ({ v2: { subscriptions: 0, cached: 0 }, v3: { subscriptions: 0, cached: 0 }, balancer: { subscriptions: 0, cached: 0 }, curve: { subscriptions: 0, cached: 0 } }),
+      // Tier-1 mocks
+      getRiskReport: () => ({ totalTrades: 0, winRate: "N/A", isPaused: false }),
+      pauseTrading: () => {},
+      resumeTrading: () => true,
+      forceResumeTrading: () => true,
+      getRiskAlerts: () => [],
+      getRelayStats: () => ({}),
+      getGraphStats: () => ({ totalPools: 0, totalEdges: 0 }),
+      getTier1FeatureStatus: () => ({ multiRelay: false, riskManager: false, incrementalGraph: false, mempoolMonitor: false, dynamicTips: false }),
+      initializeTier1Features: async () => ({ rpcManager: false, mempoolMonitor: false, riskManager: false }),
     };
   }
   return require("../botLogic");
@@ -100,6 +110,16 @@ const {
   getAllRoutes,
   getConnectionStatus,
   getSubscriptionStats,
+  // Tier-1 feature exports
+  getRiskReport,
+  pauseTrading,
+  resumeTrading,
+  forceResumeTrading,
+  getRiskAlerts,
+  getRelayStats,
+  getGraphStats,
+  getTier1FeatureStatus,
+  initializeTier1Features,
 } = loadBotLogic();
 
 // Connext monitoring functions (direct import to avoid circular deps)
@@ -1304,6 +1324,135 @@ app.get("/api/connection-status", (_req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Tier-1 Features API
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/tier1/status - Get Tier-1 feature status
+app.get("/api/tier1/status", (_req, res) => {
+  try {
+    const status = typeof getTier1FeatureStatus === "function"
+      ? getTier1FeatureStatus()
+      : { multiRelay: false, riskManager: false, incrementalGraph: false, mempoolMonitor: false, dynamicTips: false };
+
+    res.json({
+      features: status,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    logger.error(`tier1-status error: ${err.message}`);
+    res.status(500).json({ error: "failed to get Tier-1 status" });
+  }
+});
+
+// GET /api/tier1/risk-report - Get risk manager performance report
+app.get("/api/tier1/risk-report", (_req, res) => {
+  try {
+    const report = typeof getRiskReport === "function"
+      ? getRiskReport()
+      : { error: "Risk manager not available" };
+
+    res.json(report);
+  } catch (err) {
+    logger.error(`risk-report error: ${err.message}`);
+    res.status(500).json({ error: "failed to get risk report" });
+  }
+});
+
+// GET /api/tier1/risk-alerts - Get recent risk alerts
+app.get("/api/tier1/risk-alerts", (_req, res) => {
+  try {
+    const alerts = typeof getRiskAlerts === "function"
+      ? getRiskAlerts()
+      : [];
+
+    res.json({ alerts, count: alerts.length });
+  } catch (err) {
+    logger.error(`risk-alerts error: ${err.message}`);
+    res.status(500).json({ error: "failed to get risk alerts" });
+  }
+});
+
+// POST /api/tier1/pause-trading - Pause trading via risk manager
+app.post("/api/tier1/pause-trading", (_req, res) => {
+  try {
+    if (typeof pauseTrading === "function") {
+      pauseTrading();
+      logger.info("Trading paused via API");
+      res.json({ status: "ok", message: "Trading paused" });
+    } else {
+      res.status(400).json({ error: "Risk manager not available" });
+    }
+  } catch (err) {
+    logger.error(`pause-trading error: ${err.message}`);
+    res.status(500).json({ error: "failed to pause trading" });
+  }
+});
+
+// POST /api/tier1/resume-trading - Resume trading via risk manager
+app.post("/api/tier1/resume-trading", (_req, res) => {
+  try {
+    if (typeof resumeTrading === "function") {
+      const resumed = resumeTrading();
+      if (resumed) {
+        logger.info("Trading resumed via API");
+        res.json({ status: "ok", message: "Trading resumed" });
+      } else {
+        res.json({ status: "cooldown", message: "Cooldown not elapsed, use force-resume if needed" });
+      }
+    } else {
+      res.status(400).json({ error: "Risk manager not available" });
+    }
+  } catch (err) {
+    logger.error(`resume-trading error: ${err.message}`);
+    res.status(500).json({ error: "failed to resume trading" });
+  }
+});
+
+// POST /api/tier1/force-resume-trading - Force resume (bypass cooldown)
+app.post("/api/tier1/force-resume-trading", (_req, res) => {
+  try {
+    if (typeof forceResumeTrading === "function") {
+      forceResumeTrading();
+      logger.info("Trading force resumed via API");
+      res.json({ status: "ok", message: "Trading force resumed" });
+    } else {
+      res.status(400).json({ error: "Risk manager not available" });
+    }
+  } catch (err) {
+    logger.error(`force-resume error: ${err.message}`);
+    res.status(500).json({ error: "failed to force resume trading" });
+  }
+});
+
+// GET /api/tier1/relay-stats - Get multi-relay statistics
+app.get("/api/tier1/relay-stats", (_req, res) => {
+  try {
+    const stats = typeof getRelayStats === "function"
+      ? getRelayStats()
+      : {};
+
+    res.json({ relays: stats });
+  } catch (err) {
+    logger.error(`relay-stats error: ${err.message}`);
+    res.status(500).json({ error: "failed to get relay stats" });
+  }
+});
+
+// GET /api/tier1/graph-stats - Get incremental graph statistics
+app.get("/api/tier1/graph-stats", (_req, res) => {
+  try {
+    const stats = typeof getGraphStats === "function"
+      ? getGraphStats()
+      : { totalPools: 0, totalEdges: 0 };
+
+    res.json(stats);
+  } catch (err) {
+    logger.error(`graph-stats error: ${err.message}`);
+    res.status(500).json({ error: "failed to get graph stats" });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ML Stats API
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1952,6 +2101,16 @@ const start = async (port = PORT) => {
     if (process.env.CONNEXT_MONITORING !== "false") {
       startConnextMonitoring();
       logger.info("[Connext] Transfer monitoring started");
+    }
+
+    // Initialize Tier-1 features
+    if (typeof initializeTier1Features === "function") {
+      try {
+        const tier1Results = await initializeTier1Features(provider);
+        logger.info(`[Tier1] Initialization complete: ${JSON.stringify(tier1Results)}`);
+      } catch (err) {
+        logger.warn(`[Tier1] Initialization error: ${err.message}`);
+      }
     }
   }
 

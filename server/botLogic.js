@@ -79,6 +79,23 @@ let connextConfig = null;
 let connextAutoForwardEnabled = false;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Imports: Tier-1 Competitive Features
+// ─────────────────────────────────────────────────────────────────────────────
+const { riskManager, validateTrade, recordTrade, getPerformanceReport } = require("./scripts/riskManager");
+const { rpcManager, initializeFromEnv: initRpcManager, getPrimaryProvider, executeWithFailover } = require("./scripts/rpcManager");
+const { submitToAllRelays, submitBundleVariants, getRelayStats } = require("./scripts/multiRelay");
+const { calculateOptimalTip, generateTipVariants, estimateCompetitionLevel, analyzeGasCompetition } = require("./scripts/tipCalculator");
+const { graph: incrementalGraph, handleSyncEvent, handleV3SwapEvent, getStats: getGraphStats } = require("./scripts/incrementalGraph");
+const { getMempoolMonitor } = require("./scripts/mempoolMonitor");
+
+// Tier-1 feature flags
+const ENABLE_MULTI_RELAY = process.env.MULTI_RELAY_ENABLED === "true";
+const ENABLE_RISK_MANAGER = process.env.RISK_MANAGER_ENABLED !== "false"; // Default enabled
+const ENABLE_INCREMENTAL_GRAPH = process.env.INCREMENTAL_GRAPH_ENABLED === "true";
+const ENABLE_MEMPOOL_MONITOR = process.env.MEMPOOL_MONITORING === "true";
+const ENABLE_DYNAMIC_TIPS = process.env.DYNAMIC_TIPS_ENABLED === "true";
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Reintroduced: CoinGecko Caching & Dynamic Slippage (exactly from original)
 // ─────────────────────────────────────────────────────────────────────────────
 const cache = {
@@ -1727,7 +1744,33 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
   }
   avgProfit.set(parseFloat(ethers.utils.formatUnits(netDAI, 18)));
 
-  // 11b. On-chain sanity check before execution
+  // 11b. Risk Manager Validation (Tier-1 Feature)
+  if (ENABLE_RISK_MANAGER) {
+    try {
+      const riskValidation = validateTrade({
+        volumeDai: parseFloat(ethers.utils.formatUnits(borrowDAI, 18)),
+        expectedProfitDai: parseFloat(ethers.utils.formatUnits(netDAI, 18)),
+        route: bestRoute.id,
+      });
+
+      if (!riskValidation.valid) {
+        logger.warn(
+          `[${chain}] Risk validation FAILED: ${riskValidation.errors.join(", ")}`
+        );
+        arbFailure.labels("riskValidationFailed").inc();
+        slippageAgent.update(reward);
+        rlEpsilon.set(slippageAgent.epsilon);
+        return { executed: false, estimatedProfitInDai: BigNumber.from(0) };
+      }
+      logger.info(
+        `[${chain}] Risk validation PASSED. Remaining daily risk: ${riskValidation.riskMetrics.remainingRisk.toFixed(2)}%`
+      );
+    } catch (err) {
+      logger.warn(`[${chain}] Risk validation error (proceeding): ${err.message}`);
+    }
+  }
+
+  // 11c. On-chain sanity check before execution
   try {
     const sanityResult = await performOnChainSanityCheck(bestRoute, provider);
     if (!sanityResult.passed) {
@@ -1890,14 +1933,145 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
           );
         }
         reward = parseFloat(ethers.utils.formatUnits(netDAI, 18));
+
+        // Record trade in risk manager (Tier-1 Feature)
+        if (ENABLE_RISK_MANAGER) {
+          try {
+            recordTrade({
+              profitDai: ethers.utils.formatUnits(netDAI, 18),
+              volumeDai: ethers.utils.formatUnits(borrowDAI, 18),
+              gasUsed: estimateGas.toString(),
+              gasCostDai: ethers.utils.formatUnits(estCostDAI, 18),
+              route: bestRoute.id,
+              success: true,
+            });
+            logger.info(`[${chain}] Trade recorded in risk manager.`);
+          } catch (rmErr) {
+            logger.warn(`[${chain}] Risk manager record failed: ${rmErr.message}`);
+          }
+        }
+
         return { executed: true, estimatedProfitInDai: netDAI };
       } else {
         logger.warn(
-          `[${chain}] Flashbots bundles failed—falling back to public TX.`
+          `[${chain}] Flashbots bundles failed—falling back to multi-relay or public TX.`
         );
       }
     } catch (err) {
       logger.warn(`[${chain}] Flashbots error: ${err.message}`);
+    }
+  }
+
+  // 12b. Multi-Relay Bundle Submission (Tier-1 Feature)
+  if (ENABLE_MULTI_RELAY && !flashbotsSuccess) {
+    try {
+      logger.info(`[${chain}] Attempting multi-relay bundle submission...`);
+
+      // Calculate optimal tip using dynamic tip calculator
+      let optimalTip;
+      if (ENABLE_DYNAMIC_TIPS) {
+        const gasCompetition = await analyzeGasCompetition(provider);
+        const competitionLevel = estimateCompetitionLevel({
+          profitUsd: parseFloat(ethers.utils.formatUnits(netDAI, 18)),
+          isPopularPair: false,
+        });
+
+        optimalTip = calculateOptimalTip({
+          expectedProfitWei: netDAI,
+          gasUsed: estimateGas,
+          baseFeePerGas: gasPrice,
+          competitionLevel,
+          blocksUntilTarget: 1,
+          urgency: "normal",
+        });
+
+        logger.info(
+          `[${chain}] Dynamic tip: ${ethers.utils.formatUnits(optimalTip.tipWei, "ether")} ETH ` +
+          `(${optimalTip.tipBps / 100}% of profit), competition: ${competitionLevel}`
+        );
+      } else {
+        // Fallback to simple tip calculation
+        optimalTip = {
+          priorityFeePerGas: ethers.utils.parseUnits("2", "gwei"),
+          maxFeePerGas: gasPrice.add(ethers.utils.parseUnits("2", "gwei")),
+        };
+      }
+
+      const blockNumber = await provider.getBlockNumber();
+      const targetBlock = blockNumber + 1;
+
+      // Build and sign the transaction
+      const tx = {
+        to: arbContract.address,
+        data: arbContract.interface.encodeFunctionData("initiateFlashLoan", [
+          swapData.token,
+          borrowDAI,
+          paramsEncoded,
+        ]),
+        gasLimit: BigNumber.from(2_000_000),
+        maxFeePerGas: optimalTip.maxFeePerGas || gasPrice.add(optimalTip.priorityFeePerGas),
+        maxPriorityFeePerGas: optimalTip.priorityFeePerGas,
+        chainId: parseInt(process.env.CHAIN_ID || "1"),
+        nonce: await wallet.getTransactionCount(),
+        type: 2,
+      };
+
+      const signedTx = await wallet.signTransaction(tx);
+
+      // Submit to all relays in parallel
+      const relayResults = await submitToAllRelays(wallet, [signedTx], targetBlock, {
+        timeout: 5000,
+      });
+
+      logger.info(
+        `[${chain}] Multi-relay submission: ${relayResults.successful}/${relayResults.totalRelays} succeeded`
+      );
+
+      // Check if any relay succeeded (we'll verify inclusion separately)
+      if (relayResults.successful > 0) {
+        // Wait briefly for potential inclusion
+        await new Promise((resolve) => setTimeout(resolve, 15000));
+
+        // Check if transaction was included
+        const receipt = await provider.getTransactionReceipt(ethers.utils.keccak256(signedTx));
+        if (receipt && receipt.status === 1) {
+          logger.info(`[${chain}] Multi-relay bundle INCLUDED!`);
+          arbSuccess.inc();
+
+          const tradeResult = await insertTrade({
+            route: swapData.route,
+            profit: netDAI,
+            txHash: receipt.transactionHash,
+            timestamp: Date.now(),
+            status: "multi-relay",
+          });
+
+          if (tradeResult?.ok) {
+            logger.info(`[${chain}] Trade recorded as multi-relay.`);
+          }
+
+          reward = parseFloat(ethers.utils.formatUnits(netDAI, 18));
+
+          if (ENABLE_RISK_MANAGER) {
+            recordTrade({
+              profitDai: ethers.utils.formatUnits(netDAI, 18),
+              volumeDai: ethers.utils.formatUnits(borrowDAI, 18),
+              gasUsed: receipt.gasUsed.toString(),
+              gasCostDai: ethers.utils.formatUnits(estCostDAI, 18),
+              route: bestRoute.id,
+              success: true,
+            });
+          }
+
+          slippageAgent.update(reward);
+          rlEpsilon.set(slippageAgent.epsilon);
+          return { executed: true, estimatedProfitInDai: netDAI };
+        }
+      }
+
+      logger.warn(`[${chain}] Multi-relay bundles not included—falling back to public TX.`);
+    } catch (err) {
+      logger.warn(`[${chain}] Multi-relay error: ${err.message}`);
     }
   }
 
@@ -2331,6 +2505,88 @@ module.exports.getCachedDexRouters = getCachedDexRouters;
 // WebSocket connection health exports
 module.exports.getConnectionStatus = getConnectionStatus;
 module.exports.getSubscriptionStats = getSubscriptionStats;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tier-1 Feature Exports and Initialization
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Risk manager exports
+module.exports.getRiskReport = getPerformanceReport;
+module.exports.pauseTrading = () => riskManager.pause("Manual pause requested");
+module.exports.resumeTrading = () => riskManager.resume();
+module.exports.forceResumeTrading = () => riskManager.forceResume();
+module.exports.getRiskAlerts = () => riskManager.getAlerts();
+
+// Multi-relay exports
+module.exports.getRelayStats = getRelayStats;
+
+// Incremental graph exports
+module.exports.getGraphStats = getGraphStats;
+
+// Feature flags export
+module.exports.getTier1FeatureStatus = () => ({
+  multiRelay: ENABLE_MULTI_RELAY,
+  riskManager: ENABLE_RISK_MANAGER,
+  incrementalGraph: ENABLE_INCREMENTAL_GRAPH,
+  mempoolMonitor: ENABLE_MEMPOOL_MONITOR,
+  dynamicTips: ENABLE_DYNAMIC_TIPS,
+});
+
+/**
+ * Initialize Tier-1 features (call once at startup)
+ */
+async function initializeTier1Features(provider) {
+  const results = {
+    rpcManager: false,
+    mempoolMonitor: false,
+    riskManager: false,
+  };
+
+  // Initialize RPC manager with failover
+  try {
+    const rpcCount = await initRpcManager();
+    if (rpcCount > 0) {
+      rpcManager.startHealthMonitoring();
+      results.rpcManager = true;
+      logger.info(`[Tier1] RPC Manager initialized with ${rpcCount} endpoints`);
+    }
+  } catch (err) {
+    logger.warn(`[Tier1] RPC Manager init failed: ${err.message}`);
+  }
+
+  // Initialize mempool monitor if enabled
+  if (ENABLE_MEMPOOL_MONITOR && provider) {
+    try {
+      const mempoolMonitor = getMempoolMonitor(provider);
+      await mempoolMonitor.start();
+
+      // Listen for backrun opportunities
+      mempoolMonitor.on("backrun_opportunity", (opportunity) => {
+        logger.info(
+          `[Tier1] Backrun opportunity detected: ${opportunity.estimatedProfitEth.toFixed(6)} ETH ` +
+          `(target tx: ${opportunity.targetTx.slice(0, 10)}...)`
+        );
+        // TODO: Execute backrun if profitable and within risk limits
+      });
+
+      results.mempoolMonitor = true;
+      logger.info("[Tier1] Mempool monitor started");
+    } catch (err) {
+      logger.warn(`[Tier1] Mempool monitor init failed: ${err.message}`);
+    }
+  }
+
+  // Risk manager is already initialized as singleton
+  if (ENABLE_RISK_MANAGER) {
+    results.riskManager = true;
+    logger.info("[Tier1] Risk manager enabled");
+  }
+
+  logger.info(`[Tier1] Feature initialization complete: ${JSON.stringify(results)}`);
+  return results;
+}
+
+module.exports.initializeTier1Features = initializeTier1Features;
 
 if (require.main === module) {
   (async () => {
