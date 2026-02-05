@@ -301,3 +301,55 @@ export const getGasEstimate = async () => {
   const response = await API.get("/api/gas-estimate");
   return response.data;
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tier-1 Competitive Features API
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Get Tier-1 feature status
+export const getTier1Status = async () => {
+  const response = await API.get("/api/tier1/status");
+  return response.data;
+};
+
+// Get risk manager performance report
+export const getRiskReport = async () => {
+  const response = await API.get("/api/tier1/risk-report");
+  return response.data;
+};
+
+// Get recent risk alerts
+export const getRiskAlerts = async (limit = 50) => {
+  const response = await API.get("/api/tier1/risk-alerts", { params: { limit } });
+  return response.data;
+};
+
+// Pause trading via risk manager
+export const pauseTrading = async (reason) => {
+  const response = await API.post("/api/tier1/pause-trading", { reason });
+  return response.data;
+};
+
+// Resume trading via risk manager
+export const resumeTrading = async () => {
+  const response = await API.post("/api/tier1/resume-trading");
+  return response.data;
+};
+
+// Force resume trading (bypass cooldown)
+export const forceResumeTrading = async () => {
+  const response = await API.post("/api/tier1/force-resume-trading");
+  return response.data;
+};
+
+// Get multi-relay statistics
+export const getRelayStats = async () => {
+  const response = await API.get("/api/tier1/relay-stats");
+  return response.data;
+};
+
+// Get incremental graph statistics
+export const getGraphStats = async () => {
+  const response = await API.get("/api/tier1/graph-stats");
+  return response.data;
+};
