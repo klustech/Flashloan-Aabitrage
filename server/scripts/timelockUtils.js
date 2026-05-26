@@ -40,7 +40,6 @@ const TIMELOCK_ABI = [
 
 // ArbitrageFlashloan admin functions ABI
 const ARBITRAGE_ADMIN_ABI = [
-  "function setMaxLossBps(uint16 _maxLossBps) external",
   "function scheduleProfitRecipientChange(address _newRecipient) external",
   "function executeProfitRecipientChange(address _newRecipient) external",
   "function pause() external",
@@ -132,8 +131,14 @@ async function scheduleOperation(params) {
     throw new Error("Timelock client not initialized with signer");
   }
 
-  const actualDelay = delay || await timelockContract.getMinDelay();
-  const operationId = computeOperationId(target, value, data, predecessor, salt);
+  const actualDelay = delay || (await timelockContract.getMinDelay());
+  const operationId = computeOperationId(
+    target,
+    value,
+    data,
+    predecessor,
+    salt
+  );
 
   // Check if already scheduled
   const isOperation = await timelockContract.isOperation(operationId);
@@ -147,7 +152,10 @@ async function scheduleOperation(params) {
 
   // Check proposer role
   const proposerRole = await timelockContract.PROPOSER_ROLE();
-  const hasRole = await timelockContract.hasRole(proposerRole, await signer.getAddress());
+  const hasRole = await timelockContract.hasRole(
+    proposerRole,
+    await signer.getAddress()
+  );
   if (!hasRole) {
     return {
       success: false,
@@ -169,7 +177,11 @@ async function scheduleOperation(params) {
     const executeAfter = Math.floor(Date.now() / 1000) + actualDelay.toNumber();
 
     console.log(`[timelockUtils] Scheduled operation ${operationId}`);
-    console.log(`[timelockUtils] Executable after: ${new Date(executeAfter * 1000).toISOString()}`);
+    console.log(
+      `[timelockUtils] Executable after: ${new Date(
+        executeAfter * 1000
+      ).toISOString()}`
+    );
 
     return {
       success: true,
@@ -205,7 +217,13 @@ async function executeOperation(params) {
     throw new Error("Timelock client not initialized with signer");
   }
 
-  const operationId = computeOperationId(target, value, data, predecessor, salt);
+  const operationId = computeOperationId(
+    target,
+    value,
+    data,
+    predecessor,
+    salt
+  );
 
   // Check operation status
   const isReady = await timelockContract.isOperationReady(operationId);
@@ -230,7 +248,10 @@ async function executeOperation(params) {
 
   // Check executor role
   const executorRole = await timelockContract.EXECUTOR_ROLE();
-  const hasRole = await timelockContract.hasRole(executorRole, await signer.getAddress());
+  const hasRole = await timelockContract.hasRole(
+    executorRole,
+    await signer.getAddress()
+  );
   if (!hasRole) {
     return {
       success: false,
@@ -285,7 +306,10 @@ async function cancelOperation(operationId) {
 
   // Check canceller role
   const cancellerRole = await timelockContract.CANCELLER_ROLE();
-  const hasRole = await timelockContract.hasRole(cancellerRole, await signer.getAddress());
+  const hasRole = await timelockContract.hasRole(
+    cancellerRole,
+    await signer.getAddress()
+  );
   if (!hasRole) {
     return {
       success: false,
@@ -320,13 +344,14 @@ async function getOperationStatus(operationId) {
     throw new Error("Timelock client not initialized");
   }
 
-  const [isOperation, isPending, isReady, isDone, timestamp] = await Promise.all([
-    timelockContract.isOperation(operationId),
-    timelockContract.isOperationPending(operationId),
-    timelockContract.isOperationReady(operationId),
-    timelockContract.isOperationDone(operationId),
-    timelockContract.getTimestamp(operationId),
-  ]);
+  const [isOperation, isPending, isReady, isDone, timestamp] =
+    await Promise.all([
+      timelockContract.isOperation(operationId),
+      timelockContract.isOperationPending(operationId),
+      timelockContract.isOperationReady(operationId),
+      timelockContract.isOperationDone(operationId),
+      timelockContract.getTimestamp(operationId),
+    ]);
 
   let status = "unknown";
   if (!isOperation) status = "not_scheduled";
@@ -342,48 +367,15 @@ async function getOperationStatus(operationId) {
     isReady,
     isDone,
     timestamp: timestamp.toString(),
-    readyAt: timestamp.gt(0) ? new Date(timestamp.toNumber() * 1000).toISOString() : null,
+    readyAt: timestamp.gt(0)
+      ? new Date(timestamp.toNumber() * 1000).toISOString()
+      : null,
   };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // High-level governance operations for ArbitrageFlashloan
 // ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Schedule max loss BPS change
- * @param {number} newMaxLossBps - New max loss in basis points
- */
-async function scheduleMaxLossBpsChange(newMaxLossBps) {
-  if (!arbitrageContract) {
-    throw new Error("Arbitrage contract not configured");
-  }
-
-  const data = arbitrageContract.interface.encodeFunctionData("setMaxLossBps", [newMaxLossBps]);
-
-  return scheduleOperation({
-    target: arbitrageContract.address,
-    data,
-    description: `Set maxLossBps to ${newMaxLossBps}`,
-  });
-}
-
-/**
- * Execute max loss BPS change
- * @param {number} newMaxLossBps - New max loss in basis points
- */
-async function executeMaxLossBpsChange(newMaxLossBps) {
-  if (!arbitrageContract) {
-    throw new Error("Arbitrage contract not configured");
-  }
-
-  const data = arbitrageContract.interface.encodeFunctionData("setMaxLossBps", [newMaxLossBps]);
-
-  return executeOperation({
-    target: arbitrageContract.address,
-    data,
-  });
-}
 
 /**
  * Schedule emergency pause
@@ -428,12 +420,13 @@ async function getRoles(address) {
     throw new Error("Timelock client not initialized");
   }
 
-  const [adminRole, proposerRole, executorRole, cancellerRole] = await Promise.all([
-    timelockContract.TIMELOCK_ADMIN_ROLE(),
-    timelockContract.PROPOSER_ROLE(),
-    timelockContract.EXECUTOR_ROLE(),
-    timelockContract.CANCELLER_ROLE(),
-  ]);
+  const [adminRole, proposerRole, executorRole, cancellerRole] =
+    await Promise.all([
+      timelockContract.TIMELOCK_ADMIN_ROLE(),
+      timelockContract.PROPOSER_ROLE(),
+      timelockContract.EXECUTOR_ROLE(),
+      timelockContract.CANCELLER_ROLE(),
+    ]);
 
   const [isAdmin, isProposer, isExecutor, isCanceller] = await Promise.all([
     timelockContract.hasRole(adminRole, address),
@@ -460,8 +453,6 @@ module.exports = {
   executeOperation,
   cancelOperation,
   getOperationStatus,
-  scheduleMaxLossBpsChange,
-  executeMaxLossBpsChange,
   schedulePause,
   scheduleUnpause,
   getRoles,

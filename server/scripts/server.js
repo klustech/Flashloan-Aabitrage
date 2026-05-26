@@ -78,17 +78,36 @@ const loadBotLogic = () => {
       checkConnextTransferStatus: async () => ({ status: "unknown" }),
       getAllRoutes: async () => [],
       getConnectionStatus: () => ({ mode: "none", isConnected: false }),
-      getSubscriptionStats: () => ({ v2: { subscriptions: 0, cached: 0 }, v3: { subscriptions: 0, cached: 0 }, balancer: { subscriptions: 0, cached: 0 }, curve: { subscriptions: 0, cached: 0 } }),
+      getSubscriptionStats: () => ({
+        v2: { subscriptions: 0, cached: 0 },
+        v3: { subscriptions: 0, cached: 0 },
+        balancer: { subscriptions: 0, cached: 0 },
+        curve: { subscriptions: 0, cached: 0 },
+      }),
       // Tier-1 mocks
-      getRiskReport: () => ({ totalTrades: 0, winRate: "N/A", isPaused: false }),
+      getRiskReport: () => ({
+        totalTrades: 0,
+        winRate: "N/A",
+        isPaused: false,
+      }),
       pauseTrading: () => {},
       resumeTrading: () => true,
       forceResumeTrading: () => true,
       getRiskAlerts: () => [],
       getRelayStats: () => ({}),
       getGraphStats: () => ({ totalPools: 0, totalEdges: 0 }),
-      getTier1FeatureStatus: () => ({ multiRelay: false, riskManager: false, incrementalGraph: false, mempoolMonitor: false, dynamicTips: false }),
-      initializeTier1Features: async () => ({ rpcManager: false, mempoolMonitor: false, riskManager: false }),
+      getTier1FeatureStatus: () => ({
+        multiRelay: false,
+        riskManager: false,
+        incrementalGraph: false,
+        mempoolMonitor: false,
+        dynamicTips: false,
+      }),
+      initializeTier1Features: async () => ({
+        rpcManager: false,
+        mempoolMonitor: false,
+        riskManager: false,
+      }),
     };
   }
   return require("../botLogic");
@@ -173,7 +192,9 @@ const initTimelock = async () => {
 
     const privateKey = process.env.PRIVATE_KEY;
     if (!privateKey) {
-      console.warn("[Timelock] PRIVATE_KEY not set, timelock will be read-only");
+      console.warn(
+        "[Timelock] PRIVATE_KEY not set, timelock will be read-only"
+      );
     }
 
     const signer = privateKey ? new ethers.Wallet(privateKey, provider) : null;
@@ -208,8 +229,6 @@ const {
   executeOperation,
   cancelOperation,
   getOperationStatus,
-  scheduleMaxLossBpsChange,
-  executeMaxLossBpsChange,
   schedulePause,
   scheduleUnpause,
   getRoles,
@@ -219,13 +238,11 @@ const {
 // ─────────────────────────────────────────────────────────────────────────────
 // Circuit Breaker
 // ─────────────────────────────────────────────────────────────────────────────
-const {
-  getCircuitBreakerState,
-  resetCircuitBreaker: resetCB,
-  recordSuccess,
-  recordFailure,
-  CIRCUIT_STATES,
-} = require("./circuitBreaker");
+const { getCircuitBreaker } = require("./circuitBreaker");
+
+// Thin accessors over the shared circuit-breaker singleton.
+const getCircuitBreakerState = () => getCircuitBreaker().getStatus();
+const resetCB = () => getCircuitBreaker().reset(true);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ML Scorer
@@ -275,7 +292,10 @@ const LOGS_BASE_DIR = path.resolve(__dirname, "../../");
 const sanitizeLogPath = (requestedPath = "bot.log") => {
   const normalized = path.normalize(String(requestedPath));
   const resolved = path.resolve(LOGS_BASE_DIR, normalized);
-  if (!resolved.startsWith(LOGS_BASE_DIR + path.sep) && resolved !== LOGS_BASE_DIR) {
+  if (
+    !resolved.startsWith(LOGS_BASE_DIR + path.sep) &&
+    resolved !== LOGS_BASE_DIR
+  ) {
     throw new Error("invalid log path");
   }
   if (resolved === LOGS_BASE_DIR) {
@@ -307,23 +327,40 @@ app.use(
   })
 );
 
-// Optional x-api-key auth (if you set API_KEY in .env)
-const apiKeyWarningLogged = { value: false };
+// CORS restricted to explicitly configured origins. With CORS_ORIGIN unset,
+// cross-origin browser requests are blocked (same-origin / server-side only).
+const corsOrigins = (process.env.CORS_ORIGIN || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+app.use(cors({ origin: corsOrigins.length ? corsOrigins : false }));
+app.use(express.json());
+
+// Fail-closed x-api-key auth. Liveness/metrics stay open for probes; every other
+// route requires a matching API_KEY. If API_KEY is unset the server refuses the
+// request rather than running money-moving endpoints unauthenticated.
+const OPEN_PATHS = new Set(["/healthz", "/health", "/metrics"]);
+function safeKeyEqual(a, b) {
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  const c = require("crypto");
+  const ba = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ba.length !== bb.length) return false;
+  return c.timingSafeEqual(ba, bb);
+}
 app.use((req, res, next) => {
-  const { API_KEY, NODE_ENV } = process.env;
+  if (req.method === "OPTIONS" || OPEN_PATHS.has(req.path)) return next();
+  const { API_KEY } = process.env;
   if (!API_KEY) {
-    if (NODE_ENV === "production" && !apiKeyWarningLogged.value) {
-      console.warn("[SECURITY WARNING] API_KEY not set in production - all endpoints are unprotected!");
-      apiKeyWarningLogged.value = true;
-    }
-    return next();
+    return res.status(503).json({
+      error: "API_KEY is not configured; refusing unauthenticated request.",
+    });
   }
-  if (req.headers["x-api-key"] !== API_KEY) return res.sendStatus(401);
+  if (!safeKeyEqual(req.headers["x-api-key"], API_KEY)) {
+    return res.sendStatus(401);
+  }
   next();
 });
-
-app.use(cors());
-app.use(express.json());
 
 // Winston logger for server.log
 const logger = winston.createLogger({
@@ -404,7 +441,8 @@ const notifyError = (label, err) => {
   );
   const shouldAlert =
     err.shouldAlert ??
-    (typeof err.message === "string" && err.message.includes("Circuit breaker"));
+    (typeof err.message === "string" &&
+      err.message.includes("Circuit breaker"));
   if (shouldAlert) {
     sendSlackAlert(`[${label}] ${err.message}`);
   }
@@ -465,7 +503,8 @@ async function runArbWithTimeout(useFlashbots, contextLabel) {
     });
     return result;
   } catch (err) {
-    const isTimeout = err.name === "AbortError" || err.metricReason === "timeout";
+    const isTimeout =
+      err.name === "AbortError" || err.metricReason === "timeout";
     recordWorkerState({
       running: false,
       lastErrorAt: Date.now(),
@@ -500,7 +539,8 @@ async function runArbWithTimeout(useFlashbots, contextLabel) {
 const getHealthStatus = () => {
   const now = Date.now();
   const stale =
-    workerStatus.lastRunAt && now - workerStatus.lastRunAt > HEALTH_STALE_THRESHOLD_MS;
+    workerStatus.lastRunAt &&
+    now - workerStatus.lastRunAt > HEALTH_STALE_THRESHOLD_MS;
   const healthy =
     botSettings.botActive &&
     !workerStatus.running &&
@@ -538,7 +578,8 @@ const parseOptionalInt = (value) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // Persistent Settings Storage
 // ─────────────────────────────────────────────────────────────────────────────
-const SETTINGS_FILE = process.env.SETTINGS_FILE || path.join(__dirname, "../.settings.json");
+const SETTINGS_FILE =
+  process.env.SETTINGS_FILE || path.join(__dirname, "../.settings.json");
 
 /**
  * Load persisted settings from disk
@@ -547,7 +588,9 @@ const SETTINGS_FILE = process.env.SETTINGS_FILE || path.join(__dirname, "../.set
 function loadPersistedSettings() {
   try {
     if (!fs.existsSync(SETTINGS_FILE)) {
-      logger.info("[Settings] No persisted settings file found, using defaults");
+      logger.info(
+        "[Settings] No persisted settings file found, using defaults"
+      );
       return null;
     }
     const data = fs.readFileSync(SETTINGS_FILE, "utf8");
@@ -598,7 +641,7 @@ const rawInitialSettings = {
   // Environment variables take precedence over persisted settings
   flashbotsDefault:
     process.env.FLASHBOTS_DEFAULT === undefined
-      ? (persistedSettings?.flashbotsDefault ?? settingsDefaults.flashbotsDefault)
+      ? persistedSettings?.flashbotsDefault ?? settingsDefaults.flashbotsDefault
       : process.env.FLASHBOTS_DEFAULT === "true",
   pollingInterval:
     parseOptionalInt(process.env.POLLING_INTERVAL) ??
@@ -906,7 +949,9 @@ app.get("/api/simulate-profit", async (_req, res) => {
       return;
     }
 
-    const borrowAmountBN = ethers.BigNumber.from(latestOpportunity.borrowAmount);
+    const borrowAmountBN = ethers.BigNumber.from(
+      latestOpportunity.borrowAmount
+    );
     const gasEstimateBN = ethers.BigNumber.from(latestOpportunity.gasEstimate);
     const gasPriceBN = ethers.BigNumber.from(latestOpportunity.gasPrice);
     const premiumWei = ethers.BigNumber.from(latestOpportunity.premiumWei);
@@ -1060,14 +1105,20 @@ app.post(
     try {
       if (fs.existsSync(SETTINGS_FILE)) {
         fs.unlinkSync(SETTINGS_FILE);
-        logger.info(`[Settings] Removed persisted settings file: ${SETTINGS_FILE}`);
+        logger.info(
+          `[Settings] Removed persisted settings file: ${SETTINGS_FILE}`
+        );
       }
     } catch (err) {
       logger.warn(`[Settings] Failed to remove settings file: ${err.message}`);
     }
 
     logger.info("Settings reset to defaults");
-    res.json({ status: "ok", settings: botSettings, message: "Settings reset to defaults" });
+    res.json({
+      status: "ok",
+      settings: botSettings,
+      message: "Settings reset to defaults",
+    });
   })
 );
 
@@ -1082,9 +1133,9 @@ app.post(
       if (!parseResult.success) {
         const details = formatValidationErrors(parseResult.error);
         logger.warn(
-          `Settings validation failed: ${JSON.stringify(details)} | payload=${JSON.stringify(
-            req.body
-          )}`
+          `Settings validation failed: ${JSON.stringify(
+            details
+          )} | payload=${JSON.stringify(req.body)}`
         );
 
         const validationError = new Error("Invalid settings");
@@ -1216,16 +1267,25 @@ app.get("/api/opportunities", async (_req, res) => {
       timestamp: opp.timestamp,
       route: opp.swapData?.route || "Unknown",
       routeTokens: opp.swapData?.paths?.[0] || [],
-      borrowAmount: opp.borrowAmount ? ethers.utils.formatUnits(opp.borrowAmount, 18) : "0",
-      estimatedProfit: opp.netProfit ? ethers.utils.formatUnits(opp.netProfit, 18) : "0",
-      gasCostDai: opp.gasCostDai ? ethers.utils.formatUnits(opp.gasCostDai, 18) : "0",
-      netProfit: opp.netProfit ? ethers.utils.formatUnits(opp.netProfit, 18) : "0",
-      hops: opp.swapData?.paths?.map((path, idx) => ({
-        tokenA: path[0],
-        tokenB: path[path.length - 1],
-        dex: opp.swapData?.dexes?.[idx] || "uniswap_v2",
-        poolAddress: opp.swapData?.pools?.[idx],
-      })) || [],
+      borrowAmount: opp.borrowAmount
+        ? ethers.utils.formatUnits(opp.borrowAmount, 18)
+        : "0",
+      estimatedProfit: opp.netProfit
+        ? ethers.utils.formatUnits(opp.netProfit, 18)
+        : "0",
+      gasCostDai: opp.gasCostDai
+        ? ethers.utils.formatUnits(opp.gasCostDai, 18)
+        : "0",
+      netProfit: opp.netProfit
+        ? ethers.utils.formatUnits(opp.netProfit, 18)
+        : "0",
+      hops:
+        opp.swapData?.paths?.map((path, idx) => ({
+          tokenA: path[0],
+          tokenB: path[path.length - 1],
+          dex: opp.swapData?.dexes?.[idx] || "uniswap_v2",
+          poolAddress: opp.swapData?.pools?.[idx],
+        })) || [],
       mlScore: opp.mlScore || null,
       liquidity: opp.liquidity || null,
       volatility: opp.volatility || null,
@@ -1249,19 +1309,26 @@ app.get("/api/bot-status", async (_req, res) => {
       ...health,
       circuitBreaker: {
         state: cbState.state,
+        canTrade: cbState.canTrade,
+        reason: cbState.reason,
+        consecutiveLosses: cbState.consecutiveLosses,
         consecutiveFailures: cbState.consecutiveFailures,
-        dailyLoss: cbState.dailyLoss,
-        lastFailureAt: cbState.lastFailureAt,
-        lastSuccessAt: cbState.lastSuccessAt,
-        recoveryAttempts: cbState.recoveryAttempts,
+        dailyPnL: cbState.dailyPnL,
+        cooldownRemaining: cbState.cooldownRemaining,
+        triggerReason: cbState.triggerReason,
       },
       market: marketData,
       services: {
         database: true, // Would check actual DB connection
         mlService: mlScorer ? true : false,
-        connext: await getConnextStatus().then(s => s.initialized).catch(() => false),
+        connext: await getConnextStatus()
+          .then((s) => s.initialized)
+          .catch(() => false),
         timelock: timelockInitialized,
-        priceIngestion: typeof getConnectionStatus === "function" ? getConnectionStatus() : { mode: "unknown" },
+        priceIngestion:
+          typeof getConnectionStatus === "function"
+            ? getConnectionStatus()
+            : { mode: "unknown" },
       },
     });
   } catch (err) {
@@ -1305,12 +1372,14 @@ app.post("/api/circuit-breaker/reset", (_req, res) => {
 // Returns WebSocket connection health and subscription stats
 app.get("/api/connection-status", (_req, res) => {
   try {
-    const connectionStatus = typeof getConnectionStatus === "function"
-      ? getConnectionStatus()
-      : { mode: "unknown", isConnected: false };
-    const subscriptionStats = typeof getSubscriptionStats === "function"
-      ? getSubscriptionStats()
-      : { v2: {}, v3: {}, balancer: {}, curve: {} };
+    const connectionStatus =
+      typeof getConnectionStatus === "function"
+        ? getConnectionStatus()
+        : { mode: "unknown", isConnected: false };
+    const subscriptionStats =
+      typeof getSubscriptionStats === "function"
+        ? getSubscriptionStats()
+        : { v2: {}, v3: {}, balancer: {}, curve: {} };
 
     res.json({
       connection: connectionStatus,
@@ -1330,9 +1399,16 @@ app.get("/api/connection-status", (_req, res) => {
 // GET /api/tier1/status - Get Tier-1 feature status
 app.get("/api/tier1/status", (_req, res) => {
   try {
-    const status = typeof getTier1FeatureStatus === "function"
-      ? getTier1FeatureStatus()
-      : { multiRelay: false, riskManager: false, incrementalGraph: false, mempoolMonitor: false, dynamicTips: false };
+    const status =
+      typeof getTier1FeatureStatus === "function"
+        ? getTier1FeatureStatus()
+        : {
+            multiRelay: false,
+            riskManager: false,
+            incrementalGraph: false,
+            mempoolMonitor: false,
+            dynamicTips: false,
+          };
 
     res.json({
       features: status,
@@ -1347,9 +1423,10 @@ app.get("/api/tier1/status", (_req, res) => {
 // GET /api/tier1/risk-report - Get risk manager performance report
 app.get("/api/tier1/risk-report", (_req, res) => {
   try {
-    const report = typeof getRiskReport === "function"
-      ? getRiskReport()
-      : { error: "Risk manager not available" };
+    const report =
+      typeof getRiskReport === "function"
+        ? getRiskReport()
+        : { error: "Risk manager not available" };
 
     res.json(report);
   } catch (err) {
@@ -1361,9 +1438,7 @@ app.get("/api/tier1/risk-report", (_req, res) => {
 // GET /api/tier1/risk-alerts - Get recent risk alerts
 app.get("/api/tier1/risk-alerts", (_req, res) => {
   try {
-    const alerts = typeof getRiskAlerts === "function"
-      ? getRiskAlerts()
-      : [];
+    const alerts = typeof getRiskAlerts === "function" ? getRiskAlerts() : [];
 
     res.json({ alerts, count: alerts.length });
   } catch (err) {
@@ -1397,7 +1472,10 @@ app.post("/api/tier1/resume-trading", (_req, res) => {
         logger.info("Trading resumed via API");
         res.json({ status: "ok", message: "Trading resumed" });
       } else {
-        res.json({ status: "cooldown", message: "Cooldown not elapsed, use force-resume if needed" });
+        res.json({
+          status: "cooldown",
+          message: "Cooldown not elapsed, use force-resume if needed",
+        });
       }
     } else {
       res.status(400).json({ error: "Risk manager not available" });
@@ -1427,9 +1505,7 @@ app.post("/api/tier1/force-resume-trading", (_req, res) => {
 // GET /api/tier1/relay-stats - Get multi-relay statistics
 app.get("/api/tier1/relay-stats", (_req, res) => {
   try {
-    const stats = typeof getRelayStats === "function"
-      ? getRelayStats()
-      : {};
+    const stats = typeof getRelayStats === "function" ? getRelayStats() : {};
 
     res.json({ relays: stats });
   } catch (err) {
@@ -1441,9 +1517,10 @@ app.get("/api/tier1/relay-stats", (_req, res) => {
 // GET /api/tier1/graph-stats - Get incremental graph statistics
 app.get("/api/tier1/graph-stats", (_req, res) => {
   try {
-    const stats = typeof getGraphStats === "function"
-      ? getGraphStats()
-      : { totalPools: 0, totalEdges: 0 };
+    const stats =
+      typeof getGraphStats === "function"
+        ? getGraphStats()
+        : { totalPools: 0, totalEdges: 0 };
 
     res.json(stats);
   } catch (err) {
@@ -1467,20 +1544,22 @@ app.get("/api/ml-stats", async (_req, res) => {
     }
 
     // Get ML model stats if available
-    const stats = mlScorer.getModelStats ? await mlScorer.getModelStats() : {
-      modelVersion: "lightgbm-v1.0",
-      lastTrained: new Date().toISOString(),
-      accuracy: null,
-      precision: null,
-      recall: null,
-      f1Score: null,
-      auc: null,
-      totalPredictions: 0,
-      correctPredictions: 0,
-      avgResponseTime: 0,
-      featureImportance: [],
-      recentPredictions: [],
-    };
+    const stats = mlScorer.getModelStats
+      ? await mlScorer.getModelStats()
+      : {
+          modelVersion: "lightgbm-v1.0",
+          lastTrained: new Date().toISOString(),
+          accuracy: null,
+          precision: null,
+          recall: null,
+          f1Score: null,
+          auc: null,
+          totalPredictions: 0,
+          correctPredictions: 0,
+          avgResponseTime: 0,
+          featureImportance: [],
+          recentPredictions: [],
+        };
 
     res.json({ available: true, ...stats });
   } catch (err) {
@@ -1496,7 +1575,8 @@ app.get("/api/ml-stats", async (_req, res) => {
 // POST /api/simulate-arbitrage
 app.post("/api/simulate-arbitrage", async (req, res) => {
   try {
-    const { borrowAmount, borrowToken, route, slippageBps, gasPrice } = req.body;
+    const { borrowAmount, borrowToken, route, slippageBps, gasPrice } =
+      req.body;
 
     if (!borrowAmount || !route || !Array.isArray(route)) {
       return res.status(400).json({ error: "Invalid simulation parameters" });
@@ -1525,13 +1605,15 @@ app.post("/api/simulate-arbitrage", async (req, res) => {
     }
 
     // Calculate costs
-    const gasCostEth = ((gasPrice || 30) * 300000 * 1e-9);
+    const gasCostEth = (gasPrice || 30) * 300000 * 1e-9;
     const grossProfit = currentAmount - parseFloat(borrowAmount);
     const netProfit = grossProfit - gasCostEth * 1800; // Rough ETH to token conversion
 
     // ML score (mock if ML not available)
     const mlScore = mlScorer
-      ? await mlScorer.scoreRoute({ hops, borrowAmount, gasPrice }).catch(() => 0.5)
+      ? await mlScorer
+          .scoreRoute({ hops, borrowAmount, gasPrice })
+          .catch(() => 0.5)
       : 0.5 + Math.random() * 0.3;
 
     res.json({
@@ -1544,7 +1626,9 @@ app.post("/api/simulate-arbitrage", async (req, res) => {
         gasCost: gasCostEth.toFixed(6),
         netProfit: netProfit.toFixed(6),
         slippage: ((slippageBps || 50) / 100).toFixed(2),
-        priceImpact: hops.reduce((sum, h) => sum + parseFloat(h.priceImpact), 0).toFixed(4),
+        priceImpact: hops
+          .reduce((sum, h) => sum + parseFloat(h.priceImpact), 0)
+          .toFixed(4),
         mlScore,
         hops,
       },
@@ -1718,9 +1802,6 @@ app.post("/api/timelock/schedule", async (req, res) => {
 
     let result;
     switch (operation) {
-      case "setMaxLossBps":
-        result = await scheduleMaxLossBpsChange(params.newMaxLossBps);
-        break;
       case "pause":
         result = await schedulePause();
         break;
@@ -1739,7 +1820,9 @@ app.post("/api/timelock/schedule", async (req, res) => {
         });
         break;
       default:
-        return res.status(400).json({ error: `Unknown operation: ${operation}` });
+        return res
+          .status(400)
+          .json({ error: `Unknown operation: ${operation}` });
     }
 
     logger.info(`Timelock operation scheduled: ${operation}`);
@@ -1819,8 +1902,12 @@ app.get("/api/gas-estimate", async (_req, res) => {
     res.json({
       gasPrice: ethers.utils.formatUnits(gasPrice, "gwei"),
       gasPriceWei: gasPrice.toString(),
-      maxFeePerGas: feeData.maxFeePerGas ? ethers.utils.formatUnits(feeData.maxFeePerGas, "gwei") : null,
-      maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ? ethers.utils.formatUnits(feeData.maxPriorityFeePerGas, "gwei") : null,
+      maxFeePerGas: feeData.maxFeePerGas
+        ? ethers.utils.formatUnits(feeData.maxFeePerGas, "gwei")
+        : null,
+      maxPriorityFeePerGas: feeData.maxPriorityFeePerGas
+        ? ethers.utils.formatUnits(feeData.maxPriorityFeePerGas, "gwei")
+        : null,
       timestamp: Date.now(),
     });
   } catch (err) {
@@ -1837,21 +1924,43 @@ app.get("/api/daily-stats", async (_req, res) => {
     // Calculate daily stats
     const now = Date.now();
     const oneDayAgo = now - 24 * 60 * 60 * 1000;
-    const todaysTrades = trades.filter(t => new Date(t.timestamp).getTime() > oneDayAgo);
+    const todaysTrades = trades.filter(
+      (t) => new Date(t.timestamp).getTime() > oneDayAgo
+    );
 
-    const totalProfit = todaysTrades.reduce((sum, t) => sum + parseFloat(t.profit || 0), 0);
-    const successfulTrades = todaysTrades.filter(t => t.status === "success" || t.status === "public" || t.status === "flashbots");
-    const totalGasSpent = todaysTrades.reduce((sum, t) => sum + parseFloat(t.gasCost || 0), 0);
+    const totalProfit = todaysTrades.reduce(
+      (sum, t) => sum + parseFloat(t.profit || 0),
+      0
+    );
+    const successfulTrades = todaysTrades.filter(
+      (t) =>
+        t.status === "success" ||
+        t.status === "public" ||
+        t.status === "flashbots"
+    );
+    const totalGasSpent = todaysTrades.reduce(
+      (sum, t) => sum + parseFloat(t.gasCost || 0),
+      0
+    );
 
     res.json({
       totalAttempts: todaysTrades.length,
       successfulTrades: successfulTrades.length,
       totalProfit: totalProfit.toFixed(4),
       totalGasSpent: totalGasSpent.toFixed(4),
-      profitChange: todaysTrades.length > 0 ? (totalProfit / todaysTrades.length * 100).toFixed(2) : 0,
-      avgGasPrice: todaysTrades.length > 0
-        ? (todaysTrades.reduce((sum, t) => sum + parseFloat(t.gasPrice || 30), 0) / todaysTrades.length).toFixed(1)
-        : "30",
+      profitChange:
+        todaysTrades.length > 0
+          ? ((totalProfit / todaysTrades.length) * 100).toFixed(2)
+          : 0,
+      avgGasPrice:
+        todaysTrades.length > 0
+          ? (
+              todaysTrades.reduce(
+                (sum, t) => sum + parseFloat(t.gasPrice || 30),
+                0
+              ) / todaysTrades.length
+            ).toFixed(1)
+          : "30",
     });
   } catch (err) {
     logger.error(`daily-stats error: ${err.message}`);
@@ -1989,7 +2098,9 @@ function broadcastOpportunity(opportunity) {
     estimatedOut: formatBigNumber(opportunity.estimatedOut),
     netProfit: formatBigNumber(opportunity.netProfit),
     gasCost: formatBigNumber(opportunity.gasCostDai),
-    gasPrice: opportunity.gasPrice ? ethers.utils.formatUnits(opportunity.gasPrice, "gwei") : "0",
+    gasPrice: opportunity.gasPrice
+      ? ethers.utils.formatUnits(opportunity.gasPrice, "gwei")
+      : "0",
     mlScore: opportunity.mlScore || 0.5, // Default if not available
   };
 
@@ -2015,7 +2126,9 @@ function broadcastTradeExecuted(tradeResult) {
  */
 function initWebSocketServer(server) {
   if (!WebSocket) {
-    logger.info("[WebSocket] ws package not installed, real-time updates disabled");
+    logger.info(
+      "[WebSocket] ws package not installed, real-time updates disabled"
+    );
     return null;
   }
 
@@ -2027,13 +2140,15 @@ function initWebSocketServer(server) {
     wsClients.add(ws);
 
     // Send welcome message
-    ws.send(JSON.stringify({
-      type: "connected",
-      payload: {
-        message: "Connected to Flashloan Arbitrage Bot",
-        serverTime: Date.now(),
-      },
-    }));
+    ws.send(
+      JSON.stringify({
+        type: "connected",
+        payload: {
+          message: "Connected to Flashloan Arbitrage Bot",
+          serverTime: Date.now(),
+        },
+      })
+    );
 
     ws.on("message", (data) => {
       try {
@@ -2049,7 +2164,9 @@ function initWebSocketServer(server) {
 
     ws.on("close", () => {
       wsClients.delete(ws);
-      logger.info(`[WebSocket] Client disconnected (${wsClients.size} remaining)`);
+      logger.info(
+        `[WebSocket] Client disconnected (${wsClients.size} remaining)`
+      );
     });
 
     ws.on("error", (err) => {
@@ -2093,7 +2210,7 @@ const start = async (port = PORT) => {
   }
 
   if (process.env.CONNEXT_ADAPTER_ADDRESS) {
-    await initConnext("ethereum").catch(err => {
+    await initConnext("ethereum").catch((err) => {
       logger.warn(`Connext initialization failed: ${err.message}`);
     });
 
@@ -2107,7 +2224,9 @@ const start = async (port = PORT) => {
     if (typeof initializeTier1Features === "function") {
       try {
         const tier1Results = await initializeTier1Features(provider);
-        logger.info(`[Tier1] Initialization complete: ${JSON.stringify(tier1Results)}`);
+        logger.info(
+          `[Tier1] Initialization complete: ${JSON.stringify(tier1Results)}`
+        );
       } catch (err) {
         logger.warn(`[Tier1] Initialization error: ${err.message}`);
       }

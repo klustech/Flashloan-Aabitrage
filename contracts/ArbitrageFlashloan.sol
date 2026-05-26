@@ -74,10 +74,6 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
     ILendingPoolAddressesProvider public immutable provider;
     ILendingPool public immutable lendingPool;
 
-    uint16 public maxLossBps;
-    uint16 public constant MAX_LOSS_BPS = 1000; // 10% max
-    uint16 public flashloanPremiumBps;
-
     // Timelock delay tracking for sensitive operations
     mapping(bytes32 => uint256) public timelockOperations;
     uint256 public constant TIMELOCK_DELAY = 24 hours;
@@ -91,11 +87,9 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
         uint256 amountIn,
         uint256 amountOut
     );
-    event LossExceeded(int256 pnl, uint16 maxLossBps);
     event ProfitWithdrawn(address indexed token, address indexed recipient, uint256 amount);
     event ProfitRecipientChanged(address indexed oldRecipient, address indexed newRecipient);
     event TimelockChanged(address indexed oldTimelock, address indexed newTimelock);
-    event MaxLossBpsChanged(uint16 oldValue, uint16 newValue);
     event TimelockOperationScheduled(bytes32 indexed operationId, uint256 executeAfter);
     event TimelockOperationExecuted(bytes32 indexed operationId);
     event EmergencyPause(address indexed triggeredBy);
@@ -148,12 +142,9 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
 
     constructor(
         address _provider,
-        uint16 _maxLossBps,
-        uint16 _flashloanPremiumBps,
         address _profitRecipient,
         address _timelock
     ) {
-        require(_maxLossBps <= MAX_LOSS_BPS, "maxLossBps>limit");
         require(_provider != address(0), "invalid provider");
 
         owner = msg.sender;
@@ -162,18 +153,9 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
 
         provider = ILendingPoolAddressesProvider(_provider);
         lendingPool = ILendingPool(provider.getLendingPool());
-        maxLossBps = _maxLossBps;
-        flashloanPremiumBps = _flashloanPremiumBps;
     }
 
     // ─── Admin Functions ────────────────────────────────────────────────────────
-
-    /// @notice Update max allowable loss (requires timelock if set)
-    function setMaxLossBps(uint16 _maxLossBps) external onlyOwnerOrTimelock {
-        require(_maxLossBps <= MAX_LOSS_BPS, "maxLossBps>limit");
-        emit MaxLossBpsChanged(maxLossBps, _maxLossBps);
-        maxLossBps = _maxLossBps;
-    }
 
     /// @notice Schedule a profit recipient change (timelock-protected)
     function scheduleProfitRecipientChange(address _newRecipient) external onlyOwner {
@@ -247,45 +229,6 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
         );
     }
 
-    /// @notice Legacy interface for backward compatibility
-    function initiateFlashLoan(
-        address token,
-        uint256 amount,
-        SwapData calldata legacyData
-    ) external onlyOwner whenNotPaused {
-        // Convert legacy SwapData to new format
-        ArbitrageData memory data = _convertLegacyData(token, amount, legacyData);
-
-        address[] memory assets = new address[](1);
-        uint256[] memory amounts = new uint256[](1);
-        uint256[] memory modes = new uint256[](1);
-
-        assets[0] = token;
-        amounts[0] = amount;
-        modes[0] = 0;
-
-        bytes memory params = abi.encode(data);
-
-        lendingPool.flashLoan(
-            address(this),
-            assets,
-            amounts,
-            modes,
-            address(this),
-            params,
-            0
-        );
-    }
-
-    /// @notice Legacy SwapData struct for backward compatibility
-    struct SwapData {
-        address token;
-        address[][] paths;
-        uint256[] minOuts;
-        uint256 minProfit;
-        string route;
-    }
-
     /// @inheritdoc IFlashLoanReceiver
     function executeOperation(
         address[] calldata assets,
@@ -303,7 +246,7 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
         int256 pnl = _executeArbitrage(amounts[0], premiums[0], data);
 
         // Settle and repay
-        _settleAndRepay(assets[0], amounts[0], premiums[0], pnl, data.minProfit, data.route);
+        _settleAndRepay(assets[0], amounts[0], premiums[0], pnl, data.route);
 
         return true;
     }
@@ -321,24 +264,14 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
             currentAmount = _executeSwap(data.steps[i], currentAmount);
         }
 
-        // Calculate PnL
+        // Arbitrage is profit-or-revert: the final balance must cover principal +
+        // premium + minProfit, otherwise the whole transaction reverts. This makes
+        // a net loss impossible (the contract holds no buffer to absorb one).
         uint256 finalBalance = IERC20(data.borrowToken).balanceOf(address(this));
         uint256 required = borrowedAmount + premium;
-        int256 pnl = int256(finalBalance) - int256(required);
+        require(finalBalance >= required + data.minProfit, "profit<minProfit");
 
-        // Enforce profit/loss constraints
-        if (pnl >= 0) {
-            require(uint256(pnl) >= data.minProfit, "profit<minProfit");
-        } else {
-            uint256 lossAbs = uint256(-pnl);
-            uint256 maxLossAllowed = (required * maxLossBps) / 10000;
-            if (lossAbs > maxLossAllowed) {
-                emit LossExceeded(pnl, maxLossBps);
-                revert("loss>cap");
-            }
-        }
-
-        return pnl;
+        return int256(finalBalance) - int256(required);
     }
 
     function _executeSwap(SwapStep memory step, uint256 amountIn) internal returns (uint256 amountOut) {
@@ -447,7 +380,6 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
         uint256 principal,
         uint256 fee,
         int256 pnl,
-        uint256 minProfit,
         string memory route
     ) private {
         uint256 debt = principal + fee;
@@ -486,46 +418,6 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
                 "token continuity broken"
             );
         }
-    }
-
-    function _convertLegacyData(
-        address token,
-        uint256 amount,
-        SwapData calldata legacy
-    ) internal pure returns (ArbitrageData memory) {
-        SwapStep[] memory steps = new SwapStep[](legacy.paths.length);
-
-        for (uint256 i = 0; i < legacy.paths.length; i++) {
-            require(legacy.paths[i].length >= 3, "path too short");
-
-            address router = legacy.paths[i][0];
-            address[] memory tokenPath = new address[](legacy.paths[i].length - 1);
-            for (uint256 j = 0; j < tokenPath.length; j++) {
-                tokenPath[j] = legacy.paths[i][j + 1];
-            }
-
-            steps[i] = SwapStep({
-                dexType: DexType.UNISWAP_V2,
-                router: router,
-                tokenIn: tokenPath[0],
-                tokenOut: tokenPath[tokenPath.length - 1],
-                minAmountOut: legacy.minOuts[i],
-                v3Fee: 0,
-                balancerPoolId: bytes32(0),
-                curveIndexIn: 0,
-                curveIndexOut: 0,
-                curveUnderlying: false,
-                v2Path: tokenPath
-            });
-        }
-
-        return ArbitrageData({
-            borrowToken: token,
-            borrowAmount: amount,
-            steps: steps,
-            minProfit: legacy.minProfit,
-            route: legacy.route
-        });
     }
 
     // ─── Utility Functions ──────────────────────────────────────────────────────

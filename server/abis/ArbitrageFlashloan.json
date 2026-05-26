@@ -7,14 +7,14 @@
         "type": "address"
       },
       {
-        "internalType": "uint16",
-        "name": "_maxLossBps",
-        "type": "uint16"
+        "internalType": "address",
+        "name": "_profitRecipient",
+        "type": "address"
       },
       {
-        "internalType": "uint16",
-        "name": "_flashloanPremiumBps",
-        "type": "uint16"
+        "internalType": "address",
+        "name": "_timelock",
+        "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
@@ -49,19 +49,45 @@
     "anonymous": false,
     "inputs": [
       {
-        "indexed": false,
-        "internalType": "int256",
-        "name": "pnl",
-        "type": "int256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint16",
-        "name": "maxLossBps",
-        "type": "uint16"
+        "indexed": true,
+        "internalType": "address",
+        "name": "triggeredBy",
+        "type": "address"
       }
     ],
-    "name": "LossExceeded",
+    "name": "EmergencyPause",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "Paused",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "oldRecipient",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newRecipient",
+        "type": "address"
+      }
+    ],
+    "name": "ProfitRecipientChanged",
     "type": "event"
   },
   {
@@ -71,6 +97,12 @@
         "indexed": true,
         "internalType": "address",
         "name": "token",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "recipient",
         "type": "address"
       },
       {
@@ -88,9 +120,9 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "address",
-        "name": "router",
-        "type": "address"
+        "internalType": "enum ArbitrageFlashloan.DexType",
+        "name": "dexType",
+        "type": "uint8"
       },
       {
         "indexed": true,
@@ -121,13 +153,90 @@
     "type": "event"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "oldTimelock",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newTimelock",
+        "type": "address"
+      }
+    ],
+    "name": "TimelockChanged",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "operationId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "TimelockOperationExecuted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "operationId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "executeAfter",
+        "type": "uint256"
+      }
+    ],
+    "name": "TimelockOperationScheduled",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "Unpaused",
+    "type": "event"
+  },
+  {
     "inputs": [],
-    "name": "MAX_LOSS_BPS",
+    "name": "TIMELOCK_DELAY",
     "outputs": [
       {
-        "internalType": "uint16",
+        "internalType": "uint256",
         "name": "",
-        "type": "uint16"
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "canExecute",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -173,13 +282,32 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "flashloanPremiumBps",
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_newRecipient",
+        "type": "address"
+      }
+    ],
+    "name": "executeProfitRecipientChange",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "opId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "getTimelockOperation",
     "outputs": [
       {
-        "internalType": "uint16",
+        "internalType": "uint256",
         "name": "",
-        "type": "uint16"
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -188,51 +316,78 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      },
-      {
         "components": [
           {
             "internalType": "address",
-            "name": "token",
+            "name": "borrowToken",
             "type": "address"
           },
           {
-            "internalType": "address[]",
-            "name": "uniPath",
-            "type": "address[]"
-          },
-          {
-            "internalType": "address[]",
-            "name": "sushiPath",
-            "type": "address[]"
-          },
-          {
-            "internalType": "address[]",
-            "name": "thirdPath",
-            "type": "address[]"
-          },
-          {
             "internalType": "uint256",
-            "name": "minOutUni",
+            "name": "borrowAmount",
             "type": "uint256"
           },
           {
-            "internalType": "uint256",
-            "name": "minOutSushi",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "minOutThird",
-            "type": "uint256"
+            "components": [
+              {
+                "internalType": "enum ArbitrageFlashloan.DexType",
+                "name": "dexType",
+                "type": "uint8"
+              },
+              {
+                "internalType": "address",
+                "name": "router",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "tokenIn",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "tokenOut",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "minAmountOut",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint24",
+                "name": "v3Fee",
+                "type": "uint24"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "balancerPoolId",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "int128",
+                "name": "curveIndexIn",
+                "type": "int128"
+              },
+              {
+                "internalType": "int128",
+                "name": "curveIndexOut",
+                "type": "int128"
+              },
+              {
+                "internalType": "bool",
+                "name": "curveUnderlying",
+                "type": "bool"
+              },
+              {
+                "internalType": "address[]",
+                "name": "v2Path",
+                "type": "address[]"
+              }
+            ],
+            "internalType": "struct ArbitrageFlashloan.SwapStep[]",
+            "name": "steps",
+            "type": "tuple[]"
           },
           {
             "internalType": "uint256",
@@ -245,7 +400,7 @@
             "type": "string"
           }
         ],
-        "internalType": "struct ArbitrageFlashloan.SwapData",
+        "internalType": "struct ArbitrageFlashloan.ArbitrageData",
         "name": "data",
         "type": "tuple"
       }
@@ -270,12 +425,12 @@
   },
   {
     "inputs": [],
-    "name": "maxLossBps",
+    "name": "owner",
     "outputs": [
       {
-        "internalType": "uint16",
+        "internalType": "address",
         "name": "",
-        "type": "uint16"
+        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -283,7 +438,27 @@
   },
   {
     "inputs": [],
-    "name": "owner",
+    "name": "pause",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "paused",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "profitRecipient",
     "outputs": [
       {
         "internalType": "address",
@@ -318,19 +493,6 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "newOwner",
-        "type": "address"
-      }
-    ],
-    "name": "transferOwnership",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
         "name": "tokenAddr",
         "type": "address"
       },
@@ -348,12 +510,90 @@
   {
     "inputs": [
       {
-        "internalType": "uint16",
-        "name": "_maxLossBps",
-        "type": "uint16"
+        "internalType": "address",
+        "name": "_newRecipient",
+        "type": "address"
       }
     ],
-    "name": "setMaxLossBps",
+    "name": "scheduleProfitRecipientChange",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_newRecipient",
+        "type": "address"
+      }
+    ],
+    "name": "setProfitRecipientViaTimelock",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_timelock",
+        "type": "address"
+      }
+    ],
+    "name": "setTimelock",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "timelock",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "timelockOperations",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "transferOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "unpause",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

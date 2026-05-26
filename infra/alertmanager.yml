@@ -1,4 +1,9 @@
 # infra/alertmanager.yml
+#
+# PLACEHOLDER CONFIG. The Slack webhook below is NOT a real URL — replace it
+# before use. Do NOT commit a real webhook. Prefer one of:
+#   * mount the webhook as a file and use `api_url_file: /etc/alertmanager/slack_url`
+#   * render this file from a secret (e.g. a Kubernetes Secret / Vault) at deploy time
 global:
   resolve_timeout: 5m
 
@@ -11,7 +16,9 @@ route:
 receivers:
   - name: "slack-alerts"
     slack_configs:
-      - api_url: "https://hooks.slack.com/services/XXXXXXXXX/XXXXXXXXX/XXXXXXXXXXXXXXXX"
+      # PLACEHOLDER — override at deploy time (see header note). Alertmanager does
+      # not expand env vars; inject the real value via api_url_file or templating.
+      - api_url: "https://hooks.slack.com/services/REPLACE_WITH_REAL_WEBHOOK_PATH"
         channel: "#alerts"
         username: "Alertmanager"
         icon_emoji: ":satellite:"

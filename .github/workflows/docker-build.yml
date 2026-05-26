@@ -25,7 +25,8 @@ jobs:
       - name: Build ml image
         uses: docker/build-push-action@v5
         with:
-          context: ./server
+          # ML sources live at the repo root (/ml), so build from the root context.
+          context: .
           file: ./server/Dockerfile.ml
           push: false
           tags: flashloan-arb/ml:latest

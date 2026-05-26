@@ -71,3 +71,4 @@ credentials.json
 # Foundry
 out/
 forge-cache/
+artifacts-solcjs/

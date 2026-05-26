@@ -1,2 +1,20 @@
-yarn prettier --check .
-yarn eslint .
+#!/usr/bin/env sh
+# Format and lint only staged files. This keeps every commit clean without
+# forcing a one-shot reformat of the entire pre-existing tree (CI does not
+# enforce repo-wide formatting). Prettier auto-formats; ESLint auto-fixes and
+# blocks the commit only on real errors (warnings are allowed).
+STAGED=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$STAGED" ] && exit 0
+
+FMT=$(echo "$STAGED" | grep -E '\.(js|jsx|ts|tsx|json|md|yml|yaml|css|html)$' || true)
+LINT=$(echo "$STAGED" | grep -E '\.(js|jsx|ts|tsx)$' || true)
+
+if [ -n "$FMT" ]; then
+  echo "$FMT" | xargs npx prettier --write
+  echo "$FMT" | xargs git add
+fi
+
+if [ -n "$LINT" ]; then
+  echo "$LINT" | xargs npx eslint --fix
+  echo "$LINT" | xargs git add
+fi
