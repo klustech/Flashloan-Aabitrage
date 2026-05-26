@@ -9,23 +9,23 @@ Decentralised exchanges often exhibit fleeting price discrepancies across liquid
 An automated Aave V2 flash-loan executor that:
 
 - Instantly borrows ERC-20 tokens
-- Performs 2- & 3-hop triangular swaps across Uniswap V2 & SushiSwap
-- Enforces loss-cap (maxLossBps) and min-profit guardrails
-- Submits via Flashbots to avoid front-running
+- Performs multi-hop swaps across Uniswap V2/V3, SushiSwap, Balancer & Curve
+- Is profit-or-revert on-chain: a trade reverts unless it nets at least the borrowed amount + Aave premium + minimum profit (any loss reverts the whole transaction)
+- Submits via Flashbots / private relays by default to avoid front-running
 
 ## 3. Key Metrics
 
 - **Latency:** <500ms Tx dispatch from opportunity detection
-- **Profit Threshold:** ≥ 0.5 DAI per trade
-- **Max Drawdown:** ≤ 0.1% per flash-loan
-- **Test Coverage:** 100% unit + fuzz + invariant tests
-- **On-chain Live Demo:** Sepolia deployment at `0x…`
+- **Profit Threshold:** configurable off-chain minimum (`MIN_PROFIT_DAI`), enforced on-chain as profit-or-revert
+- **Downside:** none on-chain — a trade reverts unless it is profitable after the Aave premium
+- **Tests:** unit + integration + invariant tests (run via `hardhat test`)
+- **On-chain Live Demo:** not yet deployed
 
 ## 4. Market Opportunity
 
 - **Total Value Locked (TVL)** across Uniswap V2 & SushiSwap v2: > $2 Bn
 - **Daily Volume Disparity:** > $10 M in liquid pools
-- **Revenue Potential:** At 0.05% capture rate, ≈ $5k/day
+- **Revenue Potential:** Highly variable and competitive; actual returns depend on market conditions, MEV competition and gas costs. No revenue figure is guaranteed. (Any dollar-per-day target should be treated as an illustrative goal, not a projection.)
 
 ## 5. Competitive Differentiators
 

@@ -158,11 +158,19 @@ See `docs/offline_pools_sample.json` for an example structure.
 
 ## Testing
 
-Running the Hardhat test suite downloads compiler binaries. If you are behind a
-proxy, ensure access to `binaries.soliditylang.org`.
+The contracts compile with solc 0.8.20. Running the Hardhat test suite normally
+downloads the compiler binary, so if you are behind a proxy, ensure access to
+`binaries.soliditylang.org`.
 
 ```bash
 npm test
+```
+
+In restricted networks where Hardhat cannot fetch the solc binary, compile with
+the bundled solc-js fallback instead:
+
+```bash
+node scripts/compileWithSolcJs.js
 ```
 
 Tests now run against an in-memory Hardhat chain by default so they no longer

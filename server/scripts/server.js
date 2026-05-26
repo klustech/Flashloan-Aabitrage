@@ -824,15 +824,14 @@ app.get(
         simulationInputAmount: borrowAmountNumber,
       });
 
-      const result = await determineProfit(
-        providerInfura,
+      const result = await determineProfit({
+        provider: providerInfura,
         route,
-        borrowAmountWei,
-        ethers.BigNumber.from("200000"),
-        botSettings.slippageBips,
-        simulationConfig,
-        borrowAmountNumber
-      );
+        inputAmount: borrowAmountWei,
+        gasUsed: ethers.BigNumber.from("200000"),
+        simConfig: simulationConfig,
+        inputAmountHuman: borrowAmountNumber,
+      });
 
       res.json(result);
     } catch (err) {

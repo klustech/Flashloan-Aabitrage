@@ -4,7 +4,8 @@ This document outlines the architectural decisions and limitations of the `Arbit
 
 ## Overview
 
-The arbitrage contract supports multiple DEX types:
+The arbitrage contract exposes a **single entrypoint**, `initiateFlashLoan(ArbitrageData)`, which executes a multi-DEX route in one flash loan. The legacy V2-only path has been removed; every route (including pure-V2 routes) now flows through this one function. Supported DEX types per `SwapStep`:
+
 - Uniswap V2 (`DexType.UNISWAP_V2`)
 - Uniswap V3 (`DexType.UNISWAP_V3`)
 - SushiSwap (`DexType.SUSHISWAP`)
@@ -12,6 +13,19 @@ The arbitrage contract supports multiple DEX types:
 - Curve (`DexType.CURVE`)
 
 Each DEX integration has specific characteristics and limitations.
+
+### Profit-or-Revert (no loss cap)
+
+The contract is **profit-or-revert**: after running the route it requires the final balance to be at least `borrowed + Aave premium + minProfit`, otherwise the whole transaction reverts. There is **no `maxLossBps` / max-loss-cap** parameter — the previous loss-cap mechanism was removed because it never actually enforced anything. A trade therefore either settles profitably or reverts atomically; it cannot settle at a loss.
+
+### Flash-loan surface
+
+- The standalone `FlashloanExecutor.sol` contract (a second, insecure flash-loan receiver) has been **deleted**. `ArbitrageFlashloan.sol` is the only flash-loan contract.
+- Constructor signature is `(address provider, address profitRecipient, address timelock)`.
+
+### Aave version
+
+The contract still uses **Aave V2** flash loans (it is not yet ported to Aave V3).
 
 ---
 
@@ -54,11 +68,13 @@ This is **by design**, not a bug:
 ### Example: V3 Multi-Hop Route
 
 Instead of a single V3 multi-hop call like:
+
 ```
 DAI -> WETH -> USDC (one exactInput call with encoded path)
 ```
 
 The bot sends two `SwapStep` entries:
+
 ```
 SwapStep[0]: DAI -> WETH (V3, 3000 fee)
 SwapStep[1]: WETH -> USDC (V3, 500 fee)
@@ -66,10 +82,10 @@ SwapStep[1]: WETH -> USDC (V3, 500 fee)
 
 ### Gas Implications
 
-| Approach | Estimated Gas |
-|----------|---------------|
-| Single `exactInput` (multi-hop) | ~150,000 |
-| Two `exactInputSingle` calls | ~200,000 |
+| Approach                        | Estimated Gas |
+| ------------------------------- | ------------- |
+| Single `exactInput` (multi-hop) | ~150,000      |
+| Two `exactInputSingle` calls    | ~200,000      |
 
 The overhead is ~50k gas (~$2-3 at 30 Gwei), which is acceptable for most profitable arbitrage opportunities.
 
@@ -110,11 +126,13 @@ function _swapBalancer(SwapStep memory step, uint256 amountIn) internal returns 
 ### Example: Balancer Multi-Pool Route
 
 Instead of a single `batchSwap`:
+
 ```
 DAI -> BAL -> WETH (batchSwap with two poolIds)
 ```
 
 The bot sends two `SwapStep` entries:
+
 ```
 SwapStep[0]: DAI -> BAL (Balancer, poolId1)
 SwapStep[1]: BAL -> WETH (Balancer, poolId2)
@@ -205,12 +223,12 @@ struct SwapStep {
 
 ### Current Overhead
 
-| Route Type | Steps | Approximate Gas |
-|------------|-------|-----------------|
-| 2-hop V2 only | 2 | ~150,000 |
-| 3-hop V2 only | 3 | ~200,000 |
-| 2-hop V2 + V3 | 2 | ~160,000 |
-| 3-hop mixed (V2/V3/Balancer) | 3 | ~300,000 |
+| Route Type                   | Steps | Approximate Gas |
+| ---------------------------- | ----- | --------------- |
+| 2-hop V2 only                | 2     | ~150,000        |
+| 3-hop V2 only                | 3     | ~200,000        |
+| 2-hop V2 + V3                | 2     | ~160,000        |
+| 3-hop mixed (V2/V3/Balancer) | 3     | ~300,000        |
 
 ### Potential Optimizations (Not Implemented)
 
@@ -219,6 +237,7 @@ struct SwapStep {
 3. **Assembly Optimization**: Direct calldata construction for critical paths
 
 These optimizations were not implemented because:
+
 - Increased code complexity
 - Reduced auditability
 - Marginal gas savings vs. flexibility loss
@@ -251,6 +270,7 @@ MIN_PROFIT_DAI should be > $30 for 3-hop routes
 ### Monitoring
 
 Track gas efficiency metrics:
+
 - Average gas per successful trade
 - Gas cost as percentage of profit
 - Route type distribution
@@ -276,9 +296,9 @@ Track gas efficiency metrics:
 
 ## Version History
 
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0 | Initial | V2, V3 (single), Balancer (single), Curve support |
+| Version | Date    | Changes                                           |
+| ------- | ------- | ------------------------------------------------- |
+| 1.0     | Initial | V2, V3 (single), Balancer (single), Curve support |
 
 ---
 

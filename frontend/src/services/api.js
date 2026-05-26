@@ -6,6 +6,14 @@ import {
   settingsUpdateSchema,
 } from "../validation/settingsSchema";
 
+// SECURITY NOTE: The backend API is fail-closed and authenticates EVERY
+// non-health route by matching an `x-api-key` header. This dashboard attaches
+// that key (from REACT_APP_API_KEY) on every request. Because the key is baked
+// into the client bundle at build time, the dashboard must only be served in a
+// trusted operator context (e.g. behind a VPN / internal network), never on a
+// public origin. The Auth0 Bearer token below is for the dashboard's own
+// login/UX gating; the backend does NOT verify JWTs, so `x-api-key` is the only
+// credential the server actually checks.
 const API_BASE_URL =
   process.env.REACT_APP_API_BASE_URL || "http://localhost:3001";
 const STATIC_API_KEY = process.env.REACT_APP_API_KEY;
@@ -15,18 +23,6 @@ export const API = axios.create({
   baseURL: API_BASE_URL,
 });
 
-const API_KEY = process.env.REACT_APP_API_KEY;
-
-if (API_KEY) {
-  API.interceptors.request.use((config) => {
-    const nextConfig = { ...config };
-    nextConfig.headers = nextConfig.headers ?? {};
-    if (!nextConfig.headers["x-api-key"]) {
-      nextConfig.headers["x-api-key"] = API_KEY;
-    }
-    return nextConfig;
-  });
-}
 let authTokenProvider = null;
 let unauthorizedHandler = null;
 
@@ -123,7 +119,11 @@ export const triggerArbitrage = async () => {
  * @param {string} [options.file="bot.log"] - Optional log filename relative to the project root.
  * @returns {Promise<{logs: string[], offset: number, limit: number, nextOffset: number|null, hasMore: boolean, file: string}>}
  */
-export const getBotLogs = async ({ offset = 0, limit = 100, file = "bot.log" } = {}) => {
+export const getBotLogs = async ({
+  offset = 0,
+  limit = 100,
+  file = "bot.log",
+} = {}) => {
   const response = await API.get("/api/bot-logs", {
     params: {
       offset,
@@ -174,7 +174,10 @@ export const getTradeHistory = async (limit) => {
   if (Number.isFinite(limit)) {
     params.limit = limit;
   }
-  const response = await API.get("/api/trades", Object.keys(params).length ? { params } : undefined);
+  const response = await API.get(
+    "/api/trades",
+    Object.keys(params).length ? { params } : undefined
+  );
   return response.data;
 };
 
@@ -280,7 +283,9 @@ export const forwardProfits = async (params) => {
 
 // Get Connext transfer history
 export const getConnextTransferHistory = async (limit = 20) => {
-  const response = await API.get("/api/connext/transfers", { params: { limit } });
+  const response = await API.get("/api/connext/transfers", {
+    params: { limit },
+  });
   return response.data;
 };
 
@@ -320,7 +325,9 @@ export const getRiskReport = async () => {
 
 // Get recent risk alerts
 export const getRiskAlerts = async (limit = 50) => {
-  const response = await API.get("/api/tier1/risk-alerts", { params: { limit } });
+  const response = await API.get("/api/tier1/risk-alerts", {
+    params: { limit },
+  });
   return response.data;
 };
 

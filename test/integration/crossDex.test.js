@@ -7,7 +7,6 @@
 
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
-const { loadFixture } = require("@nomicfoundation/hardhat-network-helpers");
 
 // Skip if not running with mainnet fork
 const FORK_ENABLED = process.env.ENABLE_MAINNET_FORK === "true";
@@ -16,7 +15,7 @@ const describeFork = FORK_ENABLED ? describe : describe.skip;
 // Token addresses on mainnet
 const TOKENS = {
   WETH: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
-  DAI: "0x6B175474E89094C44Da98b954EesaDCAE3686f72E2",
+  DAI: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
   USDC: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
   USDT: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
   WBTC: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
@@ -59,8 +58,16 @@ describeFork("Cross-DEX Integration Tests", function () {
     const [deployer] = await ethers.getSigners();
 
     // Connect to routers
-    const uniV2 = new ethers.Contract(ROUTERS.UNISWAP_V2, ROUTER_V2_ABI, deployer);
-    const sushi = new ethers.Contract(ROUTERS.SUSHISWAP, ROUTER_V2_ABI, deployer);
+    const uniV2 = new ethers.Contract(
+      ROUTERS.UNISWAP_V2,
+      ROUTER_V2_ABI,
+      deployer
+    );
+    const sushi = new ethers.Contract(
+      ROUTERS.SUSHISWAP,
+      ROUTER_V2_ABI,
+      deployer
+    );
 
     // Connect to tokens
     const wethContract = new ethers.Contract(TOKENS.WETH, ERC20_ABI, deployer);
@@ -78,7 +85,7 @@ describeFork("Cross-DEX Integration Tests", function () {
   }
 
   beforeEach(async function () {
-    const fixture = await loadFixture(deployFixture);
+    const fixture = await deployFixture();
     owner = fixture.owner;
     uniswapV2Router = fixture.uniswapV2Router;
     sushiswapRouter = fixture.sushiswapRouter;
@@ -96,7 +103,9 @@ describeFork("Cross-DEX Integration Tests", function () {
       expect(amounts.length).to.equal(2);
       expect(amounts[1]).to.be.gt(0);
 
-      console.log(`Uniswap V2: 1 WETH = ${ethers.utils.formatEther(amounts[1])} DAI`);
+      console.log(
+        `Uniswap V2: 1 WETH = ${ethers.utils.formatEther(amounts[1])} DAI`
+      );
     });
 
     it("should get quotes from SushiSwap for WETH -> DAI", async function () {
@@ -107,7 +116,9 @@ describeFork("Cross-DEX Integration Tests", function () {
       expect(amounts.length).to.equal(2);
       expect(amounts[1]).to.be.gt(0);
 
-      console.log(`SushiSwap: 1 WETH = ${ethers.utils.formatEther(amounts[1])} DAI`);
+      console.log(
+        `SushiSwap: 1 WETH = ${ethers.utils.formatEther(amounts[1])} DAI`
+      );
     });
 
     it("should detect price differences between DEXes", async function () {
@@ -121,7 +132,8 @@ describeFork("Cross-DEX Integration Tests", function () {
       const sushiPrice = parseFloat(ethers.utils.formatEther(sushiAmounts[1]));
 
       const priceDiff = Math.abs(uniPrice - sushiPrice);
-      const priceDiffPercent = (priceDiff / Math.min(uniPrice, sushiPrice)) * 100;
+      const priceDiffPercent =
+        (priceDiff / Math.min(uniPrice, sushiPrice)) * 100;
 
       console.log(`Price difference: ${priceDiffPercent.toFixed(4)}%`);
       console.log(`Uniswap V2: ${uniPrice.toFixed(4)} DAI`);
@@ -137,21 +149,43 @@ describeFork("Cross-DEX Integration Tests", function () {
       const amountIn = ethers.utils.parseUnits("1000", 18); // 1000 DAI
 
       // Hop 1: DAI -> WETH
-      const hop1 = await uniswapV2Router.getAmountsOut(amountIn, [TOKENS.DAI, TOKENS.WETH]);
+      const hop1 = await uniswapV2Router.getAmountsOut(amountIn, [
+        TOKENS.DAI,
+        TOKENS.WETH,
+      ]);
       const wethAmount = hop1[1];
 
       // Hop 2: WETH -> USDC
-      const hop2 = await sushiswapRouter.getAmountsOut(wethAmount, [TOKENS.WETH, TOKENS.USDC]);
+      const hop2 = await sushiswapRouter.getAmountsOut(wethAmount, [
+        TOKENS.WETH,
+        TOKENS.USDC,
+      ]);
       const usdcAmount = hop2[1];
 
       // Hop 3: USDC -> DAI
-      const hop3 = await uniswapV2Router.getAmountsOut(usdcAmount, [TOKENS.USDC, TOKENS.DAI]);
+      const hop3 = await uniswapV2Router.getAmountsOut(usdcAmount, [
+        TOKENS.USDC,
+        TOKENS.DAI,
+      ]);
       const finalDai = hop3[1];
 
       console.log(`Start: 1000 DAI`);
-      console.log(`After hop 1 (DAI->WETH on Uni V2): ${ethers.utils.formatEther(wethAmount)} WETH`);
-      console.log(`After hop 2 (WETH->USDC on Sushi): ${ethers.utils.formatUnits(usdcAmount, 6)} USDC`);
-      console.log(`After hop 3 (USDC->DAI on Uni V2): ${ethers.utils.formatEther(finalDai)} DAI`);
+      console.log(
+        `After hop 1 (DAI->WETH on Uni V2): ${ethers.utils.formatEther(
+          wethAmount
+        )} WETH`
+      );
+      console.log(
+        `After hop 2 (WETH->USDC on Sushi): ${ethers.utils.formatUnits(
+          usdcAmount,
+          6
+        )} USDC`
+      );
+      console.log(
+        `After hop 3 (USDC->DAI on Uni V2): ${ethers.utils.formatEther(
+          finalDai
+        )} DAI`
+      );
 
       const profit = parseFloat(ethers.utils.formatEther(finalDai)) - 1000;
       console.log(`Potential profit (before gas): ${profit.toFixed(4)} DAI`);
@@ -161,15 +195,24 @@ describeFork("Cross-DEX Integration Tests", function () {
       const amountIn = ethers.utils.parseEther("1"); // 1 WETH
 
       // Hop 1: WETH -> DAI
-      const hop1 = await uniswapV2Router.getAmountsOut(amountIn, [TOKENS.WETH, TOKENS.DAI]);
+      const hop1 = await uniswapV2Router.getAmountsOut(amountIn, [
+        TOKENS.WETH,
+        TOKENS.DAI,
+      ]);
       const daiAmount = hop1[1];
 
       // Hop 2: DAI -> USDC
-      const hop2 = await sushiswapRouter.getAmountsOut(daiAmount, [TOKENS.DAI, TOKENS.USDC]);
+      const hop2 = await sushiswapRouter.getAmountsOut(daiAmount, [
+        TOKENS.DAI,
+        TOKENS.USDC,
+      ]);
       const usdcAmount = hop2[1];
 
       // Hop 3: USDC -> WETH
-      const hop3 = await uniswapV2Router.getAmountsOut(usdcAmount, [TOKENS.USDC, TOKENS.WETH]);
+      const hop3 = await uniswapV2Router.getAmountsOut(usdcAmount, [
+        TOKENS.USDC,
+        TOKENS.WETH,
+      ]);
       const finalWeth = hop3[1];
 
       const profitWei = finalWeth.sub(amountIn);
@@ -198,7 +241,8 @@ describeFork("Cross-DEX Integration Tests", function () {
       for (const size of tradeSizes) {
         const amountIn = ethers.utils.parseEther(size.toString());
         const amounts = await uniswapV2Router.getAmountsOut(amountIn, path);
-        const pricePerEth = parseFloat(ethers.utils.formatEther(amounts[1])) / size;
+        const pricePerEth =
+          parseFloat(ethers.utils.formatEther(amounts[1])) / size;
         results.push({ size, pricePerEth });
       }
 
@@ -209,7 +253,11 @@ describeFork("Cross-DEX Integration Tests", function () {
 
       for (const result of results) {
         const slippage = ((basePrice - result.pricePerEth) / basePrice) * 100;
-        console.log(`${result.size} WETH: ${result.pricePerEth.toFixed(2)} DAI/WETH (slippage: ${slippage.toFixed(4)}%)`);
+        console.log(
+          `${result.size} WETH: ${result.pricePerEth.toFixed(
+            2
+          )} DAI/WETH (slippage: ${slippage.toFixed(4)}%)`
+        );
       }
 
       // Large trades should have higher slippage
@@ -240,13 +288,15 @@ describeFork("Cross-DEX Integration Tests", function () {
       }
 
       // Multi-hop with flashloan
-      const threeHopFlashloan = gasEstimates.flashloanWrapper +
-        gasEstimates.uniswapV2SingleHop * 3;
-      console.log(`\n3-hop V2 with flashloan: ~${threeHopFlashloan.toLocaleString()} gas`);
+      const threeHopFlashloan =
+        gasEstimates.flashloanWrapper + gasEstimates.uniswapV2SingleHop * 3;
+      console.log(
+        `\n3-hop V2 with flashloan: ~${threeHopFlashloan.toLocaleString()} gas`
+      );
 
       // At 30 gwei gas price
       const gasPrice = 30; // gwei
-      const ethCost = (threeHopFlashloan * gasPrice * 1e-9);
+      const ethCost = threeHopFlashloan * gasPrice * 1e-9;
       console.log(`Cost at ${gasPrice} gwei: ~${ethCost.toFixed(6)} ETH`);
     });
   });
@@ -379,7 +429,8 @@ describe("Security Tests", function () {
       const historicalPrice = 1800; // ETH/USD
       const currentPrice = 2500; // Suspicious 38% increase
 
-      const deviation = Math.abs(currentPrice - historicalPrice) / historicalPrice;
+      const deviation =
+        Math.abs(currentPrice - historicalPrice) / historicalPrice;
       const maxDeviation = 0.1; // 10% max allowed
 
       expect(deviation).to.be.gt(maxDeviation);
