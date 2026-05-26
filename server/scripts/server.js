@@ -797,6 +797,8 @@ app.get(
         process.env.MAINNET_RPC_URL
       );
 
+      // Illustrative flat-rate round-trip (NOT live pricing). Real profitability
+      // is computed from on-chain quotes in the bot's execution path.
       const route = {
         name: "DAI→WETH→DAI (Uni)",
         steps: [
@@ -806,7 +808,7 @@ app.get(
           },
           {
             description: "WETH→DAI",
-            simulate: (amt) => amt * 2000 * 1.03 * 0.995,
+            simulate: (amt) => amt * 2000 * 0.995,
           },
         ],
       };
