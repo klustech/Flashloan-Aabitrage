@@ -51,12 +51,12 @@ paths:
       description: Returns the health status of the bot
       tags: [Health]
       responses:
-        '200':
+        "200":
           description: Health status
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HealthStatus'
+                $ref: "#/components/schemas/HealthStatus"
 
   /api/bot-status:
     get:
@@ -64,12 +64,12 @@ paths:
       description: Returns detailed bot status including circuit breaker state, market data, and service status
       tags: [Health]
       responses:
-        '200':
+        "200":
           description: Comprehensive status
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BotStatus'
+                $ref: "#/components/schemas/BotStatus"
 
   /api/start-bot:
     post:
@@ -77,7 +77,7 @@ paths:
       description: Activates automated arbitrage execution
       tags: [Bot Control]
       responses:
-        '200':
+        "200":
           description: Bot started
           content:
             application/json:
@@ -88,7 +88,7 @@ paths:
                     type: string
                     example: ok
                   settings:
-                    $ref: '#/components/schemas/BotSettings'
+                    $ref: "#/components/schemas/BotSettings"
 
   /api/stop-bot:
     post:
@@ -96,7 +96,7 @@ paths:
       description: Deactivates automated arbitrage execution
       tags: [Bot Control]
       responses:
-        '200':
+        "200":
           description: Bot stopped
           content:
             application/json:
@@ -107,7 +107,7 @@ paths:
                     type: string
                     example: ok
                   settings:
-                    $ref: '#/components/schemas/BotSettings'
+                    $ref: "#/components/schemas/BotSettings"
 
   /api/settings:
     get:
@@ -115,12 +115,12 @@ paths:
       description: Returns all configurable bot settings
       tags: [Bot Control]
       responses:
-        '200':
+        "200":
           description: Current settings
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BotSettings'
+                $ref: "#/components/schemas/BotSettings"
     post:
       summary: Update settings
       description: Update one or more bot settings
@@ -130,9 +130,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SettingsUpdate'
+              $ref: "#/components/schemas/SettingsUpdate"
       responses:
-        '200':
+        "200":
           description: Settings updated
           content:
             application/json:
@@ -143,15 +143,15 @@ paths:
                     type: string
                     example: ok
                   settings:
-                    $ref: '#/components/schemas/BotSettings'
+                    $ref: "#/components/schemas/BotSettings"
                   persisted:
                     type: boolean
-        '400':
+        "400":
           description: Validation error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ValidationError'
+                $ref: "#/components/schemas/ValidationError"
 
   /api/settings/reset:
     post:
@@ -159,7 +159,7 @@ paths:
       description: Resets all settings to their default values
       tags: [Bot Control]
       responses:
-        '200':
+        "200":
           description: Settings reset
           content:
             application/json:
@@ -170,7 +170,7 @@ paths:
                     type: string
                     example: ok
                   settings:
-                    $ref: '#/components/schemas/BotSettings'
+                    $ref: "#/components/schemas/BotSettings"
                   message:
                     type: string
 
@@ -180,12 +180,12 @@ paths:
       description: Returns current DEX prices for DAI/WETH pair
       tags: [Market Data]
       responses:
-        '200':
+        "200":
           description: Market data
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MarketData'
+                $ref: "#/components/schemas/MarketData"
 
   /api/gas-estimate:
     get:
@@ -193,12 +193,12 @@ paths:
       description: Returns current network gas prices and fee data
       tags: [Market Data]
       responses:
-        '200':
+        "200":
           description: Gas estimate
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GasEstimate'
+                $ref: "#/components/schemas/GasEstimate"
 
   /api/opportunities:
     get:
@@ -206,7 +206,7 @@ paths:
       description: Returns recently detected arbitrage opportunities
       tags: [Opportunities]
       responses:
-        '200':
+        "200":
           description: List of opportunities
           content:
             application/json:
@@ -216,7 +216,7 @@ paths:
                   opportunities:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Opportunity'
+                      $ref: "#/components/schemas/Opportunity"
                   count:
                     type: integer
 
@@ -232,7 +232,7 @@ paths:
             type: boolean
           description: Whether to use Flashbots for MEV protection
       responses:
-        '200':
+        "200":
           description: Arbitrage result
           content:
             application/json:
@@ -258,14 +258,14 @@ paths:
             default: 20
           description: Maximum number of trades to return
       responses:
-        '200':
+        "200":
           description: Trade history
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Trade'
+                  $ref: "#/components/schemas/Trade"
 
   /api/daily-stats:
     get:
@@ -273,12 +273,12 @@ paths:
       description: Returns aggregated statistics for the last 24 hours
       tags: [Trades]
       responses:
-        '200':
+        "200":
           description: Daily statistics
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DailyStats'
+                $ref: "#/components/schemas/DailyStats"
 
   /api/simulate-profit:
     get:
@@ -286,13 +286,13 @@ paths:
       description: Simulates profit for the most recent opportunity
       tags: [Simulation]
       responses:
-        '200':
+        "200":
           description: Simulation result
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ProfitSimulation'
-        '204':
+                $ref: "#/components/schemas/ProfitSimulation"
+        "204":
           description: No opportunity to simulate
 
   /api/simulate-arbitrage:
@@ -305,14 +305,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SimulationRequest'
+              $ref: "#/components/schemas/SimulationRequest"
       responses:
-        '200':
+        "200":
           description: Simulation result
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SimulationResult'
+                $ref: "#/components/schemas/SimulationResult"
 
   /api/ml-stats:
     get:
@@ -320,12 +320,12 @@ paths:
       description: Returns machine learning model performance metrics
       tags: [ML]
       responses:
-        '200':
+        "200":
           description: ML statistics
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MLStats'
+                $ref: "#/components/schemas/MLStats"
 
   /api/circuit-breaker:
     get:
@@ -333,12 +333,12 @@ paths:
       description: Returns the current circuit breaker status
       tags: [Bot Control]
       responses:
-        '200':
+        "200":
           description: Circuit breaker state
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CircuitBreakerState'
+                $ref: "#/components/schemas/CircuitBreakerState"
 
   /api/circuit-breaker/reset:
     post:
@@ -346,7 +346,7 @@ paths:
       description: Resets the circuit breaker to closed state
       tags: [Bot Control]
       responses:
-        '200':
+        "200":
           description: Circuit breaker reset
           content:
             application/json:
@@ -356,7 +356,7 @@ paths:
                   status:
                     type: string
                   state:
-                    $ref: '#/components/schemas/CircuitBreakerState'
+                    $ref: "#/components/schemas/CircuitBreakerState"
 
   /api/rl/reset:
     post:
@@ -364,7 +364,7 @@ paths:
       description: Resets the reinforcement learning slippage policy
       tags: [Bot Control]
       responses:
-        '200':
+        "200":
           description: Policy reset
           content:
             application/json:
@@ -388,12 +388,12 @@ paths:
             type: string
           description: Token address to check balance for
       responses:
-        '200':
+        "200":
           description: Connext status
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ConnextStatus'
+                $ref: "#/components/schemas/ConnextStatus"
 
   /api/connext/forward:
     post:
@@ -415,12 +415,12 @@ paths:
                   type: string
                   description: Amount to forward (optional, forwards all if not specified)
       responses:
-        '200':
+        "200":
           description: Forward result
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ForwardResult'
+                $ref: "#/components/schemas/ForwardResult"
 
   /api/connext/transfers:
     get:
@@ -434,7 +434,7 @@ paths:
             type: integer
             default: 20
       responses:
-        '200':
+        "200":
           description: Transfer history
           content:
             application/json:
@@ -444,7 +444,7 @@ paths:
                   transfers:
                     type: array
                     items:
-                      $ref: '#/components/schemas/ConnextTransfer'
+                      $ref: "#/components/schemas/ConnextTransfer"
                   pendingCount:
                     type: integer
 
@@ -454,7 +454,7 @@ paths:
       description: Returns currently pending Connext transfers
       tags: [Connext]
       responses:
-        '200':
+        "200":
           description: Pending transfers
           content:
             application/json:
@@ -464,7 +464,7 @@ paths:
                   transfers:
                     type: array
                     items:
-                      $ref: '#/components/schemas/ConnextTransfer'
+                      $ref: "#/components/schemas/ConnextTransfer"
                   count:
                     type: integer
 
@@ -480,12 +480,12 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Transfer status
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ConnextTransfer'
+                $ref: "#/components/schemas/ConnextTransfer"
 
   /api/connext/monitoring:
     get:
@@ -493,7 +493,7 @@ paths:
       description: Returns Connext transfer monitoring status
       tags: [Connext]
       responses:
-        '200':
+        "200":
           description: Monitoring status
           content:
             application/json:
@@ -513,7 +513,7 @@ paths:
       description: Start Connext transfer monitoring
       tags: [Connext]
       responses:
-        '200':
+        "200":
           description: Monitoring started
 
   /api/connext/monitoring/stop:
@@ -522,7 +522,7 @@ paths:
       description: Stop Connext transfer monitoring
       tags: [Connext]
       responses:
-        '200':
+        "200":
           description: Monitoring stopped
 
   /api/timelock/status:
@@ -531,12 +531,12 @@ paths:
       description: Returns timelock contract status
       tags: [Timelock]
       responses:
-        '200':
+        "200":
           description: Timelock status
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TimelockStatus'
+                $ref: "#/components/schemas/TimelockStatus"
 
   /api/timelock/schedule:
     post:
@@ -548,14 +548,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TimelockScheduleRequest'
+              $ref: "#/components/schemas/TimelockScheduleRequest"
       responses:
-        '200':
+        "200":
           description: Operation scheduled
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TimelockOperationResult'
+                $ref: "#/components/schemas/TimelockOperationResult"
 
   /api/timelock/execute/{operationId}:
     post:
@@ -586,7 +586,7 @@ paths:
                 salt:
                   type: string
       responses:
-        '200':
+        "200":
           description: Operation executed
 
   /api/timelock/cancel/{operationId}:
@@ -601,7 +601,7 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Operation cancelled
 
   /api/timelock/operations/{operationId}:
@@ -616,7 +616,7 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Operation status
 
   /api/timelock/roles/{address}:
@@ -631,7 +631,7 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Address roles
 
   /metrics:
@@ -640,7 +640,7 @@ paths:
       description: Returns metrics in Prometheus text format
       tags: [Metrics]
       responses:
-        '200':
+        "200":
           description: Prometheus metrics
           content:
             text/plain:
@@ -653,7 +653,7 @@ paths:
       description: Returns metrics in JSON format
       tags: [Metrics]
       responses:
-        '200':
+        "200":
           description: Metrics JSON
           content:
             application/json:
@@ -687,12 +687,12 @@ paths:
             type: string
             default: bot.log
       responses:
-        '200':
+        "200":
           description: Log entries
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LogResponse'
+                $ref: "#/components/schemas/LogResponse"
 
 components:
   securitySchemes:
@@ -731,11 +731,11 @@ components:
 
     BotStatus:
       allOf:
-        - $ref: '#/components/schemas/HealthStatus'
+        - $ref: "#/components/schemas/HealthStatus"
         - type: object
           properties:
             circuitBreaker:
-              $ref: '#/components/schemas/CircuitBreakerState'
+              $ref: "#/components/schemas/CircuitBreakerState"
             market:
               type: object
             services:
@@ -1168,12 +1168,10 @@ components:
       properties:
         operation:
           type: string
-          enum: [setMaxLossBps, pause, unpause, custom]
+          enum: [pause, unpause, custom]
         params:
           type: object
           properties:
-            newMaxLossBps:
-              type: integer
             target:
               type: string
             value:

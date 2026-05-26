@@ -19,7 +19,7 @@ const REQUIRED_ENV_VARS = {
   MAINNET_RPC_URL: "http://localhost:8545",
   UNISWAP_ROUTER_ADDRESS: "0x0000000000000000000000000000000000000001",
   SUSHISWAP_ROUTER_ADDRESS: "0x0000000000000000000000000000000000000002",
-  TOKENS_DAI: "0x6B175474E89094C44Da98b954EesaDCAE3686f72E2",
+  TOKENS_DAI: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
   TOKENS_WETH: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
 };
 
@@ -69,7 +69,7 @@ describe("New API Endpoints", function () {
       it("accepts optional token query parameter", async () => {
         const res = await request(app)
           .get("/api/connext/status")
-          .query({ token: "0x6B175474E89094C44Da98b954EesaDCAE3686f72E2" });
+          .query({ token: "0x6B175474E89094C44Da98b954EedeAC495271d0F" });
 
         expect(res.status).to.equal(200);
         expect(res.body).to.have.property("initialized");
@@ -87,7 +87,7 @@ describe("New API Endpoints", function () {
       it("returns error when Connext not initialized", async () => {
         const res = await request(app)
           .post("/api/connext/forward")
-          .send({ token: "0x6B175474E89094C44Da98b954EesaDCAE3686f72E2" });
+          .send({ token: "0x6B175474E89094C44Da98b954EedeAC495271d0F" });
 
         expect(res.status).to.be.oneOf([200, 500]);
         // In test mode, this should fail gracefully
@@ -125,7 +125,9 @@ describe("New API Endpoints", function () {
 
     describe("GET /api/connext/transfers/:transferId", () => {
       it("returns transfer status for valid ID", async () => {
-        const res = await request(app).get("/api/connext/transfers/0x123456789");
+        const res = await request(app).get(
+          "/api/connext/transfers/0x123456789"
+        );
 
         expect(res.status).to.equal(200);
         // Should return status even if transfer not found

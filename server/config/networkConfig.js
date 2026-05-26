@@ -25,7 +25,7 @@ const CHAIN_IDS = {
 const TOKENS = {
   ethereum: {
     WETH: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
-    DAI: "0x6B175474E89094C44Da98b954EesaDCAE3686f72E2",
+    DAI: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
     USDC: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
     USDT: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
     WBTC: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
@@ -92,7 +92,8 @@ const DEX_ROUTERS = {
     uniswap_v2: {
       router: "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
       factory: "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
-      initCodeHash: "0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f",
+      initCodeHash:
+        "0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f",
     },
     uniswap_v3: {
       router: "0xE592427A0AEce92De3Edee1F18E0157C05861564",
@@ -104,7 +105,8 @@ const DEX_ROUTERS = {
     sushiswap: {
       router: "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F",
       factory: "0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac",
-      initCodeHash: "0xe18a34eb0e04b04f7a0ac29a6e80748dca96319b42c54d679cb821dca90c6303",
+      initCodeHash:
+        "0xe18a34eb0e04b04f7a0ac29a6e80748dca96319b42c54d679cb821dca90c6303",
     },
     balancer: {
       vault: "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
@@ -265,9 +267,7 @@ const FLASHBOTS_RELAYS = {
     "https://builder0x69.io",
     "https://rpc.titanbuilder.xyz",
   ],
-  goerli: [
-    "https://relay-goerli.flashbots.net",
-  ],
+  goerli: ["https://relay-goerli.flashbots.net"],
 };
 
 // Gas Estimation Defaults per Network
@@ -301,7 +301,9 @@ const GAS_DEFAULTS = {
 
 // RPC Endpoints (use environment variables in production)
 const RPC_DEFAULTS = {
-  ethereum: process.env.MAINNET_RPC_URL || "https://eth-mainnet.g.alchemy.com/v2/your-api-key",
+  ethereum:
+    process.env.MAINNET_RPC_URL ||
+    "https://eth-mainnet.g.alchemy.com/v2/your-api-key",
   arbitrum: process.env.ARBITRUM_RPC_URL || "https://arb1.arbitrum.io/rpc",
   optimism: process.env.OPTIMISM_RPC_URL || "https://mainnet.optimism.io",
   polygon: process.env.POLYGON_RPC_URL || "https://polygon-rpc.com",
@@ -442,7 +444,11 @@ function getDeploymentConfig(network, overrides = {}) {
   const validation = validateNetworkConfig(network);
 
   if (!validation.valid) {
-    throw new Error(`Invalid network configuration for ${network}: ${validation.errors.join(", ")}`);
+    throw new Error(
+      `Invalid network configuration for ${network}: ${validation.errors.join(
+        ", "
+      )}`
+    );
   }
 
   // Merge environment overrides

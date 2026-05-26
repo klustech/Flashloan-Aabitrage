@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 env:
-  NODE_VERSION: "18"
+  NODE_VERSION: "20"
   PYTHON_VERSION: "3.10"
 
 jobs:
@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node: [18, 20]
+        node: [20]
     steps:
       - uses: actions/checkout@v4
 
@@ -29,21 +29,21 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-          cache: yarn
+          cache: npm
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: npm ci
 
       - name: Compile contracts
-        run: yarn hardhat compile --force
+        run: npx hardhat compile --force
 
       - name: Run Hardhat tests
-        run: yarn hardhat test --network hardhat
+        run: npx hardhat test --network hardhat
         env:
           REPORT_GAS: true
 
       - name: Run solidity-coverage
-        run: yarn coverage
+        run: npm run coverage
         continue-on-error: true
 
       - name: Upload coverage
@@ -65,9 +65,8 @@ jobs:
 
       - name: Run Foundry tests
         run: forge test -vvv
-        continue-on-error: true
 
-  # Static Analysis
+  # Static Analysis (advisory only — does not gate the pipeline)
   security:
     name: Security Analysis
     runs-on: ubuntu-latest
@@ -78,16 +77,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: yarn
+          cache: npm
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: npm ci
 
-      - name: Run npm audit
+      - name: Run npm audit (advisory)
         run: npm audit --audit-level=high || true
         continue-on-error: true
 
-      - name: Static analysis with Slither
+      - name: Static analysis with Slither (advisory)
         run: |
           if [ -f scripts/slither.sh ]; then
             chmod +x scripts/slither.sh
@@ -95,20 +94,20 @@ jobs:
           fi
         continue-on-error: true
 
-      - name: Run Slither Action
+      - name: Run Slither Action (advisory)
         uses: crytic/slither-action@v0.3.0
         continue-on-error: true
         with:
           target: "contracts/"
           slither-args: "--exclude-dependencies"
 
-  # Backend Tests
+  # Backend Tests (real gate)
   backend:
     name: Backend Tests
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:14
+        image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -138,13 +137,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: yarn
+          cache: npm
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: npm ci
 
       - name: Run backend tests
-        run: npm test || true
+        run: npm test
         env:
           PG_HOST: localhost
           PG_PORT: 5432
@@ -153,17 +152,15 @@ jobs:
           PG_PASSWORD: postgres
           REDIS_URL: redis://localhost:6379
           NODE_ENV: test
-        continue-on-error: true
 
       - name: Run database smoke test
-        run: node server/tests/dbClientSmoke.test.js || true
+        run: node server/tests/dbClientSmoke.test.js
         env:
           PG_HOST: localhost
           PG_PORT: 5432
           PG_DB: flashloan_test
           PG_USER: postgres
           PG_PASSWORD: postgres
-        continue-on-error: true
 
   # Frontend Build
   frontend:
@@ -176,19 +173,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: yarn
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: |
-          yarn install --frozen-lockfile
-          cd frontend && npm ci || yarn install
+        run: cd frontend && npm ci
 
       - name: Build frontend
         run: cd frontend && npm run build
         env:
           CI: false
 
-  # ML Service Tests
+  # ML Service Tests (real gate)
   ml-service:
     name: ML Service Tests
     runs-on: ubuntu-latest
@@ -203,17 +199,23 @@ jobs:
       - name: Install Python dependencies
         run: |
           cd ml
-          pip install -r requirements.txt || true
+          pip install -r requirements.txt
           pip install pytest
-        continue-on-error: true
 
       - name: Run ML tests
         run: |
           cd ml
-          python -m pytest || true
-        continue-on-error: true
+          # Real gate: fail on actual test failures. pytest exit code 5 means
+          # "no tests collected" (none exist yet) — treat that as a pass so the
+          # job does not fail spuriously, but any genuine failure fails CI.
+          python -m pytest; rc=$?
+          if [ "$rc" -eq 5 ]; then
+            echo "No ML tests collected — skipping."
+            exit 0
+          fi
+          exit "$rc"
 
-  # Integration Tests (mainnet fork)
+  # Integration Tests (mainnet fork) — real gate
   integration:
     name: Integration Tests
     runs-on: ubuntu-latest
@@ -226,14 +228,52 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: yarn
+          cache: npm
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: npm ci
 
-      - name: Run fork tests
-        run: |
-          ENABLE_MAINNET_FORK=true npx hardhat test test/integration/*.js || true
+      - name: Run fork integration tests (only if RPC configured)
         env:
           MAINNET_RPC_URL: ${{ secrets.MAINNET_RPC_URL }}
-        continue-on-error: true
+        run: |
+          if [ -z "$MAINNET_RPC_URL" ]; then
+            echo "MAINNET_RPC_URL not set — skipping fork integration tests."
+            exit 0
+          fi
+          ENABLE_MAINNET_FORK=true npx hardhat test \
+            test/integration/flashloan.spec.js \
+            test/integration/crossDex.test.js
+
+  # Fork Arbitrage Proof (gate #2) — proves the full on-chain money path executes
+  # end-to-end against REAL Aave V2 + Uniswap + Sushiswap. Runs automatically only
+  # when the MAINNET_RPC_URL secret is configured; otherwise it skips green so it
+  # never blocks forks/PRs that lack the secret.
+  fork-arbitrage:
+    name: Fork Arbitrage Proof (gate #2)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    needs: [contracts]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run end-to-end fork arbitrage proof (only if RPC configured)
+        env:
+          MAINNET_RPC_URL: ${{ secrets.MAINNET_RPC_URL }}
+          FORK_BLOCK_NUMBER: ${{ vars.FORK_BLOCK_NUMBER }}
+        run: |
+          if [ -z "$MAINNET_RPC_URL" ]; then
+            echo "MAINNET_RPC_URL not set — skipping fork arbitrage proof (gate #2)."
+            echo "Add the MAINNET_RPC_URL repository secret to enable this gate."
+            exit 0
+          fi
+          npm run test:fork:arb

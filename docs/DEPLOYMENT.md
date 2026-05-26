@@ -1,6 +1,7 @@
 # Flashloan Arbitrage - Deployment Guide
 
 ## Table of Contents
+
 1. [Prerequisites](#prerequisites)
 2. [Environment Configuration](#environment-configuration)
 3. [Local Development](#local-development)
@@ -15,6 +16,7 @@
 ## Prerequisites
 
 ### Required Software
+
 - Node.js 18+ and Yarn
 - Docker and Docker Compose
 - kubectl (for Kubernetes deployments)
@@ -22,6 +24,7 @@
 - Python 3.10+ (for ML service)
 
 ### Required Accounts/Keys
+
 - Ethereum RPC endpoint (Infura/Alchemy)
 - Flashbots relay access
 - PostgreSQL database
@@ -79,13 +82,48 @@ ML_MODEL_ENDPOINT=http://localhost:4000/score
 # Monitoring
 SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
 
-# API Security
+# API Security (REQUIRED)
+# The API server is fail-closed: every non-health route requires a matching
+# `x-api-key` header, and the server REFUSES all requests if API_KEY is unset.
 API_KEY=your_secure_api_key
+# CORS is restricted to this origin. It MUST be set to the dashboard origin
+# for any browser-based access to work; requests from other origins are blocked.
+CORS_ORIGIN=https://dashboard.example.com
+
+# Transaction submission
+# Submission is Flashbots/private-relay by default. The public-mempool fallback
+# is DISABLED unless you explicitly opt in (leave unset/false in production).
+ALLOW_PUBLIC_MEMPOOL_FALLBACK=false
+```
+
+### Contract Deployment Parameters (.env)
+
+`scripts/deploy.js` deploys the `ArbitrageTimelock` first, then deploys
+`ArbitrageFlashloan` with the constructor `(provider, profitRecipient, timelock)`,
+then the `ConnextAdapter`. It reads these variables (there is **no**
+`MAX_LOSS_BPS` or `FLASHLOAN_PREMIUM_BIPS` — the on-chain max-loss cap was
+removed and the Aave premium is read on-chain at runtime):
+
+```bash
+# ArbitrageFlashloan
+AAVE_LENDING_POOL_ADDRESS_PROVIDER=0xB53C1a33016B2DC2fF3653530bfF1848a515c8c5
+PROFIT_RECIPIENT=0x...   # optional; defaults to the deployer address
+
+# Timelock (deployed first, then passed into the ArbitrageFlashloan constructor)
+TIMELOCK_MIN_DELAY_SEC=86400          # e.g. 24h delay
+TIMELOCK_PROPOSERS=0xProposer1,0xProposer2
+TIMELOCK_EXECUTORS=0xExecutor1,0xExecutor2
+
+# ConnextAdapter (cross-chain forwarding)
+CONNEXT_ADDRESS=0x...
+DESTINATION_DOMAIN=<numeric_connext_domain_id>
+RECIPIENT_ON_DESTINATION=0x...
 ```
 
 ### Testnet Configuration
 
 For Sepolia testnet, use these addresses:
+
 ```bash
 CHAIN_ID=11155111
 MAINNET_RPC_URL=https://sepolia.infura.io/v3/YOUR_KEY
@@ -153,11 +191,13 @@ ENABLE_MAINNET_FORK=true npx hardhat test test/integration/flashloan.spec.js
 export DEPLOYER_PRIVATE_KEY=0x...
 export SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/...
 
-# Deploy
+# Deploy (deploys the timelock, then ArbitrageFlashloan, then ConnextAdapter)
 npx hardhat run scripts/deploy.js --network sepolia
 
-# Verify on Etherscan
-npx hardhat verify --network sepolia DEPLOYED_ADDRESS constructor_args
+# Verify ArbitrageFlashloan on Etherscan. Its constructor takes exactly
+# (provider, profitRecipient, timelock):
+npx hardhat verify --network sepolia ARB_FLASHLOAN_ADDRESS \
+  $AAVE_LENDING_POOL_ADDRESS_PROVIDER $PROFIT_RECIPIENT $TIMELOCK_ADDRESS
 ```
 
 ### 2. Deploy Services to Staging
@@ -178,6 +218,7 @@ kubectl get pods -n flashloan-arb-staging
 ### 3. Configure Bot for Testnet
 
 Update the ConfigMap with testnet addresses:
+
 ```yaml
 apiVersion: v1
 kind: ConfigMap
@@ -187,7 +228,7 @@ metadata:
 data:
   CHAIN_ID: "11155111"
   NETWORK: "sepolia"
-  MIN_PROFIT_DAI: "0.1"  # Lower threshold for testing
+  MIN_PROFIT_DAI: "0.1" # Lower threshold for testing
 ```
 
 ---
@@ -266,27 +307,28 @@ The bot exposes metrics at `/metrics`. Configure Prometheus to scrape:
 
 ```yaml
 scrape_configs:
-  - job_name: 'flashloan-bot'
+  - job_name: "flashloan-bot"
     static_configs:
-      - targets: ['bot-logic-svc:3001']
+      - targets: ["bot-logic-svc:3001"]
     metrics_path: /metrics
     scrape_interval: 15s
 ```
 
 ### Key Metrics to Monitor
 
-| Metric | Alert Threshold | Description |
-|--------|----------------|-------------|
-| `arb_success_total` | Rate < 0 for 5m | No successful trades |
-| `arb_failure_total` | Rate > 10/min | High failure rate |
-| `daily_pnl_dai` | < -100 DAI | Daily loss threshold |
-| `gas_price_gwei` | > GAS_CEILING | Gas too expensive |
-| `bot_active` | = 0 unexpectedly | Bot stopped |
-| `consecutive_failures` | > 3 | Circuit breaker risk |
+| Metric                 | Alert Threshold  | Description          |
+| ---------------------- | ---------------- | -------------------- |
+| `arb_success_total`    | Rate < 0 for 5m  | No successful trades |
+| `arb_failure_total`    | Rate > 10/min    | High failure rate    |
+| `daily_pnl_dai`        | < -100 DAI       | Daily loss threshold |
+| `gas_price_gwei`       | > GAS_CEILING    | Gas too expensive    |
+| `bot_active`           | = 0 unexpectedly | Bot stopped          |
+| `consecutive_failures` | > 3              | Circuit breaker risk |
 
 ### Grafana Dashboards
 
 Import dashboards from `infra/grafana/dashboards/`:
+
 - `trading-performance.json` - P&L, trade stats, win rate
 - `system-health.json` - CPU, memory, latency, errors
 
@@ -310,11 +352,13 @@ kubectl rollout undo deployment/bot-logic-deploy --to-revision=2 -n flashloan-ar
 ### Emergency Stop Procedures
 
 1. **Stop Bot via API**:
+
    ```bash
    curl -X POST https://your-api/api/stop-bot -H "x-api-key: YOUR_KEY"
    ```
 
 2. **Scale Down Deployment**:
+
    ```bash
    kubectl scale deployment bot-logic-deploy --replicas=0 -n flashloan-arb
    ```
@@ -344,23 +388,27 @@ The current contracts are not upgradeable. For contract changes:
 ### Common Issues
 
 #### Bot Not Finding Opportunities
+
 - Check gas price vs ceiling setting
 - Verify RPC endpoint is responsive
 - Check if pools have sufficient liquidity
 - Review `routes_discovered_total` metric
 
 #### High Failure Rate
+
 - Check `arb_failure_total{reason="..."}` for breakdown
 - Common reasons: slippage, gas estimation, MEV competition
 - Consider increasing slippage tolerance temporarily
 
 #### Transaction Reverts
+
 - Check contract pause status
 - Verify sufficient liquidity in Aave
-- Review maxLossBps settings
+- Remember the contract is profit-or-revert: a route that is no longer profitable after the Aave premium and gas will revert by design. Tune `MIN_PROFIT_DAI` and slippage rather than expecting losing trades to settle.
 - Check for contract upgrades on DEXes
 
 #### ML Service Unavailable
+
 - Check ML pod status: `kubectl get pods -l app=ml-scorer`
 - Review ML service logs
 - Bot will fallback to liquidity-based sorting
@@ -401,13 +449,13 @@ kubectl logs deployment/bot-logic-deploy -n flashloan-arb > bot-logs.txt
 
 ### Resource Requirements
 
-| Service | CPU | Memory | Replicas |
-|---------|-----|--------|----------|
-| Bot | 500m-1000m | 512Mi-1Gi | 2 |
-| ML Scorer | 250m-500m | 256Mi-512Mi | 1 |
-| Frontend | 100m-250m | 128Mi-256Mi | 2 |
-| Redis | 100m-250m | 128Mi-256Mi | 1 |
-| PostgreSQL | 500m-1000m | 1Gi-2Gi | 1 |
+| Service    | CPU        | Memory      | Replicas |
+| ---------- | ---------- | ----------- | -------- |
+| Bot        | 500m-1000m | 512Mi-1Gi   | 2        |
+| ML Scorer  | 250m-500m  | 256Mi-512Mi | 1        |
+| Frontend   | 100m-250m  | 128Mi-256Mi | 2        |
+| Redis      | 100m-250m  | 128Mi-256Mi | 1        |
+| PostgreSQL | 500m-1000m | 1Gi-2Gi     | 1        |
 
 ### Estimated Costs
 

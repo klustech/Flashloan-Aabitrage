@@ -1,0 +1,15 @@
+node_modules
+**/node_modules
+*.log
+**/*.log
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+artifacts
+cache
+coverage
+.husky
+test
+frontend

@@ -14,19 +14,26 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 2
-      activeDeadlineSeconds: 3600  # 1 hour timeout
+      activeDeadlineSeconds: 3600 # 1 hour timeout
       template:
         metadata:
           labels:
             app: ml-trainer
         spec:
           restartPolicy: OnFailure
+          # The volume is mounted at /models; fsGroup makes it writable by the
+          # non-root user that the ml-scorer image runs as (uid 10001).
+          securityContext:
+            fsGroup: 10001
           containers:
             - name: ml-trainer
-              image: ghcr.io/flashloan-arb/ml-trainer:latest
+              # Reuse the ml-scorer image (it bundles train_model.py); nothing
+              # builds a separate ml-trainer image. train_model.py lives at the
+              # image WORKDIR (/usr/src/app/train_model.py).
+              image: ghcr.io/flashloan-arb/ml-scorer:latest
               command:
-                - python
-                - /app/ml/train_model.py
+                - python3
+                - train_model.py
                 - --db-url
                 - $(DATABASE_URL)
                 - --days
@@ -110,12 +117,19 @@ spec:
         app: ml-trainer
     spec:
       restartPolicy: Never
+      # The volume is mounted at /models; fsGroup makes it writable by the
+      # non-root user that the ml-scorer image runs as (uid 10001).
+      securityContext:
+        fsGroup: 10001
       containers:
         - name: ml-trainer
-          image: ghcr.io/flashloan-arb/ml-trainer:latest
+          # Reuse the ml-scorer image (it bundles train_model.py); nothing builds
+          # a separate ml-trainer image. train_model.py lives at the image
+          # WORKDIR (/usr/src/app/train_model.py).
+          image: ghcr.io/flashloan-arb/ml-scorer:latest
           command:
-            - python
-            - /app/ml/train_model.py
+            - python3
+            - train_model.py
             - --synthetic
             - "10000"
             - --output

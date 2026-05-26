@@ -13,8 +13,9 @@ const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || "info",
   format: winston.format.combine(
     winston.format.timestamp(),
-    winston.format.printf(({ timestamp, level, message }) =>
-      `${timestamp} [${level.toUpperCase()}] ${message}`
+    winston.format.printf(
+      ({ timestamp, level, message }) =>
+        `${timestamp} [${level.toUpperCase()}] ${message}`
     )
   ),
   transports: [new winston.transports.Console()],
@@ -78,6 +79,16 @@ class IncrementalGraph {
     const normalizedToken0 = token0.toLowerCase();
     const normalizedToken1 = token1.toLowerCase();
 
+    // V3 pools arrive with sqrtPriceX96 + liquidity instead of reserves. Derive
+    // virtual reserves so V3 edges enter the graph instead of being dropped.
+    let r0 = reserve0;
+    let r1 = reserve1;
+    if ((r0 == null || r1 == null) && sqrtPriceX96 && liquidity) {
+      const vr = this._v3VirtualReserves(sqrtPriceX96, liquidity);
+      if (r0 == null) r0 = vr.reserve0;
+      if (r1 == null) r1 = vr.reserve1;
+    }
+
     // Check if this is an update or new pool
     const existing = this.poolIndex.get(normalizedPool);
     const isUpdate = !!existing;
@@ -87,8 +98,8 @@ class IncrementalGraph {
       token0: normalizedToken0,
       token1: normalizedToken1,
       dex,
-      reserve0: reserve0?.toString() || "0",
-      reserve1: reserve1?.toString() || "0",
+      reserve0: r0?.toString() || "0",
+      reserve1: r1?.toString() || "0",
       fee,
       sqrtPriceX96: sqrtPriceX96?.toString(),
       liquidity: liquidity?.toString(),
@@ -102,19 +113,33 @@ class IncrementalGraph {
     this.tokenIndex.get(normalizedToken1).pools.add(normalizedPool);
 
     // Calculate edge weights and update adjacency list
-    const weight01 = this._calculateWeight(reserve0, reserve1, fee, dex, false);
-    const weight10 = this._calculateWeight(reserve1, reserve0, fee, dex, true);
+    const weight01 = this._calculateWeight(r0, r1, fee, dex, false);
+    const weight10 = this._calculateWeight(r1, r0, fee, dex, true);
 
-    this._updateEdge(normalizedToken0, normalizedToken1, normalizedPool, dex, weight01, {
-      reserve0,
-      reserve1,
-      fee,
-    });
-    this._updateEdge(normalizedToken1, normalizedToken0, normalizedPool, dex, weight10, {
-      reserve0: reserve1,
-      reserve1: reserve0,
-      fee,
-    });
+    this._updateEdge(
+      normalizedToken0,
+      normalizedToken1,
+      normalizedPool,
+      dex,
+      weight01,
+      {
+        reserve0: r0,
+        reserve1: r1,
+        fee,
+      }
+    );
+    this._updateEdge(
+      normalizedToken1,
+      normalizedToken0,
+      normalizedPool,
+      dex,
+      weight10,
+      {
+        reserve0: r1,
+        reserve1: r0,
+        fee,
+      }
+    );
 
     // Mark pool as dirty for route invalidation
     this.dirtyPools.add(normalizedPool);
@@ -191,7 +216,9 @@ class IncrementalGraph {
       const rateDenominator = rIn.mul(10000);
 
       // Convert to float for log calculation
-      const rate = parseFloat(rateNumerator.toString()) / parseFloat(rateDenominator.toString());
+      const rate =
+        parseFloat(rateNumerator.toString()) /
+        parseFloat(rateDenominator.toString());
 
       if (rate <= 0 || !isFinite(rate)) {
         return Infinity;
@@ -206,6 +233,26 @@ class IncrementalGraph {
   }
 
   /**
+   * Derive Uniswap V3 virtual reserves from sqrtPriceX96 + liquidity so V3 pools
+   * can be weighted like V2 (marginal rate = reserve1 / reserve0). NOTE: this is
+   * still a spot/marginal rate and does not model price impact at trade size.
+   */
+  _v3VirtualReserves(sqrtPriceX96, liquidity) {
+    try {
+      const Q96 = BigNumber.from(2).pow(96);
+      const sp = BigNumber.from(sqrtPriceX96);
+      const L = BigNumber.from(liquidity);
+      if (sp.isZero() || L.isZero()) return { reserve0: "0", reserve1: "0" };
+      return {
+        reserve0: L.mul(Q96).div(sp).toString(),
+        reserve1: L.mul(sp).div(Q96).toString(),
+      };
+    } catch (_) {
+      return { reserve0: "0", reserve1: "0" };
+    }
+  }
+
+  /**
    * Recalculate weight for a specific pool
    */
   recalculatePoolWeight(poolAddress) {
@@ -214,19 +261,45 @@ class IncrementalGraph {
 
     if (!pool) return false;
 
-    const weight01 = this._calculateWeight(pool.reserve0, pool.reserve1, pool.fee, pool.dex, false);
-    const weight10 = this._calculateWeight(pool.reserve1, pool.reserve0, pool.fee, pool.dex, true);
+    const weight01 = this._calculateWeight(
+      pool.reserve0,
+      pool.reserve1,
+      pool.fee,
+      pool.dex,
+      false
+    );
+    const weight10 = this._calculateWeight(
+      pool.reserve1,
+      pool.reserve0,
+      pool.fee,
+      pool.dex,
+      true
+    );
 
-    this._updateEdge(pool.token0, pool.token1, normalizedPool, pool.dex, weight01, {
-      reserve0: pool.reserve0,
-      reserve1: pool.reserve1,
-      fee: pool.fee,
-    });
-    this._updateEdge(pool.token1, pool.token0, normalizedPool, pool.dex, weight10, {
-      reserve0: pool.reserve1,
-      reserve1: pool.reserve0,
-      fee: pool.fee,
-    });
+    this._updateEdge(
+      pool.token0,
+      pool.token1,
+      normalizedPool,
+      pool.dex,
+      weight01,
+      {
+        reserve0: pool.reserve0,
+        reserve1: pool.reserve1,
+        fee: pool.fee,
+      }
+    );
+    this._updateEdge(
+      pool.token1,
+      pool.token0,
+      normalizedPool,
+      pool.dex,
+      weight10,
+      {
+        reserve0: pool.reserve1,
+        reserve1: pool.reserve0,
+        fee: pool.fee,
+      }
+    );
 
     return true;
   }
@@ -359,7 +432,11 @@ class IncrementalGraph {
 
     for (const [key, cached] of this.routeCache.entries()) {
       // Check if route contains this pool
-      if (cached.route?.hops?.some((h) => h.poolAddress?.toLowerCase() === normalizedPool)) {
+      if (
+        cached.route?.hops?.some(
+          (h) => h.poolAddress?.toLowerCase() === normalizedPool
+        )
+      ) {
         cached.invalidatedAt = now;
       }
     }
@@ -436,7 +513,12 @@ class IncrementalGraph {
         const newDist = fromDist + edge.weight;
         if (newDist < dist.get(edge.toToken)) {
           // Found negative cycle - reconstruct it
-          const cycle = this._reconstructCycle(edge.toToken, parent, parentEdge, maxHops);
+          const cycle = this._reconstructCycle(
+            edge.toToken,
+            parent,
+            parentEdge,
+            maxHops
+          );
           if (cycle && cycle.length > 0) {
             cycles.push(cycle);
           }
@@ -468,7 +550,10 @@ class IncrementalGraph {
     }
 
     // Verify it's a cycle
-    if (path.length > 0 && path[0].fromToken === path[path.length - 1].toToken) {
+    if (
+      path.length > 0 &&
+      path[0].fromToken === path[path.length - 1].toToken
+    ) {
       return path;
     }
 
@@ -484,9 +569,14 @@ class IncrementalGraph {
       ...this.stats,
       dirtyPools: this.dirtyPools.size,
       cachedRoutes: this.routeCache.size,
-      cacheHitRate: this.stats.cacheHits + this.stats.cacheMisses > 0
-        ? ((this.stats.cacheHits / (this.stats.cacheHits + this.stats.cacheMisses)) * 100).toFixed(2) + "%"
-        : "N/A",
+      cacheHitRate:
+        this.stats.cacheHits + this.stats.cacheMisses > 0
+          ? (
+              (this.stats.cacheHits /
+                (this.stats.cacheHits + this.stats.cacheMisses)) *
+              100
+            ).toFixed(2) + "%"
+          : "N/A",
     };
   }
 
@@ -553,14 +643,24 @@ function handleSyncEvent(poolAddress, reserve0, reserve1, dex = "uniswap_v2") {
       reserve1,
       fee: pool.fee,
     });
-    logger.debug(`[IncrementalGraph] Updated pool ${poolAddress.slice(0, 10)}... via Sync event`);
+    logger.debug(
+      `[IncrementalGraph] Updated pool ${poolAddress.slice(
+        0,
+        10
+      )}... via Sync event`
+    );
   }
 }
 
 /**
  * Handle V3 Swap event
  */
-function handleV3SwapEvent(poolAddress, sqrtPriceX96, liquidity, dex = "uniswap_v3") {
+function handleV3SwapEvent(
+  poolAddress,
+  sqrtPriceX96,
+  liquidity,
+  dex = "uniswap_v3"
+) {
   const pool = graphInstance.getPool(poolAddress);
   if (pool) {
     graphInstance.addPool({
@@ -572,7 +672,12 @@ function handleV3SwapEvent(poolAddress, sqrtPriceX96, liquidity, dex = "uniswap_
       liquidity,
       fee: pool.fee,
     });
-    logger.debug(`[IncrementalGraph] Updated V3 pool ${poolAddress.slice(0, 10)}... via Swap event`);
+    logger.debug(
+      `[IncrementalGraph] Updated V3 pool ${poolAddress.slice(
+        0,
+        10
+      )}... via Swap event`
+    );
   }
 }
 
@@ -596,7 +701,8 @@ module.exports = {
   removePool: (addr) => graphInstance.removePool(addr),
   getPool: (addr) => graphInstance.getPool(addr),
   getEdges: (token) => graphInstance.getEdges(token),
-  findNegativeCycles: (start, maxHops) => graphInstance.findNegativeCycles(start, maxHops),
+  findNegativeCycles: (start, maxHops) =>
+    graphInstance.findNegativeCycles(start, maxHops),
   getStats: () => graphInstance.getStats(),
   processDirtyPools: () => graphInstance.processDirtyPools(),
   clear: () => graphInstance.clear(),

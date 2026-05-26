@@ -22,7 +22,9 @@ const {
 const logger = {
   info: (msg) => console.log(`[routeFinder] ${msg}`),
   warn: (msg) => console.warn(`[routeFinder] ${msg}`),
-  debug: (msg) => process.env.DEBUG_ROUTES === "true" && console.log(`[routeFinder:debug] ${msg}`),
+  debug: (msg) =>
+    process.env.DEBUG_ROUTES === "true" &&
+    console.log(`[routeFinder:debug] ${msg}`),
 };
 
 // ------------------------------------------------------------------------------------
@@ -88,6 +90,13 @@ function convertCycleToRouteDef(cycleTokens, allPools) {
     const tB = cycleTokens[i + 1];
 
     const matching = allPools.find((pool) => {
+      const isMultiToken =
+        pool.dex === "balancer_v2" || pool.dex === "curve_v2";
+      if (isMultiToken) {
+        if (!Array.isArray(pool.tokens)) return false;
+      } else if (!pool.token0 || !pool.token1) {
+        return false; // skip malformed pools without crashing
+      }
       if (pool.dex === "uniswap_v2" || pool.dex === "sushiswap_v2") {
         return (
           (pool.token0.toLowerCase() === tA.toLowerCase() &&
@@ -136,7 +145,7 @@ function convertCycleToRouteDef(cycleTokens, allPools) {
       tokenA: tA,
       tokenB: tB,
       dex: matching.dex,
-      poolAddress: matching.poolAddress,
+      poolAddress: matching.poolAddress || matching.pairAddress,
       fee: matching.fee || null,
       curveIndices,
       liquidity: matching.liquidity || 0,
@@ -319,6 +328,7 @@ function enumerate3HopRoutes(allPools) {
   // Build simple adjacency list for DFS
   const adj = {};
   for (const pool of allPools) {
+    if (!pool.token0 || !pool.token1) continue; // skip malformed pools
     const t0 = pool.token0.toLowerCase();
     const t1 = pool.token1.toLowerCase();
     if (!adj[t0]) adj[t0] = [];
@@ -409,7 +419,9 @@ async function getAllRoutes({
 
   // Track pools analyzed
   poolsAnalyzed.set(flatPools.length);
-  logger.info(`Fetched ${flatPools.length} pools for ${chain} (topN=${topN}, minLiq=$${minLiq})`);
+  logger.info(
+    `Fetched ${flatPools.length} pools for ${chain} (topN=${topN}, minLiq=$${minLiq})`
+  );
 
   // Count graph edges
   let edgeCount = 0;
@@ -417,7 +429,11 @@ async function getAllRoutes({
     edgeCount += adjacencyGraph[token].length;
   }
   graphEdges.set(edgeCount);
-  logger.debug(`Built adjacency graph with ${Object.keys(adjacencyGraph).length} tokens, ${edgeCount} edges`);
+  logger.debug(
+    `Built adjacency graph with ${
+      Object.keys(adjacencyGraph).length
+    } tokens, ${edgeCount} edges`
+  );
 
   let routeDefs = [];
 
@@ -431,7 +447,9 @@ async function getAllRoutes({
 
   if (allowCycles) {
     // 2a. Negative‐cycle detection via Bellman-Ford
-    logger.info(`Using Bellman-Ford negative cycle detection (ALLOW_LNG_CYCLES=true)`);
+    logger.info(
+      `Using Bellman-Ford negative cycle detection (ALLOW_LNG_CYCLES=true)`
+    );
     const bfStartTime = Date.now();
 
     const cycles = await findNegativeCycles(adjacencyGraph, flatPools);
@@ -440,7 +458,9 @@ async function getAllRoutes({
     cycleDetectionDuration.labels("bellman_ford").observe(bfDuration);
     negativeCyclesFound.set(cycles.length);
 
-    logger.info(`Bellman-Ford found ${cycles.length} negative cycles in ${bfDuration}ms`);
+    logger.info(
+      `Bellman-Ford found ${cycles.length} negative cycles in ${bfDuration}ms`
+    );
 
     let idx = 1;
     for (const cycleTokens of cycles) {
@@ -449,12 +469,16 @@ async function getAllRoutes({
         rd.id = `bf_${idx++}`;
         rd.routeTokens = [...cycleTokens];
         routeDefs.push(rd);
-        logger.debug(`Cycle ${rd.id}: ${cycleTokens.length} tokens, ${rd.hops.length} hops`);
+        logger.debug(
+          `Cycle ${rd.id}: ${cycleTokens.length} tokens, ${rd.hops.length} hops`
+        );
       }
     }
   } else {
     // 2b. ≤3-Hop enumeration via DFS
-    logger.info(`Using DFS triangular route enumeration (ALLOW_LNG_CYCLES=false)`);
+    logger.info(
+      `Using DFS triangular route enumeration (ALLOW_LNG_CYCLES=false)`
+    );
     const dfsStartTime = Date.now();
 
     const routes = enumerate3HopRoutes(flatPools);
@@ -464,7 +488,9 @@ async function getAllRoutes({
     cycleDetectionDuration.labels("dfs_triangular").observe(dfsDuration);
     negativeCyclesFound.set(0); // Not applicable for DFS mode
 
-    logger.info(`DFS enumeration found ${routes.length} routes in ${dfsDuration}ms`);
+    logger.info(
+      `DFS enumeration found ${routes.length} routes in ${dfsDuration}ms`
+    );
   }
 
   /**
@@ -477,14 +503,31 @@ async function getAllRoutes({
   );
 
   if (beforeFilter !== routeDefs.length) {
-    logger.warn(`Filtered out ${beforeFilter - routeDefs.length} malformed routes`);
+    logger.warn(
+      `Filtered out ${beforeFilter - routeDefs.length} malformed routes`
+    );
+  }
+
+  // Enforce the maxHops contract. DFS caps at 3 hops, but Bellman-Ford cycles can
+  // be longer; this guarantees callers never receive a route exceeding maxHops.
+  const hopLimit = Number.isInteger(maxHops) && maxHops > 0 ? maxHops : 3;
+  const beforeHopFilter = routeDefs.length;
+  routeDefs = routeDefs.filter((r) => r.hops.length <= hopLimit);
+  if (beforeHopFilter !== routeDefs.length) {
+    logger.debug(
+      `Filtered out ${
+        beforeHopFilter - routeDefs.length
+      } routes exceeding maxHops=${hopLimit}`
+    );
   }
 
   // Track total routes discovered
   routesDiscovered.set(routeDefs.length);
 
   const totalDuration = Date.now() - startTime;
-  logger.info(`Route discovery complete: ${routeDefs.length} valid routes in ${totalDuration}ms`);
+  logger.info(
+    `Route discovery complete: ${routeDefs.length} valid routes in ${totalDuration}ms`
+  );
 
   return routeDefs;
 }

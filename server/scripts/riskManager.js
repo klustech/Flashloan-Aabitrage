@@ -14,8 +14,9 @@ const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || "info",
   format: winston.format.combine(
     winston.format.timestamp(),
-    winston.format.printf(({ timestamp, level, message }) =>
-      `${timestamp} [${level.toUpperCase()}] ${message}`
+    winston.format.printf(
+      ({ timestamp, level, message }) =>
+        `${timestamp} [${level.toUpperCase()}] ${message}`
     )
   ),
   transports: [new winston.transports.Console()],
@@ -33,12 +34,18 @@ const RISK_CONFIG = {
 
   // Position Limits
   MAX_SINGLE_TRADE_DAI: parseFloat(process.env.MAX_SINGLE_TRADE_DAI || "10000"),
-  MAX_DAILY_VOLUME_DAI: parseFloat(process.env.MAX_DAILY_VOLUME_DAI || "100000"),
+  MAX_DAILY_VOLUME_DAI: parseFloat(
+    process.env.MAX_DAILY_VOLUME_DAI || "100000"
+  ),
   MAX_OPEN_POSITIONS: parseInt(process.env.MAX_OPEN_POSITIONS || "5", 10),
 
   // Drawdown Limits
-  MAX_DAILY_DRAWDOWN_PERCENT: parseFloat(process.env.MAX_DAILY_DRAWDOWN_PERCENT || "10"),
-  MAX_WEEKLY_DRAWDOWN_PERCENT: parseFloat(process.env.MAX_WEEKLY_DRAWDOWN_PERCENT || "20"),
+  MAX_DAILY_DRAWDOWN_PERCENT: parseFloat(
+    process.env.MAX_DAILY_DRAWDOWN_PERCENT || "10"
+  ),
+  MAX_WEEKLY_DRAWDOWN_PERCENT: parseFloat(
+    process.env.MAX_WEEKLY_DRAWDOWN_PERCENT || "20"
+  ),
 
   // Performance Thresholds
   MIN_SHARPE_RATIO: parseFloat(process.env.MIN_SHARPE_RATIO || "0.5"),
@@ -46,11 +53,17 @@ const RISK_CONFIG = {
 
   // Anomaly Detection
   ANOMALY_ZSCORE_THRESHOLD: parseFloat(process.env.ANOMALY_ZSCORE || "3"),
-  MIN_SAMPLES_FOR_ANOMALY: parseInt(process.env.MIN_ANOMALY_SAMPLES || "20", 10),
+  MIN_SAMPLES_FOR_ANOMALY: parseInt(
+    process.env.MIN_ANOMALY_SAMPLES || "20",
+    10
+  ),
 
   // Auto-pause Settings
   AUTO_PAUSE_ON_ANOMALY: process.env.AUTO_PAUSE_ON_ANOMALY !== "false",
-  PAUSE_COOLDOWN_MINUTES: parseInt(process.env.PAUSE_COOLDOWN_MINUTES || "30", 10),
+  PAUSE_COOLDOWN_MINUTES: parseInt(
+    process.env.PAUSE_COOLDOWN_MINUTES || "30",
+    10
+  ),
 
   // Data Retention
   TRADE_HISTORY_DAYS: parseInt(process.env.TRADE_HISTORY_DAYS || "30", 10),
@@ -156,14 +169,24 @@ class RiskManager extends EventEmitter {
     // Trade history
     this.trades = [];
     this.dailyPnL = [];
-    this.equityCurve = [0]; // Starting equity
+
+    // Starting equity (operator working capital, in DAI) seeds the equity curve
+    // so drawdown/VaR percentages aren't computed against a $0/$1 base.
+    const startingEquity = parseFloat(
+      process.env.STARTING_EQUITY_DAI || "10000"
+    );
+    this.equityCurve = [
+      Number.isFinite(startingEquity) && startingEquity > 0
+        ? startingEquity
+        : 10000,
+    ];
 
     // Current state
     this.state = {
       isPaused: false,
       pauseReason: null,
       pausedAt: null,
-      currentEquity: 0,
+      currentEquity: this.equityCurve[0],
       dailyVolume: 0,
       openPositions: 0,
     };
@@ -270,7 +293,8 @@ class RiskManager extends EventEmitter {
   }
 
   _cleanOldTrades() {
-    const cutoff = Date.now() - RISK_CONFIG.TRADE_HISTORY_DAYS * 24 * 60 * 60 * 1000;
+    const cutoff =
+      Date.now() - RISK_CONFIG.TRADE_HISTORY_DAYS * 24 * 60 * 60 * 1000;
     this.trades = this.trades.filter((t) => t.timestamp > cutoff);
   }
 
@@ -291,7 +315,9 @@ class RiskManager extends EventEmitter {
         type: "DAILY_DRAWDOWN",
         value: dailyDrawdown,
         limit: RISK_CONFIG.MAX_DAILY_DRAWDOWN_PERCENT,
-        message: `Daily drawdown ${dailyDrawdown.toFixed(2)}% exceeds limit ${RISK_CONFIG.MAX_DAILY_DRAWDOWN_PERCENT}%`,
+        message: `Daily drawdown ${dailyDrawdown.toFixed(2)}% exceeds limit ${
+          RISK_CONFIG.MAX_DAILY_DRAWDOWN_PERCENT
+        }%`,
       });
     }
 
@@ -301,7 +327,9 @@ class RiskManager extends EventEmitter {
         type: "DAILY_VOLUME",
         value: this.state.dailyVolume,
         limit: RISK_CONFIG.MAX_DAILY_VOLUME_DAI,
-        message: `Daily volume ${this.state.dailyVolume.toFixed(2)} DAI exceeds limit`,
+        message: `Daily volume ${this.state.dailyVolume.toFixed(
+          2
+        )} DAI exceeds limit`,
       });
     }
 
@@ -312,7 +340,9 @@ class RiskManager extends EventEmitter {
         type: "VAR_EXCEEDED",
         value: var95,
         limit: RISK_CONFIG.MAX_VAR_PERCENT,
-        message: `VaR ${var95.toFixed(2)}% exceeds limit ${RISK_CONFIG.MAX_VAR_PERCENT}%`,
+        message: `VaR ${var95.toFixed(2)}% exceeds limit ${
+          RISK_CONFIG.MAX_VAR_PERCENT
+        }%`,
       });
     }
 
@@ -364,7 +394,9 @@ class RiskManager extends EventEmitter {
   }
 
   _detectAnomaly() {
-    const recentTrades = this.trades.slice(-RISK_CONFIG.MIN_SAMPLES_FOR_ANOMALY);
+    const recentTrades = this.trades.slice(
+      -RISK_CONFIG.MIN_SAMPLES_FOR_ANOMALY
+    );
     if (recentTrades.length < RISK_CONFIG.MIN_SAMPLES_FOR_ANOMALY) return null;
 
     const profits = recentTrades.map((t) => t.netProfitDai);
@@ -446,12 +478,15 @@ class RiskManager extends EventEmitter {
 
     // Check open positions
     if (this.state.openPositions >= RISK_CONFIG.MAX_OPEN_POSITIONS) {
-      errors.push(`Maximum open positions (${RISK_CONFIG.MAX_OPEN_POSITIONS}) reached`);
+      errors.push(
+        `Maximum open positions (${RISK_CONFIG.MAX_OPEN_POSITIONS}) reached`
+      );
     }
 
     // Risk-adjusted validation
     const currentDrawdown = this._calculateDailyDrawdown();
-    const remainingRisk = RISK_CONFIG.MAX_DAILY_DRAWDOWN_PERCENT - currentDrawdown;
+    const remainingRisk =
+      RISK_CONFIG.MAX_DAILY_DRAWDOWN_PERCENT - currentDrawdown;
 
     if (remainingRisk <= 0) {
       errors.push("Daily drawdown limit already reached");
@@ -499,7 +534,9 @@ class RiskManager extends EventEmitter {
 
     if (elapsed < cooldownMs) {
       const remaining = Math.ceil((cooldownMs - elapsed) / 60000);
-      logger.warn(`[RiskManager] Cannot resume: ${remaining} minutes cooldown remaining`);
+      logger.warn(
+        `[RiskManager] Cannot resume: ${remaining} minutes cooldown remaining`
+      );
       return false;
     }
 
@@ -543,7 +580,10 @@ class RiskManager extends EventEmitter {
       losingTrades: this.metrics.losingTrades,
       winRate:
         this.metrics.totalTrades > 0
-          ? ((this.metrics.winningTrades / this.metrics.totalTrades) * 100).toFixed(2) + "%"
+          ? (
+              (this.metrics.winningTrades / this.metrics.totalTrades) *
+              100
+            ).toFixed(2) + "%"
           : "N/A",
 
       // PnL
@@ -561,7 +601,8 @@ class RiskManager extends EventEmitter {
 
       // Statistical
       avgProfit: profits.length > 0 ? stats.mean(profits).toFixed(4) : "N/A",
-      stdDevProfit: profits.length > 1 ? stats.stdDev(profits).toFixed(4) : "N/A",
+      stdDevProfit:
+        profits.length > 1 ? stats.stdDev(profits).toFixed(4) : "N/A",
       profitFactor:
         this.metrics.totalLoss > 0
           ? (this.metrics.totalProfit / this.metrics.totalLoss).toFixed(4)

@@ -7,11 +7,46 @@ services:
     ports:
       - "8545:8545"
 
-  # Express API / bot server
+  # Redis for distributed state / caching
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL for trade persistence
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${PG_USER:-postgres}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-postgres}
+      POSTGRES_DB: ${PG_DB:-flashloan_arb}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${PG_USER:-postgres} -d ${PG_DB:-flashloan_arb}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Express API / bot server (build context is ./server so scripts/server.js resolves)
   api:
     build:
-      context: .
-      dockerfile: server/Dockerfile
+      context: ./server
+      dockerfile: Dockerfile
     environment:
       - MAINNET_RPC_URL=http://hardhat:8545
       - PRIVATE_KEY=${PRIVATE_KEY}
@@ -27,10 +62,26 @@ services:
       - FLASHBOTS_RELAY_URL=${FLASHBOTS_RELAY_URL}
       - MIN_PROFIT_DAI=${MIN_PROFIT_DAI}
       - PORT=3001
+      # Redis
+      - REDIS_URL=redis://redis:6379
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # PostgreSQL
+      - PG_HOST=postgres
+      - PG_PORT=5432
+      - PG_USER=${PG_USER:-postgres}
+      - PG_PASSWORD=${PG_PASSWORD:-postgres}
+      - PG_DB=${PG_DB:-flashloan_arb}
+      - DATABASE_URL=postgres://${PG_USER:-postgres}:${PG_PASSWORD:-postgres}@postgres:5432/${PG_DB:-flashloan_arb}
     ports:
       - "3001:3001"
     depends_on:
-      - hardhat
+      hardhat:
+        condition: service_started
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
 
   # Prometheus for metrics
   prometheus:
@@ -49,3 +100,7 @@ services:
       - "3000:3000"
     depends_on:
       - prometheus
+
+volumes:
+  redis-data:
+  postgres-data:

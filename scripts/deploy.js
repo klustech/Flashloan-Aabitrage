@@ -27,8 +27,6 @@ async function main() {
 
     // ArbitrageFlashloan parameters
     AAVE_LENDING_POOL_ADDRESS_PROVIDER,
-    MAX_LOSS_BPS, // e.g. "50"  (0.50%)
-    FLASHLOAN_PREMIUM_BIPS, // e.g. "9"   (0.09%)
 
     // Timelock parameters
     TIMELOCK_MIN_DELAY_SEC, // e.g. "86400" for 24h delay
@@ -54,14 +52,6 @@ async function main() {
     console.error(
       "Error: AAVE_LENDING_POOL_ADDRESS_PROVIDER is not set in .env"
     );
-    process.exit(1);
-  }
-  if (!MAX_LOSS_BPS) {
-    console.error("Error: MAX_LOSS_BPS is not set in .env");
-    process.exit(1);
-  }
-  if (!FLASHLOAN_PREMIUM_BIPS) {
-    console.error("Error: FLASHLOAN_PREMIUM_BIPS is not set in .env");
     process.exit(1);
   }
   if (!TIMELOCK_MIN_DELAY_SEC) {
@@ -166,7 +156,7 @@ async function main() {
   console.log(`✅  ArbitrageTimelock deployed at: ${timelock.address}\n`);
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 2. Deploy ArbitrageFlashloan with all 5 constructor arguments
+  // 2. Deploy ArbitrageFlashloan (provider, profitRecipient, timelock)
   // ─────────────────────────────────────────────────────────────────────────────
   console.log("🚀  Deploying ArbitrageFlashloan...");
   const ArbFactory = await ethers.getContractFactory(
@@ -178,11 +168,9 @@ async function main() {
   const profitRecipient = process.env.PROFIT_RECIPIENT || deployer.address;
 
   const arbitrage = await ArbFactory.deploy(
-    AAVE_LENDING_POOL_ADDRESS_PROVIDER,    // _provider
-    parseInt(MAX_LOSS_BPS, 10),             // _maxLossBps
-    parseInt(FLASHLOAN_PREMIUM_BIPS, 10),   // _flashloanPremiumBps
-    profitRecipient,                        // _profitRecipient
-    timelock.address,                       // _timelock
+    AAVE_LENDING_POOL_ADDRESS_PROVIDER, // _provider
+    profitRecipient, // _profitRecipient
+    timelock.address, // _timelock
     {
       maxFeePerGas,
       maxPriorityFeePerGas,
@@ -229,8 +217,6 @@ async function main() {
         address: arbitrage.address,
         constructorArguments: [
           AAVE_LENDING_POOL_ADDRESS_PROVIDER,
-          parseInt(MAX_LOSS_BPS, 10),
-          parseInt(FLASHLOAN_PREMIUM_BIPS, 10),
           profitRecipient,
           timelock.address,
         ],
@@ -241,7 +227,7 @@ async function main() {
       console.log(
         `    To verify manually:\n` +
           `      npx hardhat verify --network ${network.name} ${arbitrage.address} ` +
-          `${AAVE_LENDING_POOL_ADDRESS_PROVIDER} ${MAX_LOSS_BPS} ${FLASHLOAN_PREMIUM_BIPS} ${profitRecipient} ${timelock.address}\n`
+          `${AAVE_LENDING_POOL_ADDRESS_PROVIDER} ${profitRecipient} ${timelock.address}\n`
       );
     }
   } else {

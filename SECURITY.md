@@ -16,6 +16,8 @@ All Solidity contracts should be reviewed before deployment. We recommend runnin
 
 ## Operational Risk Controls
 
-- The bot enforces `maxLossBps` and `MIN_PROFIT_DAI` to cap downside per flash‑loan.
+- **Profit-or-revert on-chain:** `ArbitrageFlashloan` reverts the entire transaction unless the final balance is at least the borrowed amount plus the Aave premium plus `minProfit`. Any net loss reverts atomically, so a trade can never settle at a loss. (The previously documented `maxLossBps` / "max loss cap" was removed; it never actually enforced anything.) `MIN_PROFIT_DAI` sets the off-chain minimum profit the bot requires before it will even attempt a trade.
+- **Fail-closed API auth:** Every non-health API route requires a matching `x-api-key` header. The server refuses requests when `API_KEY` is unset, and CORS is restricted to `CORS_ORIGIN`.
+- **Private transaction submission by default:** Arbitrage transactions are submitted via Flashbots / private relays by default. The public-mempool fallback is disabled unless `ALLOW_PUBLIC_MEMPOOL_FALLBACK=true` is explicitly set.
 - Worker simulations must succeed before on-chain execution; failures cause the cycle to abort.
-- A circuit-breaker halts trading after repeated failed cycles, requiring manual intervention to resume.
+- A circuit-breaker (now wired into the trade loop) halts trading after repeated failed cycles, requiring manual intervention to resume.

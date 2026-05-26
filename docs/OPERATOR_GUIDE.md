@@ -34,14 +34,24 @@ npm start
 pm2 start server/scripts/server.js --name flashloan-bot
 ```
 
+### API Authentication (required)
+
+The API server is **fail-closed**. `API_KEY` MUST be set, or the server refuses
+every request. Every route except the health checks requires a matching
+`x-api-key` header, so all the `curl` examples below that hit `/api/...` need
+`-H "x-api-key: $API_KEY"` added (only `/healthz` works without it). For
+browser access, `CORS_ORIGIN` must also be set to the dashboard's origin, and
+the dashboard build must embed the same `REACT_APP_API_KEY` — meaning the
+dashboard should only run in a trusted operator context.
+
 ### Verify Operation
 
 ```bash
-# Check health endpoint
+# Check health endpoint (no API key required)
 curl http://localhost:3001/healthz
 
-# Check bot status
-curl http://localhost:3001/api/bot-status
+# Check bot status (requires the API key)
+curl http://localhost:3001/api/bot-status -H "x-api-key: $API_KEY"
 ```
 
 ---
@@ -50,16 +60,17 @@ curl http://localhost:3001/api/bot-status
 
 ### Key Metrics
 
-| Metric | Description | Healthy Range |
-|--------|-------------|---------------|
-| Bot Active | Whether automated execution is running | true |
-| Circuit Breaker | Protective mechanism state | CLOSED |
-| Gas Price | Current network gas price | < 50 Gwei |
-| Daily Profit | Cumulative profit in last 24h | > 0 |
+| Metric          | Description                            | Healthy Range |
+| --------------- | -------------------------------------- | ------------- |
+| Bot Active      | Whether automated execution is running | true          |
+| Circuit Breaker | Protective mechanism state             | CLOSED        |
+| Gas Price       | Current network gas price              | < 50 Gwei     |
+| Daily Profit    | Cumulative profit in last 24h          | > 0           |
 
 ### Real-Time Feed
 
 The WebSocket connection at `ws://localhost:3001/ws` provides:
+
 - New arbitrage opportunities
 - Trade executions
 - Price updates
@@ -108,13 +119,13 @@ curl -X POST http://localhost:3001/api/settings/reset
 
 ### Configuration Options
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `pollingInterval` | 60 | Seconds between arbitrage attempts |
-| `gasPriceCeiling` | 50 | Maximum gas price in Gwei |
-| `slippageBips` | 50 | Slippage tolerance (0.5% = 50 bips) |
-| `flashbotsDefault` | true | Use Flashbots by default |
-| `minBorrowAmount` | 100 | Minimum flash loan amount |
+| Setting            | Default | Description                         |
+| ------------------ | ------- | ----------------------------------- |
+| `pollingInterval`  | 60      | Seconds between arbitrage attempts  |
+| `gasPriceCeiling`  | 50      | Maximum gas price in Gwei           |
+| `slippageBips`     | 50      | Slippage tolerance (0.5% = 50 bips) |
+| `flashbotsDefault` | true    | Use Flashbots by default            |
+| `minBorrowAmount`  | 100     | Minimum flash loan amount           |
 
 ---
 
@@ -156,6 +167,7 @@ export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
 ```
 
 Alerts are sent for:
+
 - Circuit breaker trips
 - Consecutive failures
 - Connext transfer completions/failures
@@ -165,11 +177,11 @@ Alerts are sent for:
 
 The circuit breaker protects against cascading failures:
 
-| State | Description | Action |
-|-------|-------------|--------|
-| CLOSED | Normal operation | Attempts allowed |
-| OPEN | Too many failures | All attempts blocked |
-| HALF_OPEN | Recovery testing | Limited attempts |
+| State     | Description       | Action               |
+| --------- | ----------------- | -------------------- |
+| CLOSED    | Normal operation  | Attempts allowed     |
+| OPEN      | Too many failures | All attempts blocked |
+| HALF_OPEN | Recovery testing  | Limited attempts     |
 
 ```bash
 # Check circuit breaker state
@@ -223,12 +235,12 @@ curl -X POST http://localhost:3001/api/connext/monitoring/stop
 
 ### Transfer States
 
-| Status | Description | Action |
-|--------|-------------|--------|
-| PENDING | Transfer initiated | Wait for completion |
-| COMPLETED | Funds arrived on destination | None |
-| FAILED | Transfer failed | Check logs, retry |
-| STUCK | No progress for >30 min | Contact support |
+| Status    | Description                  | Action              |
+| --------- | ---------------------------- | ------------------- |
+| PENDING   | Transfer initiated           | Wait for completion |
+| COMPLETED | Funds arrived on destination | None                |
+| FAILED    | Transfer failed              | Check logs, retry   |
+| STUCK     | No progress for >30 min      | Contact support     |
 
 ---
 
@@ -245,17 +257,21 @@ curl http://localhost:3001/api/timelock/status
 ### Schedule Operations
 
 ```bash
-# Schedule max loss parameter change
+# Schedule a profit-recipient change (the timelock-protected parameter on the
+# contract). Note: there is no max-loss-cap parameter anymore — the contract is
+# profit-or-revert, so there is nothing to "loosen" that could let a trade lose.
 curl -X POST http://localhost:3001/api/timelock/schedule \
   -H "Content-Type: application/json" \
+  -H "x-api-key: $API_KEY" \
   -d '{
-    "operation": "setMaxLossBps",
-    "params": {"newMaxLossBps": 100}
+    "operation": "setProfitRecipient",
+    "params": {"newRecipient": "0xYourTreasuryAddress"}
   }'
 
 # Schedule pause
 curl -X POST http://localhost:3001/api/timelock/schedule \
   -H "Content-Type: application/json" \
+  -H "x-api-key: $API_KEY" \
   -d '{"operation": "pause"}'
 ```
 
@@ -350,20 +366,20 @@ grep "2024-01-15" bot.log
 
 ### Quick Reference
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/healthz` | GET | Health check |
-| `/api/bot-status` | GET | Comprehensive status |
-| `/api/start-bot` | POST | Start automated execution |
-| `/api/stop-bot` | POST | Stop automated execution |
-| `/api/settings` | GET/POST | Get/update settings |
-| `/api/trigger-arbitrage` | POST | Manual trigger |
-| `/api/opportunities` | GET | Recent opportunities |
-| `/api/trades` | GET | Trade history |
-| `/api/circuit-breaker` | GET | Circuit breaker state |
-| `/api/connext/status` | GET | Cross-chain status |
-| `/api/timelock/status` | GET | Timelock status |
-| `/metrics` | GET | Prometheus metrics |
+| Endpoint                 | Method   | Description               |
+| ------------------------ | -------- | ------------------------- |
+| `/healthz`               | GET      | Health check              |
+| `/api/bot-status`        | GET      | Comprehensive status      |
+| `/api/start-bot`         | POST     | Start automated execution |
+| `/api/stop-bot`          | POST     | Stop automated execution  |
+| `/api/settings`          | GET/POST | Get/update settings       |
+| `/api/trigger-arbitrage` | POST     | Manual trigger            |
+| `/api/opportunities`     | GET      | Recent opportunities      |
+| `/api/trades`            | GET      | Trade history             |
+| `/api/circuit-breaker`   | GET      | Circuit breaker state     |
+| `/api/connext/status`    | GET      | Cross-chain status        |
+| `/api/timelock/status`   | GET      | Timelock status           |
+| `/metrics`               | GET      | Prometheus metrics        |
 
 ### Full API Documentation
 
@@ -421,6 +437,7 @@ See `.env.example` for all configuration options.
 ### Network Configuration
 
 Supported networks:
+
 - Ethereum Mainnet
 - Arbitrum
 - Optimism
@@ -432,6 +449,7 @@ Each network requires appropriate RPC URLs and contract addresses.
 ### Maintenance Windows
 
 Schedule regular maintenance for:
+
 - Secret rotation
 - Contract upgrades
 - Dependency updates

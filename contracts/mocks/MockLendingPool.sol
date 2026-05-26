@@ -22,36 +22,33 @@ contract MockLendingPool {
         bytes calldata params,
         uint16
     ) external {
-        require(assets.length == 1, "only single asset");
-        require(amounts.length == 1, "amounts mismatch");
+        require(assets.length == 1 && amounts.length == 1, "single asset only");
+        // Delegate to a small-signature helper to stay within stack limits.
+        _runFlash(receiverAddress, assets[0], amounts[0], params);
+    }
 
-        address asset = assets[0];
-        uint256 amount = amounts[0];
-        IERC20 token = IERC20(asset);
-
+    function _runFlash(
+        address receiver,
+        address asset,
+        uint256 amount,
+        bytes calldata params
+    ) internal {
         uint256 premium = (amount * premiumBps) / 10000;
+        require(IERC20(asset).transfer(receiver, amount), "flash send failed");
 
-        require(token.transfer(receiverAddress, amount), "flash send failed");
-
-        address[] memory singleAsset = new address[](1);
-        uint256[] memory singleAmount = new uint256[](1);
-        uint256[] memory singlePremium = new uint256[](1);
-
-        singleAsset[0] = asset;
-        singleAmount[0] = amount;
-        singlePremium[0] = premium;
-
-        bool success = IFlashLoanReceiver(receiverAddress).executeOperation(
-            singleAsset,
-            singleAmount,
-            singlePremium,
-            address(this),
-            params
-        );
-        require(success, "executeOperation failed");
+        address[] memory a = new address[](1);
+        uint256[] memory amt = new uint256[](1);
+        uint256[] memory prem = new uint256[](1);
+        a[0] = asset;
+        amt[0] = amount;
+        prem[0] = premium;
 
         require(
-            token.transferFrom(receiverAddress, address(this), amount + premium),
+            IFlashLoanReceiver(receiver).executeOperation(a, amt, prem, address(this), params),
+            "executeOperation failed"
+        );
+        require(
+            IERC20(asset).transferFrom(receiver, address(this), amount + premium),
             "repay failed"
         );
     }

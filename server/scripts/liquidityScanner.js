@@ -5,6 +5,7 @@ require("dotenv").config({
 const redis = require("../utils/redisClient");
 const axios = require("axios");
 const fs = require("fs");
+const { discoverOnchainPools } = require("./onchainPools");
 
 // ────────────────────────────────────────────────────────────────────────────────
 // DEFAULTS (override via .env)
@@ -28,9 +29,11 @@ const {
   BALANCER_V2_SUBGRAPH_ID,
   CURVE_V2_SUBGRAPH_ID,
 } = process.env;
-if (!THEGRAPH_API_KEY) {
+if (!THEGRAPH_API_KEY && process.env.ONCHAIN_POOL_DISCOVERY === "false") {
   console.warn(
-    "Warning: THEGRAPH_API_KEY is not set. Using public subgraph URLs."
+    "[liquidityScanner] Subgraph discovery selected but THEGRAPH_API_KEY / subgraph IDs are unset. " +
+      "The api.thegraph.com hosted service is decommissioned, so discovery will be empty. " +
+      "Use ONCHAIN_POOL_DISCOVERY=true (default) for on-chain discovery."
   );
 }
 
@@ -700,6 +703,29 @@ async function getTopLiquidityPairs(
       .sort((a, b) => b.reserveUSD - a.reserveUSD);
     return pools.slice(0, topN);
   }
+
+  // Primary source: discover pools + read reserves directly on-chain (fresh, no
+  // subgraph). The decommissioned api.thegraph.com hosted service is only used as
+  // a fallback. Set ONCHAIN_POOL_DISCOVERY=false to force the subgraph path.
+  if (process.env.ONCHAIN_POOL_DISCOVERY !== "false") {
+    try {
+      const onchain = await discoverOnchainPools(chain, {
+        topN,
+        minLiquidityUSD,
+      });
+      if (onchain.length) {
+        return onchain;
+      }
+      console.warn(
+        `[liquidityScanner] on-chain discovery found no pools for ${chain}; falling back to subgraph.`
+      );
+    } catch (err) {
+      console.warn(
+        `[liquidityScanner] on-chain discovery failed (${err.message}); falling back to subgraph.`
+      );
+    }
+  }
+
   const adjacencyGraph = await buildAdjacencyGraph(
     chain,
     topN,

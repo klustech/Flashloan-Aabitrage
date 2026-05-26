@@ -27,7 +27,7 @@ const defaultSimulationConfig = {
   gasPriceLimit: ethers.utils.parseUnits("50", "gwei"),
   tradeSize: 1_000_000, // DAI
   flashloanPremiumBips: 9, // 0.09 %
-  conversionBoost: 1.07, // favourable 7 %
+  conversionBoost: 1.0, // neutral; must stay 1.0 in production (no fabricated profit)
   estimatedGasPerSwap: 200000, // approximate gas units per swap hop
 };
 
@@ -183,7 +183,10 @@ function simulateRoute(route, input) {
         `simulateRoute: steps[${idx}] lacks a callable .simulate()`
       );
     }
-    out = ensureNumeric(step.simulate(out), `simulateRoute steps[${idx}] output`);
+    out = ensureNumeric(
+      step.simulate(out),
+      `simulateRoute steps[${idx}] output`
+    );
   }
   return out;
 }
@@ -246,11 +249,17 @@ async function determineProfit(options) {
     normalizeRateToWei(cfg.ethToDaiRate) ||
     ethers.utils.parseUnits("2000", 18);
 
-  const gasCostDaiWei = gasCostWei.mul(rateWei).div(ethers.constants.WeiPerEther);
+  const gasCostDaiWei = gasCostWei
+    .mul(rateWei)
+    .div(ethers.constants.WeiPerEther);
 
   let simulatedOutWei;
   if (swapData) {
-    const swapResult = await simulateSwapPaths(provider, swapData, normalizedInput);
+    const swapResult = await simulateSwapPaths(
+      provider,
+      swapData,
+      normalizedInput
+    );
     if (!swapResult.success) {
       return {
         aborted: true,
@@ -276,11 +285,10 @@ async function determineProfit(options) {
   } else if (route) {
     const numericInput =
       inputAmountHuman !== undefined
-        ? ensureNumeric(
-            inputAmountHuman,
-            "determineProfit inputAmountHuman"
-          )
-        : Number(ethers.utils.formatUnits(normalizedInput, borrowTokenDecimals));
+        ? ensureNumeric(inputAmountHuman, "determineProfit inputAmountHuman")
+        : Number(
+            ethers.utils.formatUnits(normalizedInput, borrowTokenDecimals)
+          );
     const simulatedOutNumber = simulateRoute(route, numericInput);
     simulatedOutWei = ethers.utils.parseUnits(
       simulatedOutNumber.toFixed(18),
@@ -300,7 +308,10 @@ async function determineProfit(options) {
 
   const premiumWei = flashloanPremiumWei
     ? ethers.BigNumber.from(flashloanPremiumWei)
-    : normalizedInput.mul(10_000 + Math.trunc(premiumBips)).div(10_000).sub(normalizedInput);
+    : normalizedInput
+        .mul(10_000 + Math.trunc(premiumBips))
+        .div(10_000)
+        .sub(normalizedInput);
 
   const totalCostWei = normalizedInput.add(gasCostDaiWei).add(premiumWei);
 
@@ -369,10 +380,7 @@ async function runProfitDetermination(overrides = {}) {
   };
 
   const gasUsed = ethers.BigNumber.from("200000");
-  const tradeSizeWei = ethers.utils.parseUnits(
-    cfg.tradeSize.toString(),
-    18
-  );
+  const tradeSizeWei = ethers.utils.parseUnits(cfg.tradeSize.toString(), 18);
 
   const res = await determineProfit({
     provider,

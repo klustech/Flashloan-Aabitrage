@@ -9,9 +9,9 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Deployment environment'
+        description: "Deployment environment"
         required: true
-        default: 'staging'
+        default: "staging"
         type: choice
         options:
           - staging
@@ -31,16 +31,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: yarn
+          cache: npm
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: npm ci
 
       - name: Compile contracts
-        run: yarn hardhat compile --force
+        run: npx hardhat compile --force
 
       - name: Run tests
-        run: yarn hardhat test --network hardhat
+        run: npx hardhat test --network hardhat
 
       - name: Run backend tests
         run: |
@@ -98,7 +98,8 @@ jobs:
       - name: Build and push ML image
         uses: docker/build-push-action@v5
         with:
-          context: ./server
+          # ML sources live at the repo root (/ml), so build from the root context.
+          context: .
           file: ./server/Dockerfile.ml
           push: true
           tags: ${{ steps.meta-ml.outputs.tags }}
@@ -132,7 +133,7 @@ jobs:
       - name: Setup kubectl
         uses: azure/setup-kubectl@v3
         with:
-          version: 'v1.28.0'
+          version: "v1.28.0"
 
       - name: Configure kubeconfig
         run: |
@@ -164,9 +165,9 @@ jobs:
           # Wait for services to be ready
           sleep 30
 
-          # Test bot health endpoint
+          # Test bot health endpoint (server.js exposes /healthz)
           BOT_URL=$(kubectl get svc bot-logic-svc -n flashloan-arb-staging -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-          curl -f http://${BOT_URL}:3001/api/health || exit 1
+          curl -f http://${BOT_URL}:3001/healthz || exit 1
 
           echo "Staging deployment successful!"
 

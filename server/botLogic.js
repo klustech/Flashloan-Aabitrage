@@ -81,17 +81,42 @@ let connextAutoForwardEnabled = false;
 // ─────────────────────────────────────────────────────────────────────────────
 // Imports: Tier-1 Competitive Features
 // ─────────────────────────────────────────────────────────────────────────────
-const { riskManager, validateTrade, recordTrade, getPerformanceReport } = require("./scripts/riskManager");
-const { rpcManager, initializeFromEnv: initRpcManager, getPrimaryProvider, executeWithFailover } = require("./scripts/rpcManager");
-const { submitToAllRelays, submitBundleVariants, getRelayStats } = require("./scripts/multiRelay");
-const { calculateOptimalTip, generateTipVariants, estimateCompetitionLevel, analyzeGasCompetition } = require("./scripts/tipCalculator");
-const { graph: incrementalGraph, handleSyncEvent, handleV3SwapEvent, getStats: getGraphStats } = require("./scripts/incrementalGraph");
+const {
+  riskManager,
+  validateTrade,
+  recordTrade,
+  getPerformanceReport,
+} = require("./scripts/riskManager");
+const {
+  rpcManager,
+  initializeFromEnv: initRpcManager,
+  getPrimaryProvider,
+  executeWithFailover,
+} = require("./scripts/rpcManager");
+const {
+  submitToAllRelays,
+  submitBundleVariants,
+  getRelayStats,
+} = require("./scripts/multiRelay");
+const {
+  calculateOptimalTip,
+  generateTipVariants,
+  estimateCompetitionLevel,
+  analyzeGasCompetition,
+} = require("./scripts/tipCalculator");
+const {
+  graph: incrementalGraph,
+  handleSyncEvent,
+  handleV3SwapEvent,
+  getStats: getGraphStats,
+} = require("./scripts/incrementalGraph");
 const { getMempoolMonitor } = require("./scripts/mempoolMonitor");
 
 // Tier-1 feature flags
 const ENABLE_MULTI_RELAY = process.env.MULTI_RELAY_ENABLED === "true";
 const ENABLE_RISK_MANAGER = process.env.RISK_MANAGER_ENABLED !== "false"; // Default enabled
-const ENABLE_INCREMENTAL_GRAPH = process.env.INCREMENTAL_GRAPH_ENABLED === "true";
+const ENABLE_INCREMENTAL_GRAPH =
+  process.env.INCREMENTAL_GRAPH_ENABLED === "true";
 const ENABLE_MEMPOOL_MONITOR = process.env.MEMPOOL_MONITORING === "true";
 const ENABLE_DYNAMIC_TIPS = process.env.DYNAMIC_TIPS_ENABLED === "true";
 
@@ -132,7 +157,7 @@ async function getCachedCoinGeckoPrice(coinId, vsCurrency) {
   // 3️⃣ Launch the fetch with retry/back-off.
   inFlightCG[cacheKey] = (async () => {
     let attempt = 0;
-    /* eslint-disable no-constant-condition */
+
     while (true) {
       try {
         const { data } = await axios.get(
@@ -204,7 +229,12 @@ async function getDynamicSlippage() {
 // Imports: Route Finder & SwapData Builder (per blueprint), from server/scripts/
 // ─────────────────────────────────────────────────────────────────────────────
 const { getAllRoutes: routeFinder } = require("./scripts/routeFinder");
-const { buildSwapDataFromDynamic } = require("./scripts/swapDataBuilder");
+const { buildArbitrageData } = require("./scripts/swapDataBuilder");
+const { getCircuitBreaker } = require("./scripts/circuitBreaker");
+const {
+  findOptimalInput,
+  v3VirtualReserves: ammV3VirtualReserves,
+} = require("./scripts/ammMath");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Imports: Price Ingestion & Multicall Cache (from server/scripts/)
@@ -245,7 +275,12 @@ if (features.curve) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Imports: PostgreSQL Client for Trade Persistence (server/dbClient.js)
 // ─────────────────────────────────────────────────────────────────────────────
-const { insertTrade, pool: dbPool, isDbEnabled, waitForPoolReady } = require("./dbClient");
+const {
+  insertTrade,
+  pool: dbPool,
+  isDbEnabled,
+  waitForPoolReady,
+} = require("./dbClient");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Imports: Slack Alert Utility (from server/scripts/)
@@ -284,14 +319,19 @@ const recentOpportunities = [];
 
 function cloneSwapDataForStore(data) {
   return {
-    token: data.token,
-    paths: data.paths.map((path) => [...path]),
-    minOuts: data.minOuts.map((value) =>
-      ethers.BigNumber.isBigNumber(value)
-        ? value
-        : ethers.BigNumber.from(value)
-    ),
-    minProfit: ethers.BigNumber.from(data.minProfit),
+    borrowToken: data.borrowToken,
+    borrowAmount: data.borrowAmount ? data.borrowAmount.toString() : undefined,
+    steps: (data.steps || []).map((s) => ({
+      dexType: s.dexType,
+      router: s.router,
+      tokenIn: s.tokenIn,
+      tokenOut: s.tokenOut,
+      minAmountOut: ethers.BigNumber.isBigNumber(s.minAmountOut)
+        ? s.minAmountOut.toString()
+        : String(s.minAmountOut ?? "0"),
+      v3Fee: s.v3Fee,
+    })),
+    minProfit: data.minProfit ? data.minProfit.toString() : "0",
     route: data.route,
   };
 }
@@ -308,6 +348,35 @@ function recordOpportunity(opportunity) {
 
 function getRecentOpportunities() {
   return recentOpportunities.slice();
+}
+
+// Whether to broadcast arb txs to the public mempool when private relays fail.
+// Off by default — a public arbitrage tx gets front-run/sandwiched.
+const ALLOW_PUBLIC_FALLBACK =
+  process.env.ALLOW_PUBLIC_MEMPOOL_FALLBACK === "true";
+
+// Off-chain circuit breaker — gates trading on cascading losses / failures.
+const circuitBreaker = getCircuitBreaker({
+  dailyDrawdownLimitDAI: parseFloat(
+    process.env.DAILY_DRAWDOWN_LIMIT_DAI || "500"
+  ),
+});
+
+// Feed a real execution outcome (success/revert) to the circuit breaker. Idle
+// "no opportunity" cycles must NOT be recorded here, or the breaker trips on a
+// quiet market.
+function recordTradeOutcome({ success, profit, gasPrice }) {
+  try {
+    circuitBreaker.recordResult({
+      success: Boolean(success),
+      profit: ethers.BigNumber.isBigNumber(profit)
+        ? profit
+        : ethers.BigNumber.from(profit || 0),
+      gasPrice,
+    });
+  } catch (e) {
+    logger.warn(`[circuitBreaker] recordResult failed: ${e.message}`);
+  }
 }
 
 // Helper wrapped with safeAsync using the configured logger
@@ -521,7 +590,11 @@ function getChainContext(chain) {
     }
 
     chainContexts.set(chain, context);
-    logger.info(`[${chain}] Chain context initialized with ${Object.keys(tokens).filter(k => tokens[k]).length} tokens`);
+    logger.info(
+      `[${chain}] Chain context initialized with ${
+        Object.keys(tokens).filter((k) => tokens[k]).length
+      } tokens`
+    );
   }
   return chainContexts.get(chain);
 }
@@ -590,24 +663,23 @@ const TIP_MULTIPLIER_DEN_INT = parseInt(
 );
 
 slippageAgent = initSlippageAgent({
-  continuous:
-    (RL_CONTINUOUS || OPTIONAL_ENV_DEFAULTS.RL_CONTINUOUS) === "true",
+  continuous: (RL_CONTINUOUS || OPTIONAL_ENV_DEFAULTS.RL_CONTINUOUS) === "true",
   maxOffsetBips: parseFloat(
-    RL_MAX_OFFSET_BIPS || OPTIONAL_ENV_DEFAULTS.RL_MAX_OFFSET_BIPS,
+    RL_MAX_OFFSET_BIPS || OPTIONAL_ENV_DEFAULTS.RL_MAX_OFFSET_BIPS
   ),
   epsilonStart: parseFloat(
-    RL_EPSILON_START || OPTIONAL_ENV_DEFAULTS.RL_EPSILON_START,
+    RL_EPSILON_START || OPTIONAL_ENV_DEFAULTS.RL_EPSILON_START
   ),
   epsilonMin: parseFloat(
-    RL_EPSILON_MIN || OPTIONAL_ENV_DEFAULTS.RL_EPSILON_MIN,
+    RL_EPSILON_MIN || OPTIONAL_ENV_DEFAULTS.RL_EPSILON_MIN
   ),
   epsilonDecay: parseFloat(
-    RL_EPSILON_DECAY || OPTIONAL_ENV_DEFAULTS.RL_EPSILON_DECAY,
+    RL_EPSILON_DECAY || OPTIONAL_ENV_DEFAULTS.RL_EPSILON_DECAY
   ),
   alpha: parseFloat(RL_ALPHA || OPTIONAL_ENV_DEFAULTS.RL_ALPHA),
   saveDebounceMs: parseInt(
     RL_SAVE_DEBOUNCE_MS || OPTIONAL_ENV_DEFAULTS.RL_SAVE_DEBOUNCE_MS,
-    10,
+    10
   ),
   metrics: { rlAction, rlEpsilon },
   logger,
@@ -693,14 +765,17 @@ function getAaveConfig(network = "ethereum") {
   if (aaveConfig.v3) {
     return {
       version: 3,
-      poolAddressProvider: AAVE_LENDING_POOL_ADDRESS_PROVIDER || aaveConfig.v3.poolAddressProvider,
+      poolAddressProvider:
+        AAVE_LENDING_POOL_ADDRESS_PROVIDER || aaveConfig.v3.poolAddressProvider,
       pool: aaveConfig.v3.pool,
     };
   }
   if (aaveConfig.v2) {
     return {
       version: 2,
-      poolAddressProvider: AAVE_LENDING_POOL_ADDRESS_PROVIDER || aaveConfig.v2.lendingPoolAddressProvider,
+      poolAddressProvider:
+        AAVE_LENDING_POOL_ADDRESS_PROVIDER ||
+        aaveConfig.v2.lendingPoolAddressProvider,
       pool: aaveConfig.v2.lendingPool,
     };
   }
@@ -822,15 +897,21 @@ async function getOptimalBorrowAmount(token, chain) {
     );
     return BigNumber.from(0);
   }
-  const trial = ethers.utils.parseUnits("100", 18);
-  const chosen = trial.lte(availableLiquidity) ? trial : availableLiquidity;
+  // Upper bound for the optimal-sizing search (the per-route profit-maximising
+  // size is chosen later in selectBestRoute). Capped by Aave liquidity and a
+  // configurable ceiling so we never propose an absurd borrow.
+  const ceiling = ethers.utils.parseUnits(
+    process.env.MAX_BORROW_DAI || "100000",
+    18
+  );
+  const cap = ceiling.lte(availableLiquidity) ? ceiling : availableLiquidity;
   logger.info(
-    `[${chain}] Optimal borrow amount for ${token}: ${ethers.utils.formatUnits(
-      chosen,
+    `[${chain}] Borrow ceiling for ${token}: ${ethers.utils.formatUnits(
+      cap,
       18
     )}`
   );
-  return chosen;
+  return cap;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -851,7 +932,10 @@ function computeZScore(values) {
  * @param {object} weights - Weights for each metric { priceRatio: 0.7, liquidity: 0.3 }
  * @returns {number[]} - Composite Z-scores
  */
-function computeMultiMetricZScore(routes, weights = { priceRatio: 0.7, liquidity: 0.3 }) {
+function computeMultiMetricZScore(
+  routes,
+  weights = { priceRatio: 0.7, liquidity: 0.3 }
+) {
   if (!routes.length) return [];
 
   // Extract metrics
@@ -859,7 +943,9 @@ function computeMultiMetricZScore(routes, weights = { priceRatio: 0.7, liquidity
   const liquidities = routes.map((r) => {
     // Get minimum liquidity across all hops (bottleneck)
     if (r.hops && r.hops.length > 0) {
-      const hopLiqs = r.hops.map((h) => h.liquidity || h.reserveUSD || 0).filter((l) => l > 0);
+      const hopLiqs = r.hops
+        .map((h) => h.liquidity || h.reserveUSD || 0)
+        .filter((l) => l > 0);
       return hopLiqs.length > 0 ? Math.min(...hopLiqs) : 0;
     }
     return r.liquidity || 0;
@@ -921,7 +1007,9 @@ async function getHistoricalSuccessCounts(routeDefs) {
       successMap.set(row.route, parseInt(row.success_count, 10));
     }
   } catch (err) {
-    logger.warn(`[enrichRoutes] Failed to query historical success: ${err.message}`);
+    logger.warn(
+      `[enrichRoutes] Failed to query historical success: ${err.message}`
+    );
   }
 
   return successMap;
@@ -991,7 +1079,10 @@ async function enrichRoutesWithFeatures(routeDefs) {
 
     // 4. Compute aggregate fee if not already set
     if (!route.fee && route.hops) {
-      route.fee = route.hops.reduce((sum, h) => sum + (h.feeBps || h.fee || 30), 0);
+      route.fee = route.hops.reduce(
+        (sum, h) => sum + (h.feeBps || h.fee || 30),
+        0
+      );
     }
 
     // 5. Compute aggregate liquidity if not already set
@@ -1004,7 +1095,9 @@ async function enrichRoutesWithFeatures(routeDefs) {
   }
 
   logger.info(
-    `[enrichRoutes] Enriched ${routeDefs.length} routes with features (volatility=${marketVolatility.toFixed(2)}%)`
+    `[enrichRoutes] Enriched ${
+      routeDefs.length
+    } routes with features (volatility=${marketVolatility.toFixed(2)}%)`
   );
 
   return routeDefs;
@@ -1037,7 +1130,11 @@ async function scoreRoutesWithML(routeDefs) {
     });
 
     logger.info(
-      `[scoreRoutesWithML] Assigned scores to ${enrichedRoutes.length} routes (using ${ML_MODEL_ENDPOINT ? "ML endpoint" : "heuristic fallback"}).`
+      `[scoreRoutesWithML] Assigned scores to ${
+        enrichedRoutes.length
+      } routes (using ${
+        ML_MODEL_ENDPOINT ? "ML endpoint" : "heuristic fallback"
+      }).`
     );
 
     return enrichedRoutes.sort((a, b) => b.score - a.score);
@@ -1131,6 +1228,95 @@ async function getAllRoutes(chain) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Select Best Route by Simulating (possibly parallelized)
 // ─────────────────────────────────────────────────────────────────────────────
+/**
+ * Price-impact-aware evaluation of a route. Builds oriented per-hop reserves from
+ * the live caches (exact V2; V3 via virtual reserves) and returns the
+ * profit-maximising borrow size plus the realistic net profit at that size.
+ * Returns { confident:false } when any hop lacks local reserve data (Curve/
+ * Balancer) so those routes defer to the coarse simulator + on-chain guard.
+ */
+function evaluateRouteRealistic(route, borrowToken, maxInput, premiumBps) {
+  try {
+    if (!route || !Array.isArray(route.hops) || route.hops.length === 0) {
+      return { confident: false };
+    }
+    const borrow = borrowToken.toLowerCase();
+    let current = borrow;
+    const hops = [];
+
+    for (const hop of route.hops) {
+      const a = (hop.tokenA || "").toLowerCase();
+      const b = (hop.tokenB || "").toLowerCase();
+      if (!a || !b || !hop.poolAddress) return { confident: false };
+
+      let tokenIn, tokenOut;
+      if (a === current) {
+        tokenIn = a;
+        tokenOut = b;
+      } else if (b === current) {
+        tokenIn = b;
+        tokenOut = a;
+      } else if (hops.length === 0) {
+        tokenIn = a;
+        tokenOut = b;
+      } else {
+        return { confident: false }; // broken token continuity
+      }
+      current = tokenOut;
+
+      const dex = (hop.dex || "uniswap_v2").toLowerCase();
+      const feeBps = Number.isFinite(hop.feeBps)
+        ? hop.feeBps
+        : dex.includes("v3") && hop.fee
+        ? Math.max(1, Math.round(hop.fee / 100))
+        : 30;
+      // V2 & V3 both sort token0 = lower address.
+      const inIsToken0 = tokenIn < tokenOut;
+
+      let reserveIn, reserveOut;
+      if (dex.includes("v3")) {
+        const c = v3PriceCache.get(hop.poolAddress);
+        if (!c || !c.sqrtPriceX96 || !c.liquidity) return { confident: false };
+        const { reserve0, reserve1 } = ammV3VirtualReserves(
+          c.sqrtPriceX96,
+          c.liquidity
+        );
+        if (reserve0.lte(0) || reserve1.lte(0)) return { confident: false };
+        reserveIn = inIsToken0 ? reserve0 : reserve1;
+        reserveOut = inIsToken0 ? reserve1 : reserve0;
+      } else if (
+        dex === "uniswap_v2" ||
+        dex === "sushiswap_v2" ||
+        dex === "sushiswap"
+      ) {
+        const c = reserveCache.get(hop.poolAddress);
+        if (!c || c.reserve0 == null || c.reserve1 == null) {
+          return { confident: false };
+        }
+        const r0 = BigNumber.from(c.reserve0);
+        const r1 = BigNumber.from(c.reserve1);
+        if (r0.lte(0) || r1.lte(0)) return { confident: false };
+        reserveIn = inIsToken0 ? r0 : r1;
+        reserveOut = inIsToken0 ? r1 : r0;
+      } else {
+        return { confident: false }; // Curve/Balancer: no local reserve model
+      }
+      hops.push({ reserveIn, reserveOut, feeBps });
+    }
+
+    if (current !== borrow) return { confident: false }; // must cycle back to borrow token
+
+    const { input, output, profit } = findOptimalInput({
+      hops,
+      maxInput,
+      premiumBps,
+    });
+    return { confident: true, optimalInput: input, output, profit };
+  } catch (_) {
+    return { confident: false };
+  }
+}
+
 async function selectBestRoute(amountIn, slippageBips, routeList) {
   let best = null;
   let bestOut = BigNumber.from(0);
@@ -1168,34 +1354,66 @@ async function selectBestRoute(amountIn, slippageBips, routeList) {
     `After ML scoring, retaining top ${candidates.length} routes for simulation.`
   );
 
-  // Workers will compile hops into executable steps
-
+  let optimalBorrow = BigNumber.from(0);
   const simStart = Date.now();
-  const sims = await parallelSimulate(candidates, amountIn, slippageBips);
+
+  // Price-impact-aware ranking: evaluate each candidate's REAL net profit at its
+  // optimal trade size. This filters out phantom spot-only cycles before they
+  // ever reach an on-chain gas estimate, and picks the profit-maximising size.
+  const evaluated = candidates
+    .map((route) => ({
+      route,
+      ev: evaluateRouteRealistic(
+        route,
+        tokenAddresses.DAI,
+        amountIn,
+        FLASHLOAN_PREMIUM_INT
+      ),
+    }))
+    .filter((e) => e.ev && e.ev.confident && e.ev.profit.gt(0));
+  evaluated.sort((a, b) => (b.ev.profit.gt(a.ev.profit) ? 1 : -1));
+
+  if (evaluated.length) {
+    const top = evaluated[0];
+    best = top.route;
+    bestOut = top.ev.output;
+    optimalBorrow = top.ev.optimalInput;
+    logger.info(
+      `[selectBestRoute] impact-aware winner id=${
+        best.id
+      } size=${ethers.utils.formatUnits(
+        optimalBorrow,
+        18
+      )} DAI projProfit=${ethers.utils.formatUnits(top.ev.profit, 18)} DAI`
+    );
+  } else {
+    // No confident-profitable route (e.g. Curve/Balancer hops without local
+    // reserve data). Fall back to the coarse worker simulator; the on-chain
+    // profit-or-revert guard still protects execution.
+    const sims = await parallelSimulate(candidates, amountIn, slippageBips);
+    sims.forEach(({ routeId, result }) => {
+      const route = candidates.find((r) => r.id === routeId);
+      if (result.gt(bestOut)) {
+        bestOut = result;
+        best = route;
+      }
+    });
+    if (best) optimalBorrow = amountIn;
+    logger.info(
+      `[selectBestRoute] no impact-aware winner; used coarse simulation fallback.`
+    );
+  }
+
   const simEnd = Date.now();
   simulationHistogram.observe((simEnd - simStart) / 1000);
   avgLatency.set(simEnd - simStart);
-  logger.info(`Simulation took ${simEnd - simStart} ms.`);
+  logger.info(`Route evaluation took ${simEnd - simStart} ms.`);
 
-  sims.forEach(({ routeId, result }) => {
-    const route = candidates.find((r) => r.id === routeId);
-    if (result.gt(bestOut)) {
-      bestOut = result;
-      best = route;
-    }
-  });
-
-  if (best) {
-    logger.info(
-      `Best route chosen: id=${
-        best.id
-      }, estimatedOut=${ethers.utils.formatUnits(bestOut, 18)} DAI.`
-    );
-  } else {
-    logger.info(`No route yielded positive output after simulation.`);
+  if (!best) {
+    logger.info(`No route yielded positive output after evaluation.`);
   }
 
-  return { bestRoute: best, bestOut };
+  return { bestRoute: best, bestOut, optimalBorrow };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1209,7 +1427,9 @@ async function computeDailyPnL() {
   }
   if (!isDbEnabled() || !dbPool) {
     if (!dbDisabledLogged) {
-      logger.info("PostgreSQL persistence disabled; skipping daily PnL computation.");
+      logger.info(
+        "PostgreSQL persistence disabled; skipping daily PnL computation."
+      );
       dbDisabledLogged = true;
     }
     return BigNumber.from(0);
@@ -1268,7 +1488,11 @@ async function performOnChainSanityCheck(route, provider) {
         const cached = reserveCache.get(hop.poolAddress);
         if (!cached) continue;
 
-        const contract = new ethers.Contract(hop.poolAddress, pairInterface, provider);
+        const contract = new ethers.Contract(
+          hop.poolAddress,
+          pairInterface,
+          provider
+        );
         const [r0, r1] = await contract.getReserves();
         const onChainR0 = r0.toString();
         const onChainR1 = r1.toString();
@@ -1305,7 +1529,11 @@ async function performOnChainSanityCheck(route, provider) {
         const cached = v3PriceCache.get(hop.poolAddress);
         if (!cached) continue;
 
-        const contract = new ethers.Contract(hop.poolAddress, v3Interface, provider);
+        const contract = new ethers.Contract(
+          hop.poolAddress,
+          v3Interface,
+          provider
+        );
         const slot0 = await contract.slot0();
         const onChainPrice = slot0.sqrtPriceX96.toString();
 
@@ -1323,26 +1551,42 @@ async function performOnChainSanityCheck(route, provider) {
         }
       }
     } catch (err) {
-      logger.warn(`[sanityCheck] Failed to verify pool ${hop.poolAddress}: ${err.message}`);
+      logger.warn(
+        `[sanityCheck] Failed to verify pool ${hop.poolAddress}: ${err.message}`
+      );
       // Don't fail the check if we can't read one pool - might be a transient RPC issue
     }
   }
 
   // Check if any deviation exceeds threshold
-  const maxDeviation = Math.max(...deviations.map(d => d.devBps), 0);
-  const failedPools = deviations.filter(d => d.devBps > SANITY_CHECK_MAX_DEVIATION_BPS);
+  const maxDeviation = Math.max(...deviations.map((d) => d.devBps), 0);
+  const failedPools = deviations.filter(
+    (d) => d.devBps > SANITY_CHECK_MAX_DEVIATION_BPS
+  );
 
   if (failedPools.length > 0) {
-    const reason = `Price deviation exceeds ${SANITY_CHECK_MAX_DEVIATION_BPS / 100}% for ${failedPools.length} pool(s): ${failedPools.map(p => `${p.pool.slice(0, 10)}... (${p.devBps / 100}%)`).join(", ")}`;
+    const reason = `Price deviation exceeds ${
+      SANITY_CHECK_MAX_DEVIATION_BPS / 100
+    }% for ${failedPools.length} pool(s): ${failedPools
+      .map((p) => `${p.pool.slice(0, 10)}... (${p.devBps / 100}%)`)
+      .join(", ")}`;
     logger.warn(`[sanityCheck] FAILED: ${reason}`);
     return {
       passed: false,
       reason,
-      details: { maxDeviationBps: maxDeviation, failedPools, allDeviations: deviations },
+      details: {
+        maxDeviationBps: maxDeviation,
+        failedPools,
+        allDeviations: deviations,
+      },
     };
   }
 
-  logger.info(`[sanityCheck] PASSED: Max deviation ${maxDeviation / 100}% (threshold ${SANITY_CHECK_MAX_DEVIATION_BPS / 100}%)`);
+  logger.info(
+    `[sanityCheck] PASSED: Max deviation ${maxDeviation / 100}% (threshold ${
+      SANITY_CHECK_MAX_DEVIATION_BPS / 100
+    }%)`
+  );
   return {
     passed: true,
     details: { maxDeviationBps: maxDeviation, checkedPools: deviations.length },
@@ -1352,7 +1596,11 @@ async function performOnChainSanityCheck(route, provider) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Simulation & Execution Loop for One Chain
 // ─────────────────────────────────────────────────────────────────────────────
-async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = {}) {
+async function simulateAndExecuteArbChain(
+  chain,
+  useFlashbots = true,
+  options = {}
+) {
   throwIfAborted(options.signal);
   const { provider, wallet, uniRouter, sushiRouter, arbContract } =
     getChainContext(chain);
@@ -1362,6 +1610,16 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
 
   logger.info(`[${chain}] === Arbitrage Cycle Start ===`);
   arbAttempts.inc();
+
+  // Circuit-breaker gate: skip the whole cycle if the breaker is open/emergency.
+  const cbStatus = circuitBreaker.canTrade();
+  if (!cbStatus.allowed) {
+    logger.warn(
+      `[${chain}] Circuit breaker ${cbStatus.state}: ${cbStatus.reason}. Skipping cycle.`
+    );
+    arbFailure.labels("circuitBreakerOpen").inc();
+    return { executed: false, estimatedProfitInDai: BigNumber.from(0) };
+  }
 
   // Risk management: skip cycle if daily losses exceed limit
   try {
@@ -1482,25 +1740,33 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
 
   // 3a. Subscribe to V2 pools (Sync events)
   if (v2Pools.length > 0) {
-    logger.info(`[${chain}] Subscribing to ${v2Pools.length} V2 pools for Sync events.`);
+    logger.info(
+      `[${chain}] Subscribing to ${v2Pools.length} V2 pools for Sync events.`
+    );
     await initSubscriptions(v2Pools);
   }
 
   // 3b. Subscribe to V3 pools (Swap events) if INCLUDE_V3 is enabled
   if (INCLUDE_V3 === "true" && v3Pools.length > 0) {
-    logger.info(`[${chain}] Subscribing to ${v3Pools.length} V3 pools for Swap events.`);
+    logger.info(
+      `[${chain}] Subscribing to ${v3Pools.length} V3 pools for Swap events.`
+    );
     await initV3Subscriptions(v3Pools);
   }
 
   // 3c. Subscribe to Balancer pools if INCLUDE_BALANCER is enabled
   if (INCLUDE_BALANCER === "true" && balancerPools.length > 0) {
-    logger.info(`[${chain}] Subscribing to ${balancerPools.length} Balancer pools for Swap events.`);
+    logger.info(
+      `[${chain}] Subscribing to ${balancerPools.length} Balancer pools for Swap events.`
+    );
     await initBalancerSubscriptions(balancerPools);
   }
 
   // 3d. Subscribe to Curve pools if INCLUDE_CURVE is enabled
   if (INCLUDE_CURVE === "true" && curvePools.length > 0) {
-    logger.info(`[${chain}] Subscribing to ${curvePools.length} Curve pools for TokenExchange events.`);
+    logger.info(
+      `[${chain}] Subscribing to ${curvePools.length} Curve pools for TokenExchange events.`
+    );
     await initCurveSubscriptions(curvePools);
   }
 
@@ -1544,7 +1810,7 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
   currentSlippage = slipBips;
 
   // 5. Determine borrow amount
-  const borrowDAI = await getOptimalBorrowAmount("DAI", chain);
+  let borrowDAI = await getOptimalBorrowAmount("DAI", chain);
   if (borrowDAI.isZero()) {
     logger.info(`[${chain}] No available DAI liquidity to borrow—skipping.`);
     arbFailure.labels("noLiquidity").inc();
@@ -1554,7 +1820,7 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
   }
 
   // 6. Select best route via simulation
-  const { bestRoute, bestOut } = await selectBestRoute(
+  const { bestRoute, bestOut, optimalBorrow } = await selectBestRoute(
     borrowDAI,
     slipBips,
     ROUTES_TO_CHECK
@@ -1563,16 +1829,13 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
     logger.info(`[${chain}] No profitable route found after simulation.`);
     consecutiveNegatives++;
     arbFailure.labels("noProfitableRoute").inc();
+    // "No profitable route" is a normal idle condition, not a fault — it must NOT
+    // pause the on-chain contract. Real failures are handled by the off-chain
+    // circuit breaker via recordTradeOutcome().
     if (consecutiveNegatives >= CB_NEG_THRESH_INT) {
-      try {
-        await arbContract.pause();
-        await sendSlackAlert(
-          `[${chain}] Circuit breaker: paused after ${CB_NEG_THRESH_INT} negative cycles.`
-        );
-        logger.info(`[${chain}] Contract paused via circuit breaker.`);
-      } catch (err) {
-        logger.error(`[${chain}] Failed to pause contract: ${err.message}`);
-      }
+      logger.debug(
+        `[${chain}] ${consecutiveNegatives} consecutive idle cycles (no profitable route).`
+      );
     }
     slippageAgent.update(reward);
     rlEpsilon.set(slippageAgent.epsilon);
@@ -1584,6 +1847,18 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
     }, estimatedOut=${ethers.utils.formatUnits(bestOut, 18)} DAI.`
   );
   consecutiveNegatives = 0;
+
+  // Resize the borrow to the per-route profit-maximising amount (price-impact
+  // aware), never exceeding the available-liquidity ceiling.
+  if (optimalBorrow && optimalBorrow.gt(0) && optimalBorrow.lte(borrowDAI)) {
+    borrowDAI = optimalBorrow;
+    logger.info(
+      `[${chain}] Optimal borrow size: ${ethers.utils.formatUnits(
+        borrowDAI,
+        18
+      )} DAI.`
+    );
+  }
 
   // Rebuild executable steps for the chosen route
   buildStepsFromHops(bestRoute);
@@ -1616,39 +1891,43 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
     logger.info(`[${chain}] Fetched fresh reserves for best route.`);
   }
 
-  // 9. Build SwapData via swapDataBuilder
-  let swapData;
+  // 9. Build the multi-DEX ArbitrageData bundle (re-quoted on-chain hop-by-hop).
+  let arbData;
   try {
-    swapData = await buildSwapDataFromDynamic(
+    arbData = await buildArbitrageData(
       bestRoute,
       {
-        slippageBips: SLIPPAGE_DEFAULT_INT,
+        slippageBips: slipBips,
         minProfit: minProfitThreshold,
         borrowToken: tokenAddresses.DAI,
         borrowAmount: borrowDAI,
       },
       provider
     );
-    logger.info(`[${chain}] swapDataBuilder returned SwapData successfully.`);
+    logger.info(
+      `[${chain}] buildArbitrageData returned ${arbData.steps.length}-step route.`
+    );
   } catch (err) {
-    logger.error(`[${chain}] swapDataBuilder error: ${err.message}`);
+    logger.error(`[${chain}] buildArbitrageData error: ${err.message}`);
     arbFailure.labels("swapDataFail").inc();
     slippageAgent.update(reward);
     rlEpsilon.set(slippageAgent.epsilon);
     return { executed: false, estimatedProfitInDai: BigNumber.from(0) };
   }
 
-  // 10. Encode SwapData and estimate gas
-  let paramsEncoded;
+  // 10. Encode initiateFlashLoan calldata + estimate gas against the REAL
+  //     entrypoint (the Aave executeOperation callback can only be called by the
+  //     pool, so estimating it from the bot wallet always reverts).
+  let flashloanCalldata;
   try {
-    const swapDataTupleType = "tuple(address token,address[][] paths,uint256[] minOuts,uint256 minProfit,string route)";
-    paramsEncoded = ethers.utils.defaultAbiCoder.encode(
-      [swapDataTupleType],
-      [swapData]
+    flashloanCalldata = arbContract.interface.encodeFunctionData(
+      "initiateFlashLoan",
+      [arbData]
     );
-    logger.info(`[${chain}] Encoded SwapData successfully.`);
   } catch (err) {
-    logger.error(`[${chain}] Failed to encode SwapData: ${err.message}`);
+    logger.error(
+      `[${chain}] Failed to encode initiateFlashLoan calldata: ${err.message}`
+    );
     arbFailure.labels("calldataEncodeFail").inc();
     slippageAgent.update(reward);
     rlEpsilon.set(slippageAgent.epsilon);
@@ -1657,19 +1936,13 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
 
   let estimateGas;
   try {
-    estimateGas = await arbContract.estimateGas.executeOperation(
-      [swapData.token],
-      [borrowDAI],
-      [borrowDAI.mul(premBps).div(10000)],
-      arbContract.address,
-      paramsEncoded
-    );
+    estimateGas = await arbContract.estimateGas.initiateFlashLoan(arbData);
     logger.info(
-      `[${chain}] Gas estimate for executeOperation: ${estimateGas.toString()}`
+      `[${chain}] Gas estimate for initiateFlashLoan: ${estimateGas.toString()}`
     );
   } catch (err) {
     logger.error(
-      `[${chain}] estimateGas.executeOperation() failed: ${err.message}`
+      `[${chain}] estimateGas.initiateFlashLoan() failed (likely unprofitable at execution): ${err.message}`
     );
     arbFailure.labels("gasEstimateFail").inc();
     slippageAgent.update(reward);
@@ -1713,7 +1986,7 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
       id: bestRoute.id,
       chain,
       timestamp: Date.now(),
-      swapData: cloneSwapDataForStore(swapData),
+      swapData: cloneSwapDataForStore(arbData),
       borrowAmount: borrowDAI,
       estimatedOut: bestOut,
       gasEstimate: estimateGas,
@@ -1755,7 +2028,9 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
 
       if (!riskValidation.valid) {
         logger.warn(
-          `[${chain}] Risk validation FAILED: ${riskValidation.errors.join(", ")}`
+          `[${chain}] Risk validation FAILED: ${riskValidation.errors.join(
+            ", "
+          )}`
         );
         arbFailure.labels("riskValidationFailed").inc();
         slippageAgent.update(reward);
@@ -1763,10 +2038,14 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
         return { executed: false, estimatedProfitInDai: BigNumber.from(0) };
       }
       logger.info(
-        `[${chain}] Risk validation PASSED. Remaining daily risk: ${riskValidation.riskMetrics.remainingRisk.toFixed(2)}%`
+        `[${chain}] Risk validation PASSED. Remaining daily risk: ${riskValidation.riskMetrics.remainingRisk.toFixed(
+          2
+        )}%`
       );
     } catch (err) {
-      logger.warn(`[${chain}] Risk validation error (proceeding): ${err.message}`);
+      logger.warn(
+        `[${chain}] Risk validation error (proceeding): ${err.message}`
+      );
     }
   }
 
@@ -1784,7 +2063,9 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
     }
     logger.info(`[${chain}] On-chain sanity check PASSED.`);
   } catch (err) {
-    logger.warn(`[${chain}] Sanity check error (proceeding anyway): ${err.message}`);
+    logger.warn(
+      `[${chain}] Sanity check error (proceeding anyway): ${err.message}`
+    );
     // Don't block execution on sanity check errors - it's a safety feature, not a hard requirement
   }
 
@@ -1826,12 +2107,8 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
       for (let i = 0; i < BUNDLE_COUNT; i++) {
         const tx = {
           to: arbContract.address,
-          data: arbContract.interface.encodeFunctionData("initiateFlashLoan", [
-            swapData.token,
-            borrowDAI,
-            paramsEncoded,
-          ]),
-          gasLimit: BigNumber.from(2_000_000),
+          data: flashloanCalldata,
+          gasLimit: estimateGas.mul(12).div(10),
           maxFeePerGas: baseFeeNext.add(chosenPrio),
           maxPriorityFeePerGas: chosenPrio,
         };
@@ -1882,11 +2159,8 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
 
           const txRetry = {
             to: arbContract.address,
-            data: arbContract.interface.encodeFunctionData(
-              "initiateFlashLoan",
-              [swapData.token, borrowDAI, paramsEncoded]
-            ),
-            gasLimit: BigNumber.from(2_000_000),
+            data: flashloanCalldata,
+            gasLimit: estimateGas.mul(12).div(10),
             maxFeePerGas: baseFeeNext.add(chosenPrio),
             maxPriorityFeePerGas: chosenPrio,
           };
@@ -1917,7 +2191,7 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
       if (flashbotsSuccess) {
         arbSuccess.inc();
         const tradeResult = await insertTrade({
-          route: swapData.route,
+          route: arbData.route,
           profit: netDAI,
           txHash: "flashbots-bundle",
           timestamp: Date.now(),
@@ -1926,13 +2200,16 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
         if (tradeResult?.ok) {
           logger.info(`[${chain}] Trade recorded as flashbots.`);
         } else if (tradeResult?.error?.code === "DB_DISABLED") {
-          logger.info(`[${chain}] Persistence disabled; flashbots trade not stored.`);
+          logger.info(
+            `[${chain}] Persistence disabled; flashbots trade not stored.`
+          );
         } else if (tradeResult?.error) {
           logger.warn(
             `[${chain}] Failed to persist flashbots trade (${tradeResult.error.code}): ${tradeResult.error.message}`
           );
         }
         reward = parseFloat(ethers.utils.formatUnits(netDAI, 18));
+        recordTradeOutcome({ success: true, profit: netDAI, gasPrice });
 
         // Record trade in risk manager (Tier-1 Feature)
         if (ENABLE_RISK_MANAGER) {
@@ -1947,7 +2224,9 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
             });
             logger.info(`[${chain}] Trade recorded in risk manager.`);
           } catch (rmErr) {
-            logger.warn(`[${chain}] Risk manager record failed: ${rmErr.message}`);
+            logger.warn(
+              `[${chain}] Risk manager record failed: ${rmErr.message}`
+            );
           }
         }
 
@@ -1986,8 +2265,13 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
         });
 
         logger.info(
-          `[${chain}] Dynamic tip: ${ethers.utils.formatUnits(optimalTip.tipWei, "ether")} ETH ` +
-          `(${optimalTip.tipBps / 100}% of profit), competition: ${competitionLevel}`
+          `[${chain}] Dynamic tip: ${ethers.utils.formatUnits(
+            optimalTip.tipWei,
+            "ether"
+          )} ETH ` +
+            `(${
+              optimalTip.tipBps / 100
+            }% of profit), competition: ${competitionLevel}`
         );
       } else {
         // Fallback to simple tip calculation
@@ -2003,25 +2287,27 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
       // Build and sign the transaction
       const tx = {
         to: arbContract.address,
-        data: arbContract.interface.encodeFunctionData("initiateFlashLoan", [
-          swapData.token,
-          borrowDAI,
-          paramsEncoded,
-        ]),
-        gasLimit: BigNumber.from(2_000_000),
-        maxFeePerGas: optimalTip.maxFeePerGas || gasPrice.add(optimalTip.priorityFeePerGas),
+        data: flashloanCalldata,
+        gasLimit: estimateGas.mul(12).div(10),
+        maxFeePerGas:
+          optimalTip.maxFeePerGas || gasPrice.add(optimalTip.priorityFeePerGas),
         maxPriorityFeePerGas: optimalTip.priorityFeePerGas,
         chainId: parseInt(process.env.CHAIN_ID || "1"),
-        nonce: await wallet.getTransactionCount(),
+        nonce: await wallet.getTransactionCount("pending"),
         type: 2,
       };
 
       const signedTx = await wallet.signTransaction(tx);
 
       // Submit to all relays in parallel
-      const relayResults = await submitToAllRelays(wallet, [signedTx], targetBlock, {
-        timeout: 5000,
-      });
+      const relayResults = await submitToAllRelays(
+        wallet,
+        [signedTx],
+        targetBlock,
+        {
+          timeout: 5000,
+        }
+      );
 
       logger.info(
         `[${chain}] Multi-relay submission: ${relayResults.successful}/${relayResults.totalRelays} succeeded`
@@ -2033,13 +2319,15 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
         await new Promise((resolve) => setTimeout(resolve, 15000));
 
         // Check if transaction was included
-        const receipt = await provider.getTransactionReceipt(ethers.utils.keccak256(signedTx));
+        const receipt = await provider.getTransactionReceipt(
+          ethers.utils.keccak256(signedTx)
+        );
         if (receipt && receipt.status === 1) {
           logger.info(`[${chain}] Multi-relay bundle INCLUDED!`);
           arbSuccess.inc();
 
           const tradeResult = await insertTrade({
-            route: swapData.route,
+            route: arbData.route,
             profit: netDAI,
             txHash: receipt.transactionHash,
             timestamp: Date.now(),
@@ -2063,33 +2351,48 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
             });
           }
 
+          recordTradeOutcome({ success: true, profit: netDAI, gasPrice });
           slippageAgent.update(reward);
           rlEpsilon.set(slippageAgent.epsilon);
           return { executed: true, estimatedProfitInDai: netDAI };
         }
       }
 
-      logger.warn(`[${chain}] Multi-relay bundles not included—falling back to public TX.`);
+      logger.warn(
+        `[${chain}] Multi-relay bundles not included—falling back to public TX.`
+      );
     } catch (err) {
       logger.warn(`[${chain}] Multi-relay error: ${err.message}`);
     }
   }
 
-  // 13. Public fallback transaction
-  try {
-    logger.info(`[${chain}] Sending public initiateFlashLoan transaction.`);
-    const txResp = await arbContract.initiateFlashLoan(
-      swapData.token,
-      borrowDAI,
-      paramsEncoded,
-      { gasLimit: BigNumber.from(2_000_000) }
+  // 13. Public fallback transaction — DISABLED by default. An arbitrage tx in the
+  //     public mempool is trivially front-run/sandwiched, so we only broadcast it
+  //     when explicitly opted in via ALLOW_PUBLIC_MEMPOOL_FALLBACK=true.
+  if (!ALLOW_PUBLIC_FALLBACK) {
+    logger.warn(
+      `[${chain}] Private submission failed; public mempool fallback disabled — dropping opportunity.`
     );
+    arbFailure.labels("privateOnlyDropped").inc();
+    reward = -1;
+    slippageAgent.update(reward);
+    rlEpsilon.set(slippageAgent.epsilon);
+    recordTradeOutcome({ success: false, profit: BigNumber.from(0), gasPrice });
+    return { executed: false, estimatedProfitInDai: BigNumber.from(0) };
+  }
+  try {
+    logger.info(
+      `[${chain}] Sending public initiateFlashLoan transaction (fallback opted-in).`
+    );
+    const txResp = await arbContract.initiateFlashLoan(arbData, {
+      gasLimit: estimateGas.mul(12).div(10),
+    });
     logger.info(`[${chain}] Public TX sent: ${txResp.hash}`);
     await txResp.wait();
     logger.info(`[${chain}] Public TX mined: ${txResp.hash}`);
     arbSuccess.inc();
     const tradeResult = await insertTrade({
-      route: swapData.route,
+      route: arbData.route,
       profit: netDAI,
       txHash: txResp.hash,
       timestamp: Date.now(),
@@ -2105,6 +2408,7 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
       );
     }
     reward = parseFloat(ethers.utils.formatUnits(netDAI, 18));
+    recordTradeOutcome({ success: true, profit: netDAI, gasPrice });
     slippageAgent.update(reward);
     rlEpsilon.set(slippageAgent.epsilon);
     return { executed: true, estimatedProfitInDai: netDAI };
@@ -2112,6 +2416,7 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
     logger.error(`[${chain}] Public TX failed: ${err.message}`);
     arbFailure.labels("publicTxFail").inc();
     reward = -1;
+    recordTradeOutcome({ success: false, profit: BigNumber.from(0), gasPrice });
     slippageAgent.update(reward);
     rlEpsilon.set(slippageAgent.epsilon);
     return { executed: false, estimatedProfitInDai: BigNumber.from(0) };
@@ -2130,7 +2435,9 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
 async function initConnext(chain) {
   const connextAdapterAddress = process.env.CONNEXT_ADAPTER_ADDRESS;
   if (!connextAdapterAddress) {
-    logger.info("[Connext] CONNEXT_ADAPTER_ADDRESS not set, cross-chain forwarding disabled");
+    logger.info(
+      "[Connext] CONNEXT_ADAPTER_ADDRESS not set, cross-chain forwarding disabled"
+    );
     return false;
   }
 
@@ -2158,8 +2465,14 @@ async function initConnext(chain) {
       },
     });
     connextInitialized = true;
-    logger.info(`[Connext] Initialized - destination domain: ${connextConfig.destinationDomain}`);
-    logger.info(`[Connext] Auto-forward: ${connextAutoForwardEnabled ? "ENABLED" : "DISABLED"}`);
+    logger.info(
+      `[Connext] Initialized - destination domain: ${connextConfig.destinationDomain}`
+    );
+    logger.info(
+      `[Connext] Auto-forward: ${
+        connextAutoForwardEnabled ? "ENABLED" : "DISABLED"
+      }`
+    );
     return true;
   } catch (err) {
     logger.error(`[Connext] Initialization failed: ${err.message}`);
@@ -2195,13 +2508,23 @@ async function checkAndForwardProfits(token, profitAmount) {
       connextEnabled: true,
       autoForwardEnabled: connextAutoForwardEnabled,
       accumulatedProfits: accumulatedBalance.toString(),
-      accumulatedProfitsFormatted: ethers.utils.formatUnits(accumulatedBalance, 18),
+      accumulatedProfitsFormatted: ethers.utils.formatUnits(
+        accumulatedBalance,
+        18
+      ),
       pendingTransfers: pendingTransfersList.length,
-      threshold: autoForwardCheck.threshold ? ethers.utils.formatUnits(autoForwardCheck.threshold, 18) : null,
+      threshold: autoForwardCheck.threshold
+        ? ethers.utils.formatUnits(autoForwardCheck.threshold, 18)
+        : null,
     };
 
     if (autoForwardCheck.shouldForward) {
-      logger.info(`[Connext] Auto-forward threshold reached, forwarding ${ethers.utils.formatUnits(autoForwardCheck.balance, 18)} tokens`);
+      logger.info(
+        `[Connext] Auto-forward threshold reached, forwarding ${ethers.utils.formatUnits(
+          autoForwardCheck.balance,
+          18
+        )} tokens`
+      );
 
       const result = await forwardProfits({
         token,
@@ -2209,7 +2532,9 @@ async function checkAndForwardProfits(token, profitAmount) {
       });
 
       if (result.success) {
-        logger.info(`[Connext] Profits forwarded successfully! TX: ${result.txHash}, Transfer ID: ${result.transferId}`);
+        logger.info(
+          `[Connext] Profits forwarded successfully! TX: ${result.txHash}, Transfer ID: ${result.transferId}`
+        );
         return {
           ...baseStatus,
           forwarded: true,
@@ -2221,7 +2546,9 @@ async function checkAndForwardProfits(token, profitAmount) {
           tracked: result.tracked,
         };
       } else {
-        logger.warn(`[Connext] Forward failed: ${result.error || result.reason}`);
+        logger.warn(
+          `[Connext] Forward failed: ${result.error || result.reason}`
+        );
         return {
           ...baseStatus,
           forwarded: false,
@@ -2232,7 +2559,11 @@ async function checkAndForwardProfits(token, profitAmount) {
       const balanceFormatted = autoForwardCheck.balance
         ? ethers.utils.formatUnits(autoForwardCheck.balance, 18)
         : "0";
-      logger.info(`[Connext] Below auto-forward threshold: ${balanceFormatted} / ${baseStatus.threshold || "N/A"}`);
+      logger.info(
+        `[Connext] Below auto-forward threshold: ${balanceFormatted} / ${
+          baseStatus.threshold || "N/A"
+        }`
+      );
       return {
         ...baseStatus,
         forwarded: false,
@@ -2281,13 +2612,17 @@ async function getConnextStatus(token) {
       initialized: false,
       configured: adapterConfigured,
       autoForwardEnabled: false,
-      reason: adapterConfigured ? "Initialization pending or failed" : "Adapter not configured",
+      reason: adapterConfigured
+        ? "Initialization pending or failed"
+        : "Adapter not configured",
     };
   }
 
   try {
     const destInfo = await getDestinationInfo();
-    const accumulated = token ? await getAccumulatedProfits(token) : BigNumber.from(0);
+    const accumulated = token
+      ? await getAccumulatedProfits(token)
+      : BigNumber.from(0);
     const pendingTransfersList = getPendingTransfers();
     const recentHistory = getTransferHistory(10);
 
@@ -2307,7 +2642,8 @@ async function getConnextStatus(token) {
         transfers: recentHistory,
       },
       thresholds: {
-        autoForwardThreshold: process.env.CONNEXT_AUTO_FORWARD_THRESHOLD || "100",
+        autoForwardThreshold:
+          process.env.CONNEXT_AUTO_FORWARD_THRESHOLD || "100",
         minForwardAmount: process.env.CONNEXT_MIN_FORWARD_AMOUNT || "10",
       },
     };
@@ -2374,7 +2710,11 @@ async function simulateAndExecuteArb(useFlashbots = true, options = {}) {
 
   for (const chain of chains) {
     try {
-      const res = await simulateAndExecuteArbChain(chain, useFlashbots, options);
+      const res = await simulateAndExecuteArbChain(
+        chain,
+        useFlashbots,
+        options
+      );
       if (res.executed) {
         outcome = res;
 
@@ -2420,7 +2760,12 @@ function updateMinBorrowAmount(amount) {
     return;
   }
   minBorrowAmountOverride = BigNumber.from(amount.toString());
-  logger.info(`Min borrow amount override set to: ${ethers.utils.formatUnits(minBorrowAmountOverride, 18)}`);
+  logger.info(
+    `Min borrow amount override set to: ${ethers.utils.formatUnits(
+      minBorrowAmountOverride,
+      18
+    )}`
+  );
 }
 
 function updateSimulationInputAmount(amount) {
@@ -2430,7 +2775,12 @@ function updateSimulationInputAmount(amount) {
     return;
   }
   simulationInputAmountOverride = BigNumber.from(amount.toString());
-  logger.info(`Simulation input amount override set to: ${ethers.utils.formatUnits(simulationInputAmountOverride, 18)}`);
+  logger.info(
+    `Simulation input amount override set to: ${ethers.utils.formatUnits(
+      simulationInputAmountOverride,
+      18
+    )}`
+  );
 }
 
 async function getCurrentMarketData() {
@@ -2447,8 +2797,12 @@ async function getCurrentMarketData() {
       slippageBips: slippage,
       dailyPnL: ethers.utils.formatUnits(dailyPnL, 18),
       dailyPnLWei: dailyPnL.toString(),
-      minBorrowOverride: minBorrowAmountOverride ? ethers.utils.formatUnits(minBorrowAmountOverride, 18) : null,
-      simulationInputOverride: simulationInputAmountOverride ? ethers.utils.formatUnits(simulationInputAmountOverride, 18) : null,
+      minBorrowOverride: minBorrowAmountOverride
+        ? ethers.utils.formatUnits(minBorrowAmountOverride, 18)
+        : null,
+      simulationInputOverride: simulationInputAmountOverride
+        ? ethers.utils.formatUnits(simulationInputAmountOverride, 18)
+        : null,
       rlEpsilon: slippageAgent.epsilon,
       rlLastAction: slippageAgent.lastAction,
       timestamp: Date.now(),
@@ -2538,12 +2892,16 @@ module.exports.getTier1FeatureStatus = () => ({
  * @param {string} chain - Chain identifier
  */
 async function executeBackrun(opportunity, chain = DEFAULT_CHAIN) {
-  const MIN_BACKRUN_PROFIT_ETH = parseFloat(process.env.MIN_BACKRUN_PROFIT_ETH || "0.005");
+  const MIN_BACKRUN_PROFIT_ETH = parseFloat(
+    process.env.MIN_BACKRUN_PROFIT_ETH || "0.005"
+  );
 
   try {
     // Check minimum profit threshold
     if (opportunity.estimatedProfitEth < MIN_BACKRUN_PROFIT_ETH) {
-      logger.debug(`[Backrun] Skipped: profit ${opportunity.estimatedProfitEth} ETH below threshold`);
+      logger.debug(
+        `[Backrun] Skipped: profit ${opportunity.estimatedProfitEth} ETH below threshold`
+      );
       return { executed: false, reason: "below_threshold" };
     }
 
@@ -2556,8 +2914,14 @@ async function executeBackrun(opportunity, chain = DEFAULT_CHAIN) {
       });
 
       if (!validation.valid) {
-        logger.warn(`[Backrun] Risk validation failed: ${validation.errors.join(", ")}`);
-        return { executed: false, reason: "risk_validation_failed", errors: validation.errors };
+        logger.warn(
+          `[Backrun] Risk validation failed: ${validation.errors.join(", ")}`
+        );
+        return {
+          executed: false,
+          reason: "risk_validation_failed",
+          errors: validation.errors,
+        };
       }
     }
 
@@ -2565,15 +2929,20 @@ async function executeBackrun(opportunity, chain = DEFAULT_CHAIN) {
 
     // Get current gas price and calculate competitive priority fee
     const gasPrice = await provider.getGasPrice();
-    const targetGasPrice = ethers.BigNumber.from(opportunity.targetGasPrice || gasPrice);
+    const targetGasPrice = ethers.BigNumber.from(
+      opportunity.targetGasPrice || gasPrice
+    );
 
     // Our gas price must be higher than target to be included after
     const ourPriorityFee = targetGasPrice.mul(110).div(100); // 10% higher
     const baseFee = gasPrice.sub(ethers.utils.parseUnits("2", "gwei")); // Estimate base fee
 
     logger.info(
-      `[Backrun] Executing backrun for target ${opportunity.targetTx.slice(0, 10)}... ` +
-      `estimated profit: ${opportunity.estimatedProfitEth.toFixed(6)} ETH`
+      `[Backrun] Executing backrun for target ${opportunity.targetTx.slice(
+        0,
+        10
+      )}... ` +
+        `estimated profit: ${opportunity.estimatedProfitEth.toFixed(6)} ETH`
     );
 
     // Build the backrun swap transaction
@@ -2618,9 +2987,14 @@ async function executeBackrun(opportunity, chain = DEFAULT_CHAIN) {
 
     // Submit via multi-relay if enabled
     if (ENABLE_MULTI_RELAY) {
-      const relayResults = await submitToAllRelays(wallet, [signedTx], targetBlock, {
-        timeout: 3000, // Faster timeout for backruns
-      });
+      const relayResults = await submitToAllRelays(
+        wallet,
+        [signedTx],
+        targetBlock,
+        {
+          timeout: 3000, // Faster timeout for backruns
+        }
+      );
 
       logger.info(
         `[Backrun] Multi-relay submission: ${relayResults.successful}/${relayResults.totalRelays} succeeded`
@@ -2646,7 +3020,9 @@ async function executeBackrun(opportunity, chain = DEFAULT_CHAIN) {
       }
     } else {
       // Direct submission (not recommended for backruns due to MEV)
-      logger.warn("[Backrun] Multi-relay disabled, skipping backrun to avoid MEV");
+      logger.warn(
+        "[Backrun] Multi-relay disabled, skipping backrun to avoid MEV"
+      );
       return { executed: false, reason: "multi_relay_disabled" };
     }
 
@@ -2688,8 +3064,9 @@ async function initializeTier1Features(provider) {
       // Listen for backrun opportunities
       mempoolMonitor.on("backrun_opportunity", async (opportunity) => {
         logger.info(
-          `[Tier1] Backrun opportunity detected: ${opportunity.estimatedProfitEth.toFixed(6)} ETH ` +
-          `(target tx: ${opportunity.targetTx.slice(0, 10)}...)`
+          `[Tier1] Backrun opportunity detected: ${opportunity.estimatedProfitEth.toFixed(
+            6
+          )} ETH ` + `(target tx: ${opportunity.targetTx.slice(0, 10)}...)`
         );
 
         // Execute backrun if profitable and within risk limits
@@ -2718,7 +3095,9 @@ async function initializeTier1Features(provider) {
     logger.info("[Tier1] Risk manager enabled");
   }
 
-  logger.info(`[Tier1] Feature initialization complete: ${JSON.stringify(results)}`);
+  logger.info(
+    `[Tier1] Feature initialization complete: ${JSON.stringify(results)}`
+  );
   return results;
 }
 
