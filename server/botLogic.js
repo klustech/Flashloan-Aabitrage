@@ -157,7 +157,7 @@ async function getCachedCoinGeckoPrice(coinId, vsCurrency) {
   // 3️⃣ Launch the fetch with retry/back-off.
   inFlightCG[cacheKey] = (async () => {
     let attempt = 0;
-     
+
     while (true) {
       try {
         const { data } = await axios.get(
@@ -231,6 +231,10 @@ async function getDynamicSlippage() {
 const { getAllRoutes: routeFinder } = require("./scripts/routeFinder");
 const { buildArbitrageData } = require("./scripts/swapDataBuilder");
 const { getCircuitBreaker } = require("./scripts/circuitBreaker");
+const {
+  findOptimalInput,
+  v3VirtualReserves: ammV3VirtualReserves,
+} = require("./scripts/ammMath");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Imports: Price Ingestion & Multicall Cache (from server/scripts/)
@@ -893,15 +897,21 @@ async function getOptimalBorrowAmount(token, chain) {
     );
     return BigNumber.from(0);
   }
-  const trial = ethers.utils.parseUnits("100", 18);
-  const chosen = trial.lte(availableLiquidity) ? trial : availableLiquidity;
+  // Upper bound for the optimal-sizing search (the per-route profit-maximising
+  // size is chosen later in selectBestRoute). Capped by Aave liquidity and a
+  // configurable ceiling so we never propose an absurd borrow.
+  const ceiling = ethers.utils.parseUnits(
+    process.env.MAX_BORROW_DAI || "100000",
+    18
+  );
+  const cap = ceiling.lte(availableLiquidity) ? ceiling : availableLiquidity;
   logger.info(
-    `[${chain}] Optimal borrow amount for ${token}: ${ethers.utils.formatUnits(
-      chosen,
+    `[${chain}] Borrow ceiling for ${token}: ${ethers.utils.formatUnits(
+      cap,
       18
     )}`
   );
-  return chosen;
+  return cap;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1218,6 +1228,95 @@ async function getAllRoutes(chain) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Select Best Route by Simulating (possibly parallelized)
 // ─────────────────────────────────────────────────────────────────────────────
+/**
+ * Price-impact-aware evaluation of a route. Builds oriented per-hop reserves from
+ * the live caches (exact V2; V3 via virtual reserves) and returns the
+ * profit-maximising borrow size plus the realistic net profit at that size.
+ * Returns { confident:false } when any hop lacks local reserve data (Curve/
+ * Balancer) so those routes defer to the coarse simulator + on-chain guard.
+ */
+function evaluateRouteRealistic(route, borrowToken, maxInput, premiumBps) {
+  try {
+    if (!route || !Array.isArray(route.hops) || route.hops.length === 0) {
+      return { confident: false };
+    }
+    const borrow = borrowToken.toLowerCase();
+    let current = borrow;
+    const hops = [];
+
+    for (const hop of route.hops) {
+      const a = (hop.tokenA || "").toLowerCase();
+      const b = (hop.tokenB || "").toLowerCase();
+      if (!a || !b || !hop.poolAddress) return { confident: false };
+
+      let tokenIn, tokenOut;
+      if (a === current) {
+        tokenIn = a;
+        tokenOut = b;
+      } else if (b === current) {
+        tokenIn = b;
+        tokenOut = a;
+      } else if (hops.length === 0) {
+        tokenIn = a;
+        tokenOut = b;
+      } else {
+        return { confident: false }; // broken token continuity
+      }
+      current = tokenOut;
+
+      const dex = (hop.dex || "uniswap_v2").toLowerCase();
+      const feeBps = Number.isFinite(hop.feeBps)
+        ? hop.feeBps
+        : dex.includes("v3") && hop.fee
+        ? Math.max(1, Math.round(hop.fee / 100))
+        : 30;
+      // V2 & V3 both sort token0 = lower address.
+      const inIsToken0 = tokenIn < tokenOut;
+
+      let reserveIn, reserveOut;
+      if (dex.includes("v3")) {
+        const c = v3PriceCache.get(hop.poolAddress);
+        if (!c || !c.sqrtPriceX96 || !c.liquidity) return { confident: false };
+        const { reserve0, reserve1 } = ammV3VirtualReserves(
+          c.sqrtPriceX96,
+          c.liquidity
+        );
+        if (reserve0.lte(0) || reserve1.lte(0)) return { confident: false };
+        reserveIn = inIsToken0 ? reserve0 : reserve1;
+        reserveOut = inIsToken0 ? reserve1 : reserve0;
+      } else if (
+        dex === "uniswap_v2" ||
+        dex === "sushiswap_v2" ||
+        dex === "sushiswap"
+      ) {
+        const c = reserveCache.get(hop.poolAddress);
+        if (!c || c.reserve0 == null || c.reserve1 == null) {
+          return { confident: false };
+        }
+        const r0 = BigNumber.from(c.reserve0);
+        const r1 = BigNumber.from(c.reserve1);
+        if (r0.lte(0) || r1.lte(0)) return { confident: false };
+        reserveIn = inIsToken0 ? r0 : r1;
+        reserveOut = inIsToken0 ? r1 : r0;
+      } else {
+        return { confident: false }; // Curve/Balancer: no local reserve model
+      }
+      hops.push({ reserveIn, reserveOut, feeBps });
+    }
+
+    if (current !== borrow) return { confident: false }; // must cycle back to borrow token
+
+    const { input, output, profit } = findOptimalInput({
+      hops,
+      maxInput,
+      premiumBps,
+    });
+    return { confident: true, optimalInput: input, output, profit };
+  } catch (_) {
+    return { confident: false };
+  }
+}
+
 async function selectBestRoute(amountIn, slippageBips, routeList) {
   let best = null;
   let bestOut = BigNumber.from(0);
@@ -1255,34 +1354,66 @@ async function selectBestRoute(amountIn, slippageBips, routeList) {
     `After ML scoring, retaining top ${candidates.length} routes for simulation.`
   );
 
-  // Workers will compile hops into executable steps
-
+  let optimalBorrow = BigNumber.from(0);
   const simStart = Date.now();
-  const sims = await parallelSimulate(candidates, amountIn, slippageBips);
+
+  // Price-impact-aware ranking: evaluate each candidate's REAL net profit at its
+  // optimal trade size. This filters out phantom spot-only cycles before they
+  // ever reach an on-chain gas estimate, and picks the profit-maximising size.
+  const evaluated = candidates
+    .map((route) => ({
+      route,
+      ev: evaluateRouteRealistic(
+        route,
+        tokenAddresses.DAI,
+        amountIn,
+        FLASHLOAN_PREMIUM_INT
+      ),
+    }))
+    .filter((e) => e.ev && e.ev.confident && e.ev.profit.gt(0));
+  evaluated.sort((a, b) => (b.ev.profit.gt(a.ev.profit) ? 1 : -1));
+
+  if (evaluated.length) {
+    const top = evaluated[0];
+    best = top.route;
+    bestOut = top.ev.output;
+    optimalBorrow = top.ev.optimalInput;
+    logger.info(
+      `[selectBestRoute] impact-aware winner id=${
+        best.id
+      } size=${ethers.utils.formatUnits(
+        optimalBorrow,
+        18
+      )} DAI projProfit=${ethers.utils.formatUnits(top.ev.profit, 18)} DAI`
+    );
+  } else {
+    // No confident-profitable route (e.g. Curve/Balancer hops without local
+    // reserve data). Fall back to the coarse worker simulator; the on-chain
+    // profit-or-revert guard still protects execution.
+    const sims = await parallelSimulate(candidates, amountIn, slippageBips);
+    sims.forEach(({ routeId, result }) => {
+      const route = candidates.find((r) => r.id === routeId);
+      if (result.gt(bestOut)) {
+        bestOut = result;
+        best = route;
+      }
+    });
+    if (best) optimalBorrow = amountIn;
+    logger.info(
+      `[selectBestRoute] no impact-aware winner; used coarse simulation fallback.`
+    );
+  }
+
   const simEnd = Date.now();
   simulationHistogram.observe((simEnd - simStart) / 1000);
   avgLatency.set(simEnd - simStart);
-  logger.info(`Simulation took ${simEnd - simStart} ms.`);
+  logger.info(`Route evaluation took ${simEnd - simStart} ms.`);
 
-  sims.forEach(({ routeId, result }) => {
-    const route = candidates.find((r) => r.id === routeId);
-    if (result.gt(bestOut)) {
-      bestOut = result;
-      best = route;
-    }
-  });
-
-  if (best) {
-    logger.info(
-      `Best route chosen: id=${
-        best.id
-      }, estimatedOut=${ethers.utils.formatUnits(bestOut, 18)} DAI.`
-    );
-  } else {
-    logger.info(`No route yielded positive output after simulation.`);
+  if (!best) {
+    logger.info(`No route yielded positive output after evaluation.`);
   }
 
-  return { bestRoute: best, bestOut };
+  return { bestRoute: best, bestOut, optimalBorrow };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1679,7 +1810,7 @@ async function simulateAndExecuteArbChain(
   currentSlippage = slipBips;
 
   // 5. Determine borrow amount
-  const borrowDAI = await getOptimalBorrowAmount("DAI", chain);
+  let borrowDAI = await getOptimalBorrowAmount("DAI", chain);
   if (borrowDAI.isZero()) {
     logger.info(`[${chain}] No available DAI liquidity to borrow—skipping.`);
     arbFailure.labels("noLiquidity").inc();
@@ -1689,7 +1820,7 @@ async function simulateAndExecuteArbChain(
   }
 
   // 6. Select best route via simulation
-  const { bestRoute, bestOut } = await selectBestRoute(
+  const { bestRoute, bestOut, optimalBorrow } = await selectBestRoute(
     borrowDAI,
     slipBips,
     ROUTES_TO_CHECK
@@ -1716,6 +1847,18 @@ async function simulateAndExecuteArbChain(
     }, estimatedOut=${ethers.utils.formatUnits(bestOut, 18)} DAI.`
   );
   consecutiveNegatives = 0;
+
+  // Resize the borrow to the per-route profit-maximising amount (price-impact
+  // aware), never exceeding the available-liquidity ceiling.
+  if (optimalBorrow && optimalBorrow.gt(0) && optimalBorrow.lte(borrowDAI)) {
+    borrowDAI = optimalBorrow;
+    logger.info(
+      `[${chain}] Optimal borrow size: ${ethers.utils.formatUnits(
+        borrowDAI,
+        18
+      )} DAI.`
+    );
+  }
 
   // Rebuild executable steps for the chosen route
   buildStepsFromHops(bestRoute);
