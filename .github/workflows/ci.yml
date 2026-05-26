@@ -233,8 +233,47 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run fork tests
-        run: |
-          ENABLE_MAINNET_FORK=true npx hardhat test test/integration/*.js
+      - name: Run fork integration tests (only if RPC configured)
         env:
           MAINNET_RPC_URL: ${{ secrets.MAINNET_RPC_URL }}
+        run: |
+          if [ -z "$MAINNET_RPC_URL" ]; then
+            echo "MAINNET_RPC_URL not set — skipping fork integration tests."
+            exit 0
+          fi
+          ENABLE_MAINNET_FORK=true npx hardhat test \
+            test/integration/flashloan.spec.js \
+            test/integration/crossDex.test.js
+
+  # Fork Arbitrage Proof (gate #2) — proves the full on-chain money path executes
+  # end-to-end against REAL Aave V2 + Uniswap + Sushiswap. Runs automatically only
+  # when the MAINNET_RPC_URL secret is configured; otherwise it skips green so it
+  # never blocks forks/PRs that lack the secret.
+  fork-arbitrage:
+    name: Fork Arbitrage Proof (gate #2)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    needs: [contracts]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run end-to-end fork arbitrage proof (only if RPC configured)
+        env:
+          MAINNET_RPC_URL: ${{ secrets.MAINNET_RPC_URL }}
+          FORK_BLOCK_NUMBER: ${{ vars.FORK_BLOCK_NUMBER }}
+        run: |
+          if [ -z "$MAINNET_RPC_URL" ]; then
+            echo "MAINNET_RPC_URL not set — skipping fork arbitrage proof (gate #2)."
+            echo "Add the MAINNET_RPC_URL repository secret to enable this gate."
+            exit 0
+          fi
+          npm run test:fork:arb
