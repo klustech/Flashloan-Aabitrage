@@ -30,6 +30,7 @@ export default function TradingControl(){
     {error&&<Alert severity="error" sx={{mt:1}}>{error}</Alert>}
     {status?.trading?.reason&&<Alert severity="warning" sx={{mt:1}}>{status.trading.reason}</Alert>}
     <Typography variant="body2" sx={{mt:2}}>Ethereum · Aave V2 · Two-pool and three-leg routes · {status?.busy?'Validating opportunity':'Waiting for next scan'} · Pending receipts: {status?.summary?.pending||0}</Typography>
+    {status?.latency&&<Typography variant="body2" color="text.secondary">Last scan: {status.latency.durationMs} ms · Block {status.latency.cache?.block||'—'} · Cached pools: {status.latency.cache?.pools||0} · Exact screens: {status.latency.screened} · Sized: {status.latency.sized} · Transaction simulations: {status.latency.transactionCalls} · Source: {status.scanner?.source||'manual'}</Typography>}
     <Box sx={{display:'flex',gap:3,flexWrap:'wrap',my:2}}>
       {Object.values(status?.summary?.tokens||{}).map(group=><Box key={group.borrowToken}>
         <Typography>Realized net: {formatUnits(group.realizedNet,group.token?.decimals)} {group.token?.symbol}</Typography>

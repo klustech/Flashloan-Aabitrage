@@ -3,14 +3,13 @@
 /**
  * Express API for the Flashloan Arbitrage Bot.
  *  - Exposes endpoints to fetch live market data (DAI→WETH), read bot logs, trigger arbitrage, update settings, and metrics.
- *  - Runs a scheduled job every minute to invoke simulateAndExecuteArb(...) if botSettings.botActive is true.
+ *  - Coalesces new-block notifications into bounded deterministic arbitrage scans.
  */
 
 const express = require("express");
 const path = require("path");
 const cors = require("cors");
 const rateLimit = require("express-rate-limit");
-const cron = require("node-cron");
 const fs = require("fs");
 const readline = require("readline");
 const winston = require("winston");
@@ -506,9 +505,12 @@ const createTimeoutError = (timeoutMs, contextLabel) => {
   return timeoutError;
 };
 
-async function runArbWithTimeout(useFlashbots, contextLabel) {
+async function runArbWithTimeout(useFlashbots, contextLabel, scanOptions = {}) {
   const timeoutMs = ARB_TIMEOUT_MS;
   const controller = new AbortController();
+  const cancel = () => controller.abort();
+  scanOptions.signal?.addEventListener("abort", cancel, { once: true });
+  if (scanOptions.signal?.aborted) cancel();
   recordWorkerState({ running: true, lastRunAt: Date.now() });
 
   let timeoutId;
@@ -521,7 +523,7 @@ async function runArbWithTimeout(useFlashbots, contextLabel) {
   });
 
   const arbPromise = simulateAndExecuteArb(useFlashbots, {
-    signal: controller.signal,
+    ...scanOptions, signal: controller.signal,
   });
 
   try {
@@ -563,6 +565,7 @@ async function runArbWithTimeout(useFlashbots, contextLabel) {
     throw err;
   } finally {
     clearTimeout(timeoutId);
+    scanOptions.signal?.removeEventListener("abort", cancel);
     arbPromise.catch(() => {});
   }
 }
@@ -2016,55 +2019,30 @@ app.get("/api/daily-stats", async (_req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Cron: scheduled arbitrage checks (once per minute)
+// Block-driven arbitrage scheduling
 // ─────────────────────────────────────────────────────────────────────────────
-if (process.env.NODE_ENV !== "test") {
-  cron.schedule(
-    "* * * * *",
-    withCronBoundary("scheduler", async () => {
-      if (!botSettings.botActive) {
-        recordWorkerState({ running: false });
-        return;
-      }
-
+function startArbitrageScheduler() {
+  const c = coordinator();
+  if (c.scheduler) return c.scheduler;
+  const { BlockScheduler } = require("../bot/blockScheduler");
+  c.scheduler = new BlockScheduler({
+    provider: c.provider,
+    websocketUrl: process.env.MAINNET_WEBSOCKET,
+    pollIntervalMs: c.profile.blockPollIntervalMs,
+    enabled: () => botSettings.botActive || c.ledger.pending().length > 0,
+    cancellable: () => Boolean(c.marketCache.head),
+    budgetMs: () => c.marketCache.head ? c.profile.scanBudgetMs : 60000,
+    onError: err => notifyError("block_scheduler", err),
+    run: async options => {
       const startTime = Date.now();
-      arbAttempts.inc();
-
-      const result = await runArbWithTimeout(
-        botSettings.flashbotsDefault,
-        "scheduler"
-      );
-      const elapsed = (Date.now() - startTime) / 1000;
-      simulationHistogram.observe(elapsed);
-      avgLatency.set(elapsed * 1000);
-
-      if (result.executed) {
-        arbSuccess.inc();
-        const estimatedProfit = result?.estimatedProfitInDai;
-        let formattedProfit = 0;
-        if (estimatedProfit !== undefined && estimatedProfit !== null) {
-          formattedProfit = parseFloat(
-            ethers.utils.formatUnits(estimatedProfit, 18)
-          );
-          if (!Number.isNaN(formattedProfit)) {
-            avgProfit.set(formattedProfit);
-          }
-        }
-        logger.info("Scheduler: executed arb");
-
-        // Broadcast trade execution to WebSocket clients
-        broadcastTradeExecuted({
-          executed: true,
-          profit: formattedProfit,
-          connextStatus: result.connextStatus,
-          timestamp: Date.now(),
-        });
-      } else {
-        arbFailure.labels("no_opportunity").inc();
-        logger.info("Scheduler: no opportunity");
-      }
-    })
-  );
+      const result = await runArbWithTimeout(botSettings.flashbotsDefault, "block_scheduler", options);
+      const elapsed = Date.now() - startTime;
+      simulationHistogram.observe(elapsed / 1000);
+      avgLatency.set(elapsed);
+      if (result.executed) broadcastTradeExecuted({ ...result, timestamp: Date.now() });
+    },
+  }).start();
+  return c.scheduler;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2073,7 +2051,7 @@ if (process.env.NODE_ENV !== "test") {
 const buildPath = path.join(__dirname, "../../frontend/build");
 if (process.env.NODE_ENV !== "test") {
   app.use(express.static(buildPath));
-  app.get("*", (_req, res) => res.sendFile(path.join(buildPath, "index.html")));
+  app.get("/{*path}", (_req, res) => res.sendFile(path.join(buildPath, "index.html")));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2285,6 +2263,10 @@ const start = async (port = PORT) => {
 
   // Initialize WebSocket server
   initWebSocketServer(server);
+  if (process.env.NODE_ENV !== "test") {
+    const scheduler = startArbitrageScheduler();
+    server.once("close", () => scheduler.stop());
+  }
 
   return new Promise((resolve) => {
     server.listen(port, process.env.API_BIND_HOST || "127.0.0.1", () => {

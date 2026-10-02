@@ -1,21 +1,28 @@
 const {Contract,constants}=require('ethers');
 const {bn,address}=require('../bot/units');
 const {swapStep}=require('./base');
+const {mapLimit}=require('../bot/asyncControl');
 const FACTORY=['function getPool(address,address,uint24) view returns(address)'];
 const POOL=['function token0() view returns(address)','function token1() view returns(address)','function factory() view returns(address)','function fee() view returns(uint24)','function slot0() view returns(uint160,int24,uint16,uint16,uint16,uint32,bool)','function liquidity() view returns(uint128)'];
 const QUOTER_V1=['function quoteExactInputSingle(address,address,uint24,uint256,uint160) returns(uint256)','function quoteExactOutputSingle(address,address,uint24,uint256,uint160) returns(uint256)','function factory() view returns(address)'];
 const QUOTER_V2=['function quoteExactInputSingle(tuple(address tokenIn,address tokenOut,uint256 amountIn,uint24 fee,uint160 sqrtPriceLimitX96)) returns(uint256 amountOut,uint160,uint32,uint256 gasEstimate)','function quoteExactOutputSingle(tuple(address tokenIn,address tokenOut,uint256 amount,uint24 fee,uint160 sqrtPriceLimitX96)) returns(uint256 amountIn,uint160,uint32,uint256 gasEstimate)','function factory() view returns(address)'];
 class V3Adapter {
   constructor(provider,config,dex='uniswap_v3'){this.provider=provider;this.config=config;this.dex=dex;this.validations=new Set();this.factory=new Contract(address(config.factory),FACTORY,provider);this.router=new Contract(address(config.router),['function factory() view returns(address)'],provider);this.quoter=new Contract(address(config.quoter),config.quoterVersion===2?QUOTER_V2:QUOTER_V1,provider);}
-  async discoverPools(tokens,blockTag){
-    const pools=[];
-    for(let i=0;i<tokens.length;i++)for(let j=i+1;j<tokens.length;j++)for(const feeTier of this.config.feeTiers){
-      const poolAddress=await this.factory.getPool(tokens[i],tokens[j],feeTier,{blockTag});
-      if(address(poolAddress)===address(constants.AddressZero))continue;
+  async discoverPools(tokens,blockTag,signal){
+    const pairs=[];
+    for(let i=0;i<tokens.length;i++)for(let j=i+1;j<tokens.length;j++)for(const feeTier of this.config.feeTiers)pairs.push([tokens[i],tokens[j],feeTier]);
+    const pools=await mapLimit(pairs,2,async pair=>{
+      const feeTier=pair[2],poolAddress=await this.factory.getPool(...pair,{blockTag});
+      if(address(poolAddress)===address(constants.AddressZero))return null;
       const pool={dex:this.dex,poolAddress,router:address(this.config.router),factory:address(this.config.factory),quoter:address(this.config.quoter),feeTier,stateBlock:blockTag,stateTimestamp:Date.now()};
-      const state=await this.getPoolState(pool,blockTag);if(bn(state.liquidity).gt(0))pools.push({...pool,...state});
-    }
-    return pools;
+      const state=await this.getPoolState(pool,blockTag);return {...pool,...state};
+    },signal);
+    return pools.filter(Boolean);
+  }
+  async getDynamicState(pool,blockTag){
+    const c=new Contract(pool.poolAddress,POOL,this.provider);
+    const [slot,liquidity]=await Promise.all([c.slot0({blockTag}),c.liquidity({blockTag})]);
+    return {sqrtPriceX96:slot[0],liquidity,stateBlock:blockTag,stateTimestamp:Date.now()};
   }
   async getPoolState(pool,blockTag){
     const c=new Contract(pool.poolAddress,POOL,this.provider);

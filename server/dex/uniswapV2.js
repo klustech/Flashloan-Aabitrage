@@ -1,20 +1,26 @@
 const { Contract, constants } = require('ethers');
 const { bn,address }=require('../bot/units');
 const { swapStep }=require('./base');
+const { mapLimit }=require('../bot/asyncControl');
 const FACTORY=['function getPair(address,address) view returns (address)'];
 const PAIR=['function token0() view returns(address)','function token1() view returns(address)','function getReserves() view returns(uint112,uint112,uint32)','function factory() view returns(address)'];
 const ROUTER=['function getAmountsOut(uint256,address[]) view returns(uint256[])','function getAmountsIn(uint256,address[]) view returns(uint256[])','function factory() view returns(address)'];
 class V2Adapter {
   constructor(provider,config,dex='uniswap_v2') {this.provider=provider;this.config=config;this.dex=dex;this.validations=new Set();this.factory=new Contract(address(config.factory),FACTORY,provider);this.router=new Contract(address(config.router),ROUTER,provider);}
-  async discoverPools(tokens,blockTag) {
-    const pools=[];
-    for(let i=0;i<tokens.length;i++)for(let j=i+1;j<tokens.length;j++) {
-      const poolAddress=await this.factory.getPair(tokens[i],tokens[j],{blockTag});
-      if(address(poolAddress)===address(constants.AddressZero))continue;
+  async discoverPools(tokens,blockTag,signal) {
+    const pairs=[];
+    for(let i=0;i<tokens.length;i++)for(let j=i+1;j<tokens.length;j++)pairs.push([tokens[i],tokens[j]]);
+    const pools=await mapLimit(pairs,2,async pair=>{
+      const poolAddress=await this.factory.getPair(...pair,{blockTag});
+      if(address(poolAddress)===address(constants.AddressZero))return null;
       const pool={dex:this.dex,poolAddress,router:address(this.config.router),factory:address(this.config.factory),feeBps:30,stateBlock:blockTag,stateTimestamp:Date.now()};
-      const state=await this.getPoolState(pool,blockTag);if(bn(state.reserve0).gt(0)&&bn(state.reserve1).gt(0))pools.push({...pool,...state});
-    }
-    return pools;
+      const state=await this.getPoolState(pool,blockTag);return {...pool,...state};
+    },signal);
+    return pools.filter(Boolean);
+  }
+  async getDynamicState(pool,blockTag) {
+    const reserves=await new Contract(pool.poolAddress,PAIR,this.provider).getReserves({blockTag});
+    return {reserve0:reserves[0],reserve1:reserves[1],stateBlock:blockTag,stateTimestamp:Date.now()};
   }
   async getPoolState(pool,blockTag) {
     const c=new Contract(pool.poolAddress,PAIR,this.provider);
