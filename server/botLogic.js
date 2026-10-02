@@ -2078,11 +2078,8 @@ module.exports.initializeTier1Features = initializeTier1Features;
 module.exports.executeBackrun = executeBackrun;
 
 if (require.main === module) {
-  (async () => {
-    require("./bot/stateMachine").tradingState.paper();
-    while (true) {
-      await simulateAndExecuteArb();
-      await new Promise((r) => setTimeout(r, 10_000));
-    }
-  })();
+  require("../scripts/run-bot").runBot().then(() => process.exit(0)).catch(err => {
+    console.error(err.message);
+    process.exit(1);
+  });
 }

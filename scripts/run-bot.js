@@ -1,7 +1,7 @@
 // scripts/run-bot.js
 /**
  * Simple runner for the arbitrage bot logic.
- * Imports simulateAndExecuteArb from server logic and loops indefinitely.
+ * Imports the production block scheduler; finite cycle runs remain available for diagnostics.
  * Usage:
  *   node scripts/run-bot.js
  */
@@ -34,7 +34,7 @@ async function delay(ms) {
 
 async function runBot({
   maxCycles = Infinity,
-  pollIntervalMs = 10_000,
+  pollIntervalMs = 1000,
   useFlashbots = true,
 } = {}) {
   console.log("🤖  Starting arbitrage bot...");
@@ -48,6 +48,30 @@ async function runBot({
   console.log(featureStatus("Curve routing", features.curve));
   console.log(describePriceIngestion());
   require("../server/bot/stateMachine").tradingState.paper();
+  if (!Number.isFinite(maxCycles)) {
+    const { getCoordinator } = require("../server/bot/coordinator");
+    const { BlockScheduler } = require("../server/bot/blockScheduler");
+    const c = getCoordinator();
+    let lastResult = { executed: false };
+    return new Promise(resolve => {
+      const stop = () => {
+        c.scheduler.stop();
+        process.removeListener("SIGINT", stop);
+        process.removeListener("SIGTERM", stop);
+        resolve(lastResult);
+      };
+      c.scheduler = new BlockScheduler({
+        provider: c.provider, websocketUrl: process.env.MAINNET_WEBSOCKET,
+        pollIntervalMs: c.profile.blockPollIntervalMs,
+        cancellable: () => Boolean(c.marketCache.head),
+        budgetMs: () => c.marketCache.head ? c.profile.scanBudgetMs : 60000,
+        run: async options => { lastResult = await simulateAndExecuteArb(useFlashbots, options); },
+        onError: err => console.error("Bot scan failed:", err.message),
+      }).start();
+      process.once("SIGINT", stop);
+      process.once("SIGTERM", stop);
+    });
+  }
   let cycles = 0;
   let lastResult = { executed: false, estimatedProfitInDai: null };
 
@@ -75,7 +99,7 @@ async function runBot({
 }
 
 if (require.main === module) {
-  runBot().catch((err) => {
+  runBot().then(() => process.exit(0)).catch((err) => {
     console.error("❌  Fatal error in bot runner:", err);
     process.exit(1);
   });

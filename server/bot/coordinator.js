@@ -7,9 +7,11 @@ const {createProvider,pinnedBlock}=require('../market/marketState');
 const {createAdapters}=require('../dex');
 const {AaveV2}=require('../flashloan/aaveV2');
 const {QuoteEngine}=require('./quoteEngine');
-const {sizeTrade}=require('./tradeSizer');
+const {sizeTrade,sizingSeed}=require('./tradeSizer');
+const {PoolStateCache}=require('../market/poolStateCache');
+const {abortError,checkSignal,abortable,mapLimit}=require('./asyncControl');
 const {profitability}=require('./profitabilityEngine');
-const {discoverCandidates,priceMovementBps}=require('./opportunityEngine');
+const {priceMovementBps,CandidateIndex}=require('./opportunityEngine');
 const {builderTip}=require('../execution/builderTip');
 const {PrivateRelays}=require('../execution/privateRelays');
 const {TradeLedger}=require('./tradeLedger');
@@ -27,6 +29,8 @@ class Coordinator {
     this.contract=new Contract(this.profile.contractAddress,require('../abis/ArbitrageFlashloan.json'),this.provider);
     this.tokens=new TokenRegistry(this.provider,this.profile.chainId);this.poolRegistry=new PoolRegistry(this.tokens);
     this.adapters=adapters||createAdapters(this.provider,this.profile);this.quoter=new QuoteEngine(this.adapters);this.flashloan=new AaveV2(this.provider,this.profile.flashloanProvider);
+    this.marketCache=new PoolStateCache({provider:this.provider,adapters:this.adapters,tokens:this.tokens,profile:this.profile});
+    this.termsCache=new Map();this.candidateIndex=new CandidateIndex();this.latency=null;
     this.ledger=ledger||new TradeLedger({persist:async row=>{const db=require('../dbClient');if(db.isDbEnabled())await db.upsertExecution(row);else if(process.env.NODE_ENV==='production')throw new Error('Execution database unavailable');}});
     this.relays=new PrivateRelays(this.provider,this.profile.relays,process.env.FLASHBOTS_AUTH_KEY);
     this.burnIn=new PaperBurnIn(this.profile);
@@ -48,20 +52,32 @@ class Coordinator {
     const borrow=address(token),weth=address(this.profile.tokens.WETH);
     if(borrow===weth)return {toBorrow:async v=>bn(v),toNative:async v=>bn(v)};
     const pool=this.poolRegistry.values().find(p=>p.dex==='uniswap_v2'&&[p.token0,p.token1].includes(borrow)&&[p.token0,p.token1].includes(weth));
-    if(!pool)throw new Error('Missing exact Uniswap V2 gas valuation pool');const leg=edge(pool,borrow),adapter=this.adapters.uniswap_v2;
-    return {toBorrow:async(v,block)=>bn(v).isZero()?bn(0):adapter.quoteExactOutput(leg,v,block),toNative:async(v,block)=>bn(v).lte(0)?bn(0):adapter.quoteExactInput(leg,v,block)};
+    if(!pool)throw new Error('Missing exact Uniswap V2 gas valuation pool');const leg=edge(pool,borrow);
+    return {toBorrow:async(v,block)=>bn(v).isZero()?bn(0):this.quoter.quoteLeg(leg,v,block,'output'),toNative:async(v,block)=>bn(v).lte(0)?bn(0):this.quoter.quoteLeg(leg,v,block,'input')};
   }
-  async discover(){
-    await this.initialize();const block=await pinnedBlock(this.provider);this.poolRegistry=new PoolRegistry(this.tokens);
-    const tokenAddresses=this.profile.tokenSymbols.map(s=>address(this.profile.tokens[s]));
-    const results=await Promise.allSettled(Object.values(this.adapters).map(a=>a.discoverPools(tokenAddresses,block.number)));
-    for(let i=0;i<results.length;i++){const r=results[i];if(r.status==='fulfilled')for(const pool of r.value)this.poolRegistry.add(pool);else this.emit('discovery_rejected',{dex:Object.keys(this.adapters)[i],reason:r.reason.message});}
-    return {block,candidates:discoverCandidates(this.poolRegistry,this.profile.borrowSymbols.map(s=>address(this.profile.tokens[s])),block.number)};
+  async discover(signal){
+    await abortable(this.initialize(),signal);const block=await abortable(pinnedBlock(this.provider),signal);
+    const snapshot=await this.marketCache.sync(block,{signal});this.poolRegistry=snapshot.registry;
+    return {block,candidates:this.candidateIndex.candidates(this.poolRegistry,this.profile.borrowSymbols.map(s=>address(this.profile.tokens[s])),block.number,snapshot.changedPools,this.profile.maxCandidates)};
   }
-  async refresh(route,block){
-    const registry=new PoolRegistry(this.tokens),legs=[];
-    for(const leg of route.legs){const state=await this.adapters[leg.dex].getPoolState(leg,block.number);const fresh=edge(registry.add({...leg,...state}),leg.tokenIn);if(priceMovementBps(leg,fresh).gt(this.profile.maxPriceMovementBps))throw new Error('Pool price moved beyond limit');legs.push(fresh);}
+  async refresh(route,block,signal){
+    const registry=new PoolRegistry(this.tokens);
+    const legs=await mapLimit(route.legs,3,async leg=>{
+      const cached=this.marketCache?.head?.hash===block.hash?this.poolRegistry.values().find(p=>p.poolAddress===leg.poolAddress&&p.dex===leg.dex):null;
+      const state=cached||await this.adapters[leg.dex].getPoolState(leg,block.number);
+      const fresh=edge(registry.add({...leg,...state}),leg.tokenIn);if(priceMovementBps(leg,fresh).gt(this.profile.maxPriceMovementBps))throw new Error('Pool price moved beyond limit');return fresh;
+    },signal);
     return {...route,legs,hops:legs,stateBlock:block.number};
+  }
+  terms(token,block,signal){
+    this.termsCache ||= new Map();
+    const key=`${block.hash}:${token}`;if(!this.termsCache.has(key))this.termsCache.set(key,this.flashloan.terms(token,block.number));
+    return abortable(this.termsCache.get(key),signal);
+  }
+  bounds(route,terms){
+    const cap=this.tokens.parse(route.borrowToken,this.profile.maxBorrowAmount),requested=this.tokens.parse(route.borrowToken,this.overrides.maxBorrowAmount??this.profile.maxBorrowAmount);
+    const maximum=requested.lt(cap)?requested:cap;
+    return {minInput:this.tokens.parse(route.borrowToken,this.overrides.minBorrowAmount??this.profile.minBorrowAmount),maxInput:maximum.lt(terms.availableLiquidity)?maximum:terms.availableLiquidity};
   }
   async calculateEconomics(quote,gasUnits,tip,terms,blockTag){
     const convert=this.converter(quote.route.borrowToken);
@@ -71,86 +87,109 @@ class Coordinator {
     const totalBorrow=await convert.toBorrow(gasNative.add(builderNative),blockTag),gasBorrow=await convert.toBorrow(gasNative,blockTag);
     return profitability({borrowToken:quote.route.borrowToken,borrowAmount:quote.borrowAmount,expectedFinalAmount:quote.expectedFinalAmount,flashloanFee:this.flashloan.fee(quote.borrowAmount,terms.premiumBps),estimatedGasUnits:gasUnits,gasCostNative:gasNative,gasCostBorrowToken:gasBorrow,builderPaymentNative:builderNative,builderPaymentBorrowToken:totalBorrow.sub(gasBorrow),minimumRequiredProfit:this.tokens.parse(quote.route.borrowToken,this.profile.minimumRequiredProfit)});
   }
-  async evaluate(route,amount,terms,block){
-    const quote=await this.quoter.quoteRoute(route,amount,block.number);
+  async evaluate(route,amount,terms,block,signal){
+    const quote=await this.quoter.quoteRoute(route,amount,block.number,signal);
     const gross=quote.expectedFinalAmount.sub(amount).sub(this.flashloan.fee(amount,terms.premiumBps));
-    const nativeGross=await this.converter(route.borrowToken).toNative(gross,block.number);
+    const nativeGross=await abortable(this.converter(route.borrowToken).toNative(gross,block.number),signal);
     if (gross.lte(this.tokens.parse(route.borrowToken,this.profile.minimumRequiredProfit))) throw new Error('Not profitable after premium');
-    const data=this.quoter.buildData(quote,this.tokens.parse(route.borrowToken,this.profile.minimumRequiredProfit),Math.min(this.overrides.slippageBps??this.profile.slippageBps,this.profile.slippageBps));
-    const transaction={to:this.contract.address,from:address(this.operatorAddress),data:this.contract.interface.encodeFunctionData('initiateFlashLoan',[data])};
-    await this.provider.call(transaction,block.number);
-    const seedGas=bn(await this.provider.estimateGas(transaction)).mul(120).add(99).div(100);
+    // Screening/sizing gas is provisional. The selected route must still pass
+    // full executor calls, a measured gas estimate and net checks in prepare.
+    const seedGas=bn(120000+130000*route.legs.length);
     if(seedGas.gt(this.profile.maxGasUnits))throw new Error('Sizing gas exceeds ceiling');
     const tip=builderTip({profitNativeWei:nativeGross,baseFeePerGas:block.baseFeePerGas,gasLimit:seedGas,maxBuilderShareBps:this.profile.maxBuilderShareBps,maxPriorityFeePerGas:utils.parseUnits('5','gwei')});
-    const economics=await this.calculateEconomics(quote,seedGas,tip,terms,block.number);
+    const economics=await abortable(this.calculateEconomics(quote,seedGas,tip,terms,block.number),signal);
+    economics.gasEstimation='screening_heuristic';checkSignal(signal);
     return {quote,economics,tip};
   }
   async prepare(best,terms,block,signal){
-    const route=await this.refresh(best.quote.route,block);
-    const quote=await this.quoter.quoteRoute(route,best.quote.borrowAmount,block.number);
+    checkSignal(signal);const route=await this.refresh(best.quote.route,block,signal);
+    const quote=await this.quoter.quoteRoute(route,best.quote.borrowAmount,block.number,signal);
     const gross=quote.expectedFinalAmount.sub(quote.borrowAmount).sub(this.flashloan.fee(quote.borrowAmount,terms.premiumBps));
-    const nativeGross=await this.converter(route.borrowToken).toNative(gross,block.number);
+    const nativeGross=await abortable(this.converter(route.borrowToken).toNative(gross,block.number),signal);
     const preliminary=this.quoter.buildData(quote,this.tokens.parse(route.borrowToken,this.profile.minimumRequiredProfit),Math.min(this.overrides.slippageBps??this.profile.slippageBps,this.profile.slippageBps));
     const from=address(this.operatorAddress);
-    await this.provider.call({to:this.contract.address,from,data:this.contract.interface.encodeFunctionData('initiateFlashLoan',[preliminary])},block.number);
-    const gasEstimate=await this.provider.estimateGas({to:this.contract.address,from,data:this.contract.interface.encodeFunctionData('initiateFlashLoan',[preliminary])});
+    this.scanStats.transactionCalls++;await abortable(this.provider.call({to:this.contract.address,from,data:this.contract.interface.encodeFunctionData('initiateFlashLoan',[preliminary])},block.number),signal);
+    this.scanStats.gasEstimates++;const gasEstimate=await abortable(this.provider.estimateGas({to:this.contract.address,from,data:this.contract.interface.encodeFunctionData('initiateFlashLoan',[preliminary])}),signal);
     const gasLimit=bn(gasEstimate).mul(120).add(99).div(100);
     if(gasLimit.gt(this.profile.maxGasUnits))throw new Error('Estimated gas exceeds limit');
     const tip=builderTip({profitNativeWei:nativeGross,baseFeePerGas:block.baseFeePerGas,gasLimit,maxBuilderShareBps:this.profile.maxBuilderShareBps,maxPriorityFeePerGas:utils.parseUnits('5','gwei')});
     const hardCeiling=utils.parseUnits(String(this.profile.gasCeilingGwei),'gwei'),requestedCeiling=utils.parseUnits(String(this.overrides.gasCeilingGwei??this.profile.gasCeilingGwei),'gwei');const ceiling=requestedCeiling.lt(hardCeiling)?requestedCeiling:hardCeiling;if(tip.maxFeePerGas.gt(ceiling))throw new Error('Gas price exceeds ceiling');
-    const economics=await this.calculateEconomics(quote,gasLimit,tip,terms,block.number);
+    const economics=await abortable(this.calculateEconomics(quote,gasLimit,tip,terms,block.number),signal);economics.gasEstimation='executor_estimate_with_margin';
     const minProfit=economics.minimumRequiredProfit.add(economics.estimatedGasCostBorrowToken).add(economics.estimatedBuilderPaymentBorrowToken);
     const data=this.quoter.buildData(quote,minProfit,Math.min(this.overrides.slippageBps??this.profile.slippageBps,this.profile.slippageBps));
     const transaction={to:this.contract.address,from,data:this.contract.interface.encodeFunctionData('initiateFlashLoan',[data]),gasLimit,maxFeePerGas:tip.maxFeePerGas,maxPriorityFeePerGas:tip.maxPriorityFeePerGas};
-    await this.provider.call(transaction,block.number);
-    const head=await pinnedBlock(this.provider);if(head.hash!==block.hash)throw new Error('Quote expired across chain head');
+    this.scanStats.transactionCalls++;await abortable(this.provider.call(transaction,block.number),signal);
+    const head=await abortable(pinnedBlock(this.provider),signal);if(head.hash!==block.hash)throw abortError('Quote expired across chain head');
     executionGuard({route,quote,economics,profile:this.profile,head:head.number,signal});
-    const record={id:crypto.randomUUID(),candidateId:route.id,status:'DISCOVERED',mode:this.state.snapshot().mode,discoveredAt:Date.now(),profileFingerprint:this.profile.fingerprint,borrowToken:route.borrowToken,token:this.tokens.get(route.borrowToken),borrowAmount:quote.borrowAmount,flashloanPremium:economics.flashloanFee,route,swapData:data,economics,stateBlock:block.number,stateBlockHash:block.hash,profitRecipient:await this.contract.profitRecipient(),weth:this.profile.tokens.WETH};
+    const profitRecipient=await abortable(this.contract.profitRecipient({blockTag:block.number}),signal);checkSignal(signal);
+    const record={id:crypto.randomUUID(),candidateId:route.id,status:'DISCOVERED',mode:this.state.snapshot().mode,discoveredAt:Date.now(),profileFingerprint:this.profile.fingerprint,borrowToken:route.borrowToken,token:this.tokens.get(route.borrowToken),borrowAmount:quote.borrowAmount,flashloanPremium:economics.flashloanFee,route,swapData:data,economics,stateBlock:block.number,stateBlockHash:block.hash,profitRecipient,weth:this.profile.tokens.WETH};
     await this.ledger.write(record);
     return {quote,economics,tip,terms,block,transaction,record};
   }
   async cycle({signal}={}){
     if(this.busy)return {executed:false,reason:'cycle_already_running'};
-    if(!['PAPER','LIVE_RUNNING'].includes(this.state.state))return {executed:false,reason:'scanner_stopped_or_paused'};
+    const scanning=['PAPER','LIVE_RUNNING'].includes(this.state.state);
+    if(!scanning&&!this.ledger.pending().length)return {executed:false,reason:'scanner_stopped_or_paused'};
     this.busy=true;const revision=this.state.revision;let prepared=null;
+    const startedAt=Date.now(),controller=new AbortController(),externalSignal=signal;
+    const cancel=()=>controller.abort();externalSignal?.addEventListener('abort',cancel,{once:true});if(externalSignal?.aborted)cancel();signal=controller.signal;
+    const timer=setTimeout(cancel,this.marketCache&&!this.marketCache.head?60000:(this.profile.scanBudgetMs||5000));
+    this.scanStats={screened:0,sized:0,transactionCalls:0,gasEstimates:0,stageTimes:{}};
     try{
-      if(signal?.aborted)throw new Error('Aborted');
-      const found=await this.discover();
+      checkSignal(signal);
+      const found=await this.discover(signal),block=found.block||await abortable(pinnedBlock(this.provider),signal);
+      this.scanStats.stageTimes.cacheMs=Date.now()-startedAt;
+      this.quoter?.beginBlock(block.hash);this.termsCache?.clear();
       if(await this.execution.reconcile())return {executed:false,reason:'pending_receipt'};
-      const finalists=[];
-      for(const candidate of found.candidates.slice(0,this.profile.maxCandidates)){
+      if(!scanning)return {executed:false,reason:'receipts_reconciled_while_paused'};
+      const screeningStarted=Date.now();
+      const screened=await mapLimit(found.candidates.slice(0,this.profile.maxCandidates),2,async candidate=>{
         try{
-          if(signal?.aborted||revision!==this.state.revision)throw new Error('Scan interrupted');
-          const block=await pinnedBlock(this.provider),route=await this.refresh(candidate,block),terms=await this.flashloan.terms(route.borrowToken,block.number);
-          const configuredMaximum=this.tokens.parse(route.borrowToken,this.profile.maxBorrowAmount);
-          const requestedMaximum=this.tokens.parse(route.borrowToken,this.overrides.maxBorrowAmount??this.profile.maxBorrowAmount);
-          const maximum=requestedMaximum.lt(configuredMaximum)?requestedMaximum:configuredMaximum;
-          const maxInput=maximum.lt(terms.availableLiquidity)?maximum:terms.availableLiquidity;
-          const minimum=this.tokens.parse(route.borrowToken,this.overrides.minBorrowAmount??this.profile.minBorrowAmount);
-          const sized=await sizeTrade({route,minInput:minimum,maxInput,premiumBps:terms.premiumBps,evaluate:amount=>this.evaluate(route,amount,terms,block)});
-          if(sized?.economics.profitable)finalists.push({...sized,terms});else await this.reject(candidate,'no_profitable_exact_size');
-        }catch(err){await this.reject(candidate,err.message);}
+          checkSignal(signal);if(revision!==this.state.revision)throw abortError('Scan interrupted');
+          const route=await this.refresh(candidate,block,signal),terms=await this.terms(route.borrowToken,block,signal);
+          // Fee-aware marginal spread is a mathematical upper-bound prefilter;
+          // it never replaces exact V3 quotes or final transaction simulation.
+          if(route.spreadPpm&&route.spreadPpm.lte(terms.premiumBps*100)){await this.reject(candidate,'marginal_spread_below_premium');return null;}
+          const bounds=this.bounds(route,terms);if(bounds.maxInput.lt(bounds.minInput))throw new Error('Insufficient liquidity for minimum size');
+          let seed=bounds.minInput;try{seed=bn(sizingSeed(route,bounds.maxInput,terms.premiumBps));}catch(_){}
+          if(seed.lt(bounds.minInput))seed=bounds.minInput;if(seed.gt(bounds.maxInput))seed=bounds.maxInput;
+          this.scanStats.screened++;
+          const result=await this.evaluate(route,seed,terms,block,signal);
+          if(!result.economics.profitable){await this.reject(candidate,'exact_screen_not_profitable');return null;}
+          const netNative=await abortable(this.converter(route.borrowToken).toNative(result.economics.expectedNetProfit,block.number),signal);
+          return {route,terms,bounds,result,netNative};
+        }catch(err){if(err.name==='AbortError')throw err;await this.reject(candidate,err.message);return null;}
+      },signal);
+      this.scanStats.stageTimes.screeningMs=Date.now()-screeningStarted;
+      const ranked=screened.filter(Boolean).sort((a,b)=>a.netNative.gt(b.netNative)?-1:1),sizingStarted=Date.now();
+      const finalists=[];
+      for(const item of ranked.slice(0,this.profile.maxSizedCandidates||1)){
+        checkSignal(signal);this.scanStats.sized++;
+        const sized=await sizeTrade({route:item.route,...item.bounds,premiumBps:item.terms.premiumBps,samples:this.profile.sizingSamples||4,refinements:this.profile.sizingRefinements??1,signal,evaluate:amount=>this.evaluate(item.route,amount,item.terms,block,signal)});
+        if(sized?.economics.profitable){const netNative=await abortable(this.converter(item.route.borrowToken).toNative(sized.economics.expectedNetProfit,block.number),signal);finalists.push({...sized,terms:item.terms,netNative});}
+        else await this.reject(item.route,'no_profitable_exact_size');
       }
-      // Candidates for different borrow tokens are compared in executable native units.
-      for(const f of finalists)f.netNative=await this.converter(f.quote.route.borrowToken).toNative(f.economics.expectedNetProfit,f.quote.stateBlock);
+      this.scanStats.stageTimes.sizingMs=Date.now()-sizingStarted;
       finalists.sort((a,b)=>a.netNative.gt(b.netNative)?-1:1);
-      for(const best of finalists){try{const block=await pinnedBlock(this.provider),terms=await this.flashloan.terms(best.quote.route.borrowToken,block.number);prepared=await this.prepare(best,terms,block,signal);break;}catch(err){await this.reject(best.quote.route,err.message);}}
+      const preparationStarted=Date.now();
+      for(const best of finalists){try{checkSignal(signal);const head=await abortable(pinnedBlock(this.provider),signal);if(head.hash!==block.hash)throw abortError('Chain head advanced during sizing');prepared=await this.prepare(best,best.terms,block,signal);break;}catch(err){if(err.name==='AbortError')throw err;await this.reject(best.quote.route,err.message);}}
+      this.scanStats.stageTimes.preparationMs=Date.now()-preparationStarted;
       if(!prepared){this.lastCycle={at:Date.now(),mode:this.state.snapshot().mode,candidates:found.candidates.length,reason:'no_profitable_simulated_candidate'};return {executed:false,...this.lastCycle};}
-      if(revision!==this.state.revision)throw new Error('Trading mode changed during cycle');
+      checkSignal(signal);if(revision!==this.state.revision)throw abortError('Trading mode changed during cycle');
       if(this.state.state==='PAPER'){
         const record=await this.ledger.write({...prepared.record,status:'SIMULATED',simulation:{callStatic:true,bundle:false,bundleReason:'PAPER does not sign transactions'}});
         this.emit('opportunity',record);this.lastCycle={at:Date.now(),mode:'PAPER',simulated:true,candidates:found.candidates.length};return {executed:false,simulated:true,mode:'PAPER',estimatedProfitInDai:prepared.economics.expectedNetProfit,trade:serialize(record)};
       }
-      const readiness=await this.checkReadiness();if(!readiness.ready)throw new Error(readiness.errors.join('; '));
-      const result=await this.execution.execute(prepared,{signal,revision});this.lastCycle={at:Date.now(),mode:'LIVE',status:result.status||result.trade?.status};return result;
+      const readinessStarted=Date.now(),readiness=await abortable(this.checkReadiness(),signal);this.scanStats.stageTimes.readinessMs=Date.now()-readinessStarted;if(!readiness.ready)throw new Error(readiness.errors.join('; '));
+      const executionStarted=Date.now(),result=await this.execution.execute(prepared,{signal,revision});this.scanStats.stageTimes.executionMs=Date.now()-executionStarted;this.lastCycle={at:Date.now(),mode:'LIVE',status:result.status||result.trade?.status};return result;
     }catch(err){
       if(prepared){const saved=this.ledger.records.get(prepared.record.id);if(saved&&['DISCOVERED','SIMULATED'].includes(saved.status))await this.ledger.write({...saved,status:'DROPPED',reason:err.message});}
       this.lastCycle={at:Date.now(),mode:this.state.snapshot().mode,reason:err.message};this.emit('cycle_rejected',this.lastCycle);
-      if(this.state.state==='LIVE_RUNNING')this.state.pause(err.message);
+      if(this.state.state==='LIVE_RUNNING'&&err.name!=='AbortError')this.state.pause(err.message);
       return {executed:false,reason:err.message};
-    }finally{if(this.state.state==='PAPER' && revision===this.state.revision)this.burnIn.record(this.lastCycle);this.busy=false;}
+    }finally{clearTimeout(timer);externalSignal?.removeEventListener('abort',cancel);this.latency={durationMs:Date.now()-startedAt,...this.scanStats,quotes:this.quoter?.stats,cache:this.marketCache?.status(),candidates:this.candidateIndex?.stats};if(this.lastCycle)this.lastCycle.latency=this.latency;this.emit('scan_completed',this.latency);if(this.state.state==='PAPER' && revision===this.state.revision)this.burnIn.record(this.lastCycle);this.busy=false;}
   }
-  status(){return {trading:this.state.snapshot(),busy:this.busy,lastCycle:this.lastCycle,readiness:this.readiness,profile:{chain:this.profile.chain,chainId:this.profile.chainId,flashloanProvider:this.profile.flashloanProvider,strategies:['CROSS_DEX_TWO_LEG','TRIANGULAR_THREE_LEG'],fingerprint:this.profile.fingerprint},paperBurnIn:this.burnIn.data,summary:this.ledger.summary(),executions:this.ledger.recent(100)};}
+  status(){return {trading:this.state.snapshot(),busy:this.busy,lastCycle:this.lastCycle,latency:this.latency,scanner:this.scheduler?.status(),readiness:this.readiness,profile:{chain:this.profile.chain,chainId:this.profile.chainId,flashloanProvider:this.profile.flashloanProvider,strategies:['CROSS_DEX_TWO_LEG','TRIANGULAR_THREE_LEG'],fingerprint:this.profile.fingerprint},paperBurnIn:this.burnIn.data,summary:this.ledger.summary(),executions:this.ledger.recent(100)};}
 }
 let instance;
 function getCoordinator(){if(!instance)instance=new Coordinator();return instance;}
