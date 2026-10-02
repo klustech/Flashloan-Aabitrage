@@ -16,7 +16,7 @@ const enabled=process.env.ENABLE_MAINNET_FORK==='true'&&Boolean(process.env.MAIN
     const contract=await(await ethers.getContractFactory('ArbitrageFlashloan')).deploy(original.flashloanProvider.addressesProvider,operator.address,ethers.constants.AddressZero);await contract.deployed();
     const profile={...original,chainId:(await ethers.provider.getNetwork()).chainId,contractAddress:contract.address,operatorAddress:operator.address,maxQuoteAgeMs:60000,maxPoolStateAgeMs:60000};
     const state=new TradingStateMachine();state.paper();
-    const coordinator=new Coordinator({provider:ethers.provider,profile,state,ledger:new TradeLedger({file:null})});
+    const coordinator=new Coordinator({provider:ethers.provider,profile,state,wallet:operator,ledger:new TradeLedger({file:null})});
     const result=await coordinator.cycle();
     expect(result.simulated,`Fork proof failed: ${result.reason||'no exactly profitable route at the selected historical block'}`).to.equal(true);
     const trade=result.trade,data=trade.swapData;
