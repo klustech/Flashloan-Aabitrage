@@ -158,7 +158,6 @@ async function getCachedCoinGeckoPrice(coinId, vsCurrency) {
   inFlightCG[cacheKey] = (async () => {
     let attempt = 0;
 
-    require("./bot/stateMachine").tradingState.paper();
     while (true) {
       try {
         const { data } = await axios.get(
@@ -2087,4 +2086,3 @@ if (require.main === module) {
     }
   })();
 }
-
