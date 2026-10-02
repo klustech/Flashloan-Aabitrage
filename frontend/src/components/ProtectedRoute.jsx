@@ -12,6 +12,8 @@ const ProtectedRoute = ({ children, roles = [] }) => {
     hash: location.hash,
   };
 
+  if (process.env.REACT_APP_PRIVATE_DASHBOARD === "true") return children;
+
   if (isLoading) return <div>Loading...</div>;
   if (!isAuthenticated)
     return <Navigate to="/login" replace state={{ from: fromState }} />;
@@ -29,3 +31,4 @@ const ProtectedRoute = ({ children, roles = [] }) => {
 };
 
 export default ProtectedRoute;
+

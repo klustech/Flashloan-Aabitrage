@@ -64,7 +64,7 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
     // ─── DEX Types ───────────────────────────────────────────────────────────────
-    enum DexType { UNISWAP_V2, UNISWAP_V3, SUSHISWAP, BALANCER, CURVE }
+    enum DexType { UNISWAP_V2, UNISWAP_V3, SUSHISWAP, BALANCER, CURVE, PANCAKE_V3 }
 
     // ─── State Variables ────────────────────────────────────────────────────────
     address public owner;
@@ -73,6 +73,11 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
 
     ILendingPoolAddressesProvider public immutable provider;
     ILendingPool public immutable lendingPool;
+    uint256 public constant executorVersion = 2;
+    bool private loanActive;
+    bool private callbackCompleted;
+    bytes32 private activeDataHash;
+    uint256 private balanceBeforeLoan;
 
     // Timelock delay tracking for sensitive operations
     mapping(bytes32 => uint256) public timelockOperations;
@@ -206,7 +211,12 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
     /// @notice Initiate flash loan arbitrage
     /// @param data Complete arbitrage parameters
     function initiateFlashLoan(ArbitrageData calldata data) external onlyOwner whenNotPaused {
+        require(!loanActive, "loan active");
         _validateArbitrageData(data);
+        balanceBeforeLoan = IERC20(data.borrowToken).balanceOf(address(this));
+        loanActive = true;
+        callbackCompleted = false;
+        activeDataHash = keccak256(abi.encode(data));
 
         address[] memory assets = new address[](1);
         uint256[] memory amounts = new uint256[](1);
@@ -227,6 +237,9 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
             params,
             0
         );
+        require(callbackCompleted, "callback missing");
+        loanActive = false;
+        activeDataHash = bytes32(0);
     }
 
     /// @inheritdoc IFlashLoanReceiver
@@ -236,17 +249,22 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
         uint256[] calldata premiums,
         address initiator,
         bytes calldata params
-    ) external override nonReentrant returns (bool) {
+    ) external override nonReentrant whenNotPaused returns (bool) {
         require(msg.sender == address(lendingPool), "only pool");
         require(initiator == address(this), "bad initiator");
+        require(loanActive && !callbackCompleted, "unexpected callback");
+        require(assets.length == 1 && amounts.length == 1 && premiums.length == 1, "single asset only");
+        require(keccak256(params) == activeDataHash, "callback data mismatch");
 
         ArbitrageData memory data = abi.decode(params, (ArbitrageData));
+        require(assets[0] == data.borrowToken && amounts[0] == data.borrowAmount, "callback asset mismatch");
 
         // Execute arbitrage
         int256 pnl = _executeArbitrage(amounts[0], premiums[0], data);
 
         // Settle and repay
         _settleAndRepay(assets[0], amounts[0], premiums[0], pnl, data.route);
+        callbackCompleted = true;
 
         return true;
     }
@@ -269,19 +287,20 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
         // a net loss impossible (the contract holds no buffer to absorb one).
         uint256 finalBalance = IERC20(data.borrowToken).balanceOf(address(this));
         uint256 required = borrowedAmount + premium;
-        require(finalBalance >= required + data.minProfit, "profit<minProfit");
+        require(finalBalance >= balanceBeforeLoan + required + data.minProfit, "profit<minProfit");
 
-        return int256(finalBalance) - int256(required);
+        return int256(finalBalance - balanceBeforeLoan - required);
     }
 
     function _executeSwap(SwapStep memory step, uint256 amountIn) internal returns (uint256 amountOut) {
+        uint256 outputBefore = IERC20(step.tokenOut).balanceOf(address(this));
         // Approve router to spend tokens
         IERC20(step.tokenIn).safeApprove(step.router, 0);
         IERC20(step.tokenIn).safeApprove(step.router, amountIn);
 
         if (step.dexType == DexType.UNISWAP_V2 || step.dexType == DexType.SUSHISWAP) {
             amountOut = _swapV2(step, amountIn);
-        } else if (step.dexType == DexType.UNISWAP_V3) {
+        } else if (step.dexType == DexType.UNISWAP_V3 || step.dexType == DexType.PANCAKE_V3) {
             amountOut = _swapV3(step, amountIn);
         } else if (step.dexType == DexType.BALANCER) {
             amountOut = _swapBalancer(step, amountIn);
@@ -290,6 +309,9 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
         } else {
             revert("unsupported dex");
         }
+        amountOut = IERC20(step.tokenOut).balanceOf(address(this)) - outputBefore;
+        require(amountOut >= step.minAmountOut, "swap output below minimum");
+        IERC20(step.tokenIn).safeApprove(step.router, 0);
 
         emit SwapExecuted(step.dexType, step.tokenIn, step.tokenOut, amountIn, amountOut);
     }
@@ -389,8 +411,8 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
         require(balance >= debt, "insufficient balance");
 
         // Transfer profit to recipient
-        if (balance > debt) {
-            uint256 profit = balance - debt;
+        if (pnl > 0) {
+            uint256 profit = uint256(pnl);
             token.safeTransfer(profitRecipient, profit);
             emit ProfitWithdrawn(asset, profitRecipient, profit);
         }
@@ -417,6 +439,19 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
                 data.steps[i].tokenIn == data.steps[i - 1].tokenOut,
                 "token continuity broken"
             );
+        }
+        require(data.borrowToken != address(0), "zero borrow token");
+        for (uint256 i = 0; i < data.steps.length; i++) {
+            SwapStep calldata step = data.steps[i];
+            require(step.router != address(0), "zero router");
+            require(step.tokenIn != address(0) && step.tokenOut != address(0) && step.tokenIn != step.tokenOut, "invalid swap tokens");
+            require(step.minAmountOut > 0, "zero minimum output");
+            if (step.dexType == DexType.UNISWAP_V3 || step.dexType == DexType.PANCAKE_V3) require(step.v3Fee > 0, "missing v3 fee");
+            if (step.dexType == DexType.BALANCER) require(step.balancerPoolId != bytes32(0), "missing pool id");
+            if (step.dexType == DexType.CURVE) require(step.curveIndexIn >= 0 && step.curveIndexOut >= 0 && step.curveIndexIn != step.curveIndexOut, "invalid curve indices");
+            if (step.v2Path.length > 0) {
+                require(step.v2Path.length >= 2 && step.v2Path[0] == step.tokenIn && step.v2Path[step.v2Path.length - 1] == step.tokenOut, "v2 path mismatch");
+            }
         }
     }
 

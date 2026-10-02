@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 env:
-  NODE_VERSION: "20"
+  NODE_VERSION: "22"
   PYTHON_VERSION: "3.10"
 
 jobs:
@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node: [20]
+        node: [22]
     steps:
       - uses: actions/checkout@v4
 
@@ -36,6 +36,9 @@ jobs:
 
       - name: Compile contracts
         run: npx hardhat compile --force
+
+      - name: Install backend dependencies for shared tests
+        run: cd server && npm ci --ignore-scripts --legacy-peer-deps
 
       - name: Run Hardhat tests
         run: npx hardhat test --network hardhat
@@ -62,6 +65,14 @@ jobs:
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install contract dependencies
+        run: npm ci --ignore-scripts --legacy-peer-deps
 
       - name: Run Foundry tests
         run: forge test -vvv
@@ -142,6 +153,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install backend package dependencies
+        run: cd server && npm ci --ignore-scripts --legacy-peer-deps
+
       - name: Run backend tests
         run: npm test
         env:
@@ -208,7 +222,8 @@ jobs:
           # Real gate: fail on actual test failures. pytest exit code 5 means
           # "no tests collected" (none exist yet) — treat that as a pass so the
           # job does not fail spuriously, but any genuine failure fails CI.
-          python -m pytest; rc=$?
+          rc=0
+          python -m pytest || rc=$?
           if [ "$rc" -eq 5 ]; then
             echo "No ML tests collected — skipping."
             exit 0

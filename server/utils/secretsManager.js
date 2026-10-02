@@ -420,7 +420,7 @@ class SecretsManager {
         sensitive: config.sensitive,
         masked: value
           ? config.sensitive
-            ? `${value.substring(0, 4)}...${value.substring(value.length - 4)}`
+            ? "[redacted...]"
             : value.substring(0, 20) + (value.length > 20 ? "..." : "")
           : null,
       };
@@ -583,3 +583,4 @@ module.exports = {
   REQUIRED_SECRETS,
   OPTIONAL_SECRETS,
 };
+

@@ -42,11 +42,11 @@ services:
       timeout: 5s
       retries: 5
 
-  # Express API / bot server (build context is ./server so scripts/server.js resolves)
+  # Express API / bot server (shared execution modules require the repository context)
   api:
     build:
-      context: ./server
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: server/Dockerfile
     environment:
       - MAINNET_RPC_URL=http://hardhat:8545
       - PRIVATE_KEY=${PRIVATE_KEY}
@@ -62,6 +62,7 @@ services:
       - FLASHBOTS_RELAY_URL=${FLASHBOTS_RELAY_URL}
       - MIN_PROFIT_DAI=${MIN_PROFIT_DAI}
       - PORT=3001
+      - API_BIND_HOST=0.0.0.0
       # Redis
       - REDIS_URL=redis://redis:6379
       - REDIS_HOST=redis

@@ -1,3 +1,10 @@
+// Use the lockfile-pinned local Solidity compiler; no compiler download required.
+const { subtask } = require("hardhat/config");
+const { TASK_COMPILE_SOLIDITY_GET_SOLC_BUILD } = require("hardhat/builtin-tasks/task-names");
+subtask(TASK_COMPILE_SOLIDITY_GET_SOLC_BUILD).setAction(async ({ solcVersion }, _hre, runSuper) => {
+  if (solcVersion === "0.8.20") return { compilerPath: require.resolve("solc/soljson.js"), isSolcJs: true, version: solcVersion, longVersion: require("solc").version() };
+  return runSuper();
+});
 require("@nomiclabs/hardhat-waffle");
 require("@nomiclabs/hardhat-ethers");
 require("@nomiclabs/hardhat-etherscan");
@@ -196,3 +203,4 @@ module.exports = {
     skipFiles: ["mocks/", "interfaces/"],
   },
 };
+

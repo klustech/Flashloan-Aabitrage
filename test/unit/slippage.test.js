@@ -1,5 +1,8 @@
 const { expect } = require("chai");
-const axios = require("axios");
+// Mock the dependency resolved by botLogic, including isolated server installs.
+const axios = require(require.resolve("axios", {
+  paths: [require("path").resolve(__dirname, "../../server")],
+}));
 
 describe("getDynamicSlippage", function () {
   const defaultBips = parseInt(process.env.SLIPPAGE_DEFAULT_BIPS || "50", 10);
@@ -87,5 +90,21 @@ describe("getDynamicSlippage", function () {
     const { getDynamicSlippage } = require("../../server/botLogic");
     const val = await getDynamicSlippage();
     expect(val).to.equal(75);
+  });
+
+  it("keeps trading mode unchanged while fetching display market data", async function () {
+    const { tradingState } = require("../../server/bot/stateMachine");
+    const previous = tradingState.snapshot();
+    tradingState.paper();
+    tradingState.arm({ ready: true });
+    tradingState.live();
+    const revision = tradingState.revision;
+    setAxiosGet(async () => ({ data: { ethereum: { usd_24h_change: 1 } } }));
+    try {
+      await require("../../server/botLogic").getDynamicSlippage();
+      expect(tradingState.canSign(revision)).to.equal(true);
+    } finally {
+      tradingState.set(previous.state, previous.reason);
+    }
   });
 });

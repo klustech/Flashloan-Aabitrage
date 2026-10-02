@@ -27,6 +27,7 @@ import MLStatistics from "./MLStatistics";
 import ProfitSimulator from "./ProfitSimulator";
 import BotStatus from "./BotStatus";
 import ProfitChart from "./ProfitChart";
+import TradingControl from "./TradingControl";
 
 const TabPanel = ({ children, value, index }) => (
   <div hidden={value !== index} style={{ paddingTop: 16 }}>
@@ -113,6 +114,7 @@ const Dashboard = ({ adminMode = false }) => {
     if (!Object.prototype.hasOwnProperty.call(metricMap, name)) {
       return null;
     }
+    if (metricMap[name] === null || metricMap[name] === undefined) return null;
     const parsed = Number(metricMap[name]);
     return Number.isFinite(parsed) ? parsed : null;
   };
@@ -138,6 +140,8 @@ const Dashboard = ({ adminMode = false }) => {
         <BotStatus compact />
       </Box>
 
+      <TradingControl />
+
       {/* Top Stats Cards */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid item xs={6} md={3}>
@@ -145,7 +149,7 @@ const Dashboard = ({ adminMode = false }) => {
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
               <TrendingUp color="success" />
               <Typography variant="subtitle2" color="text.secondary">
-                Total Profit
+                Expected average profit
               </Typography>
             </Box>
             <Typography variant="h4" color="success.main">
@@ -378,3 +382,4 @@ const Dashboard = ({ adminMode = false }) => {
 };
 
 export default Dashboard;
+

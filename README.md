@@ -1,3 +1,5 @@
+> Production core: the bot now starts in PAPER and uses exact pool-preserving quotes, strict private simulation, explicit LIVE arming, and receipt-based realized accounting. See [implementation and commissioning](docs/PRODUCTION_COMPLETION.md) for the supported Ethereum/Aave V2 profile, deployment commands, and fork/PAPER evidence gates.
+
 # Flashloan Arbitrage Bot
 
 This experimental project implements an arbitrage bot that leverages Aave flash
@@ -317,3 +319,4 @@ and maintainability of the arbitrage bot:
 
 Implementing these recommendations holistically can increase the chances of the
 bot finding profitable opportunities in a competitive market.
+

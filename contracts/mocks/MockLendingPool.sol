@@ -44,7 +44,7 @@ contract MockLendingPool {
         prem[0] = premium;
 
         require(
-            IFlashLoanReceiver(receiver).executeOperation(a, amt, prem, address(this), params),
+            IFlashLoanReceiver(receiver).executeOperation(a, amt, prem, receiver, params),
             "executeOperation failed"
         );
         require(

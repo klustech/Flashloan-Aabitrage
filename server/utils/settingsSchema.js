@@ -28,7 +28,7 @@ const SETTINGS_FIELD_SCHEMAS = {
   flashbotsDefault: coerceBoolean("flashbotsDefault"),
   pollingInterval: createIntSchema(5, 3600, "pollingInterval"),
   gasPriceCeiling: createIntSchema(1, 1_000_000, "gasPriceCeiling"),
-  slippageBips: createIntSchema(0, 10_000, "slippageBips"),
+  slippageBips: createIntSchema(0, 500, "slippageBips"),
   minBorrowAmount: createIntSchema(1, undefined, "minBorrowAmount"),
   simulationInputAmount: createIntSchema(1, undefined, "simulationInputAmount"),
 };
@@ -53,8 +53,8 @@ const settingsUpdateSchema = z
   .strict();
 
 const settingsDefaults = {
-  botActive: true,
-  flashbotsDefault: false,
+  botActive: false,
+  flashbotsDefault: true,
   pollingInterval: 60,
   gasPriceCeiling: 50,
   slippageBips: 50,
@@ -83,3 +83,4 @@ module.exports = {
   settingsDefaults,
   formatValidationErrors,
 };
+

@@ -15,7 +15,7 @@ function buildStepsFromHops(route) {
   if (!route || !Array.isArray(route.hops)) return route;
 
   route.steps = route.hops.map((hop, idx) => {
-    const feeFraction = hop && hop.feeBps ? hop.feeBps / 10000 : 0.003;
+    const feeFraction = (hop?.feeBps ?? 30) / 10000;
     return {
       description: `hop${idx + 1}:${hop.dex}`,
       simulate: (amt) => {
@@ -33,3 +33,4 @@ function buildStepsFromHops(route) {
 }
 
 module.exports = { buildStepsFromHops };
+

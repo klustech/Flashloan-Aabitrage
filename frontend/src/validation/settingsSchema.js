@@ -28,7 +28,7 @@ const SETTINGS_FIELD_SCHEMAS = {
   flashbotsDefault: coerceBoolean("flashbotsDefault"),
   pollingInterval: createIntSchema(5, 3600, "pollingInterval"),
   gasPriceCeiling: createIntSchema(1, 1_000_000, "gasPriceCeiling"),
-  slippageBips: createIntSchema(0, 10_000, "slippageBips"),
+  slippageBips: createIntSchema(0, 500, "slippageBips"),
   minBorrowAmount: createIntSchema(1, undefined, "minBorrowAmount"),
   simulationInputAmount: createIntSchema(1, undefined, "simulationInputAmount"),
 };
@@ -74,3 +74,4 @@ export const normalizeFieldErrors = (errors = {}) =>
       Array.isArray(value) ? value.filter(Boolean).join(" ") : value,
     ])
   );
+

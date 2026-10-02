@@ -81,7 +81,8 @@ jobs:
       - name: Build and push bot image
         uses: docker/build-push-action@v5
         with:
-          context: ./server
+          context: .
+          file: ./server/Dockerfile
           push: true
           tags: ${{ steps.meta-bot.outputs.tags }}
           labels: ${{ steps.meta-bot.outputs.labels }}
@@ -182,3 +183,4 @@ jobs:
         run: |
           echo "Staging deployment failed"
           # Add Slack notification here if configured
+

@@ -177,7 +177,7 @@ async function insertTrade(tradeData) {
       : new Date(timestamp);
 
   const normalizedProfit = BigNumber.isBigNumber(profit)
-    ? formatUnits(profit, 18)
+    ? formatUnits(profit, tradeData.tokenDecimals ?? 18)
     : typeof profit === "bigint"
     ? profit.toString()
     : normalizeValue(profit);
@@ -264,10 +264,27 @@ async function getRecentTrades(limit = 50) {
 
   return tradeHistoryCache.slice(0, normalizedLimit);
 }
+async function upsertExecution(record) {
+  await waitForPoolReady();
+  if (!isDbEnabled() || !pool) throw new Error("Execution persistence unavailable");
+  await pool.query(`INSERT INTO executions (id, mode, status, borrow_token, token_decimals, tx_hash, payload, updated_at)
+    VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,NOW())
+    ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status, tx_hash=EXCLUDED.tx_hash, payload=EXCLUDED.payload, updated_at=NOW()`,
+    [record.id,record.mode,record.status,record.borrowToken || null,record.token?.decimals ?? null,record.txHash || null,JSON.stringify(record)]);
+}
+async function getExecutions(limit = 100) {
+  await waitForPoolReady();
+  if (!isDbEnabled() || !pool) throw new Error("Execution persistence unavailable");
+  const result = await pool.query("SELECT payload FROM executions ORDER BY updated_at DESC LIMIT $1", [Math.min(Math.max(Number(limit)||100,1),10000)]);
+  return result.rows.map(r=>r.payload);
+}
 module.exports = {
   pool,
+  upsertExecution,
+  getExecutions,
   insertTrade,
   isDbEnabled,
   waitForPoolReady,
   getRecentTrades,
 };
+

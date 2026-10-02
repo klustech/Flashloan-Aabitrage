@@ -15,6 +15,7 @@ describe("POST /api/settings", () => {
 
   before(() => {
     process.env.NODE_ENV = "test";
+    process.env.API_KEY = "test-api-key";
     Object.entries(REQUIRED_ENV_VARS).forEach(([key, value]) => {
       if (!process.env[key]) {
         process.env[key] = value;
@@ -28,7 +29,7 @@ describe("POST /api/settings", () => {
   });
 
   it("accepts valid settings and returns updated configuration", async () => {
-    const res = await request(app).post("/api/settings").send({ pollingInterval: 42 });
+    const res = await request(app).post("/api/settings").set("x-api-key", "test-api-key").send({ pollingInterval: 42 });
 
     expect(res.status).to.equal(200);
     expect(res.body.status).to.equal("ok");
@@ -45,8 +46,7 @@ describe("POST /api/settings", () => {
   });
 
   it("rejects invalid settings and records metrics", async () => {
-    const res = await request(app)
-      .post("/api/settings")
+    const res = await request(app).post("/api/settings").set("x-api-key", "test-api-key")
       .send({ pollingInterval: -1 });
 
     expect(res.status).to.equal(400);
@@ -62,7 +62,7 @@ describe("POST /api/settings", () => {
   });
 
   it("rejects empty payloads", async () => {
-    const res = await request(app).post("/api/settings").send({});
+    const res = await request(app).post("/api/settings").set("x-api-key", "test-api-key").send({});
 
     expect(res.status).to.equal(400);
     expect(res.body.error).to.equal("No settings provided");
@@ -75,3 +75,4 @@ describe("POST /api/settings", () => {
     expect(validationSample?.value).to.equal(1);
   });
 });
+

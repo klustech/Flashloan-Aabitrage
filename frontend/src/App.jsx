@@ -49,7 +49,7 @@ function App() {
   ]);
 
   useEffect(() => {
-    if (typeof loginWithRedirect !== "function") {
+    if (process.env.REACT_APP_PRIVATE_DASHBOARD === "true" || typeof loginWithRedirect !== "function") {
       setUnauthorizedHandler(null);
       return () => setUnauthorizedHandler(null);
     }
@@ -111,3 +111,4 @@ function App() {
 }
 
 export default App;
+

@@ -131,17 +131,18 @@ function required(key, options = {}) {
   return createAccessor(key, process.env[key], options);
 }
 
+const mainnet = require("../config/networkConfig").getNetworkConfig("ethereum");
+// Importing diagnostics never requires a signer or an RPC connection. The
+// coordinator validates required execution configuration when it initializes.
 const env = {
-  PRIVATE_KEY: required("PRIVATE_KEY").string(),
-  MAINNET_RPC_URL: required("MAINNET_RPC_URL").string(),
-  CONTRACT_ADDRESS: required("CONTRACT_ADDRESS").address(),
-  AAVE_LENDING_POOL_ADDRESS_PROVIDER: required(
-    "AAVE_LENDING_POOL_ADDRESS_PROVIDER"
-  ).string(),
-  TOKENS_DAI: required("TOKENS_DAI").string(),
-  TOKENS_WETH: required("TOKENS_WETH").string(),
-  UNISWAP_ROUTER_ADDRESS: required("UNISWAP_ROUTER_ADDRESS").string(),
-  SUSHISWAP_ROUTER_ADDRESS: required("SUSHISWAP_ROUTER_ADDRESS").string(),
+  PRIVATE_KEY: optional("PRIVATE_KEY").string(),
+  MAINNET_RPC_URL: optional("MAINNET_RPC_URL").string(),
+  CONTRACT_ADDRESS: optional("CONTRACT_ADDRESS").address(ethers.constants.AddressZero),
+  AAVE_LENDING_POOL_ADDRESS_PROVIDER: optional("AAVE_LENDING_POOL_ADDRESS_PROVIDER").string(mainnet.aave.v2.lendingPoolAddressProvider),
+  TOKENS_DAI: optional("TOKENS_DAI").string(mainnet.tokens.DAI),
+  TOKENS_WETH: optional("TOKENS_WETH").string(mainnet.tokens.WETH),
+  UNISWAP_ROUTER_ADDRESS: optional("UNISWAP_ROUTER_ADDRESS").string(mainnet.dexRouters.uniswap_v2.router),
+  SUSHISWAP_ROUTER_ADDRESS: optional("SUSHISWAP_ROUTER_ADDRESS").string(mainnet.dexRouters.sushiswap.router),
 };
 
 const includeBalancer = optional("INCLUDE_BALANCER").boolean(false);
@@ -172,3 +173,4 @@ module.exports = {
   required,
   features,
 };
+

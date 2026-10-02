@@ -1,21 +1,16 @@
-# ── Build stage ───────────────────────────────────────────────────────────────
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 WORKDIR /usr/src/app
-
-# Deterministic install when a lockfile exists in the build context, else fall back.
 COPY package*.json ./
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
-
+RUN npm ci --ignore-scripts --legacy-peer-deps
 COPY . .
-
-# Drop privileges for the build itself (the "node" user ships with the image).
-USER node
+ENV REACT_APP_PRIVATE_DASHBOARD=true
 RUN npm run build
-
-# ── Runtime stage ───────────────────────────────────────────────────────────────
-# Serve the static build with nginx. The nginx master needs root to bind :80,
-# but its worker processes automatically drop to the unprivileged "nginx" user.
-FROM nginx:stable-alpine
-COPY --from=build /usr/src/app/build /usr/share/nginx/html
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+FROM node:22-alpine
+WORKDIR /usr/src/app
+COPY --from=build /usr/src/app/build ./build
+COPY server.js ./server.js
+ENV NODE_ENV=production
+ENV DASHBOARD_BIND_HOST=0.0.0.0
+EXPOSE 3002
+USER node
+CMD ["node","server.js"]

@@ -65,7 +65,7 @@ describe("ArbitrageFlashloan", function () {
       router: ethers.constants.AddressZero,
       tokenIn: ethers.constants.AddressZero,
       tokenOut: ethers.constants.AddressZero,
-      minAmountOut: 0,
+      minAmountOut: 1,
       v3Fee: 0,
       balancerPoolId: ethers.constants.HashZero,
       curveIndexIn: 0,
@@ -179,10 +179,11 @@ describe("ArbitrageFlashloan", function () {
     const arbData = buildArbData();
     // Relax minAmountOut so the swaps themselves do not revert on slippage;
     // the profit-or-revert guard in executeOperation must catch the shortfall.
-    arbData.steps[1].minAmountOut = 0;
+    arbData.steps[1].minAmountOut = 1;
 
     await expect(arbitrage.initiateFlashLoan(arbData)).to.be.revertedWith(
       "profit<minProfit"
     );
   });
 });
+
