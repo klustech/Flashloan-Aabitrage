@@ -47,7 +47,7 @@ const V3_FEE_TIERS = [500, 3000, 10000];
 // priced from env so we never need an oracle call just to rank candidates.
 const DECIMALS = {
   DAI: 18,
-  USDC: 18,
+  USDC: 6,
   USDT: 6,
   WETH: 18,
   WBTC: 8,
@@ -305,3 +305,4 @@ async function discoverOnchainPools(
 }
 
 module.exports = { discoverOnchainPools, computeV2Pair };
+

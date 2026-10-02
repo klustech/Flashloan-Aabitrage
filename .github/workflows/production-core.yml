@@ -1,0 +1,41 @@
+name: Production core
+on:
+  push:
+    branches: [main, 'feature/**']
+  pull_request:
+    branches: [main]
+jobs:
+  deterministic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm}
+      - run: npm ci --ignore-scripts --legacy-peer-deps
+      - run: cd server && npm ci --ignore-scripts --legacy-peer-deps
+      - run: npm run test:core
+      - run: npm test
+      - run: cd frontend && npm ci --ignore-scripts --legacy-peer-deps
+      - run: cd frontend && CI=true npm test -- --watchAll=false --runInBand
+      - run: cd frontend && CI=false npm run build
+  persistence:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: {POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres, POSTGRES_DB: arbitrage_test}
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 10s --health-retries 5
+    env:
+      PG_USER: postgres
+      PG_PASSWORD: postgres
+      PG_HOST: localhost
+      PG_DB: arbitrage_test
+      PG_PORT: '5432'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm}
+      - run: npm ci --ignore-scripts --legacy-peer-deps
+      - run: npm run db:migrate:executions
+      - run: node scripts/check-execution-persistence.js

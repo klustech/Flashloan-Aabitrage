@@ -1,0 +1,45 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${PG_USER}
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_DB: ${PG_DB}
+    volumes:
+      - postgres-production:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+      - ./database/migrations/0001_execution_ledger.sql:/docker-entrypoint-initdb.d/002-executions.sql:ro
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U ${PG_USER} -d ${PG_DB}']
+      interval: 10s
+      retries: 5
+  redis:
+    image: redis:7-alpine
+  api:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PG_HOST: postgres
+      PG_PORT: 5432
+      REDIS_URL: redis://redis:6379
+      API_BIND_HOST: 0.0.0.0
+    volumes:
+      - executions-production:/usr/src/app/runtime
+    ports: ['127.0.0.1:3001:3001']
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_started}
+  dashboard:
+    build: ./frontend
+    environment:
+      API_KEY: ${API_KEY}
+      BACKEND_API_URL: http://api:3001
+      DASHBOARD_ALLOWED_HOSTS: localhost,127.0.0.1
+    ports: ['127.0.0.1:3002:3002']
+    depends_on: [api]
+volumes:
+  postgres-production:
+  executions-production:

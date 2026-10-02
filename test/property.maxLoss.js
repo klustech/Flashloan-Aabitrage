@@ -61,7 +61,7 @@ describe("Invariant: arbitrage is profit-or-revert", function () {
       router: ethers.constants.AddressZero,
       tokenIn: ethers.constants.AddressZero,
       tokenOut: ethers.constants.AddressZero,
-      minAmountOut: 0, // relax slippage so the profit guard is what enforces the invariant
+      minAmountOut: 1, // relax slippage so the profit guard is what enforces the invariant
       v3Fee: 0,
       balancerPoolId: ethers.constants.HashZero,
       curveIndexIn: 0,
@@ -147,3 +147,4 @@ describe("Invariant: arbitrage is profit-or-revert", function () {
     }
   });
 });
+

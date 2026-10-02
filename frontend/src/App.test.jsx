@@ -7,6 +7,7 @@ jest.mock("axios", () => ({
   create: jest.fn(() => ({
     get: jest.fn(),
     post: jest.fn(),
+    interceptors: { request: { use: jest.fn() }, response: { use: jest.fn() } },
   })),
   get: jest.fn(),
   post: jest.fn(),
@@ -50,3 +51,4 @@ describe("App routing", () => {
     expect(screen.queryByText(/404 Not Found/i)).not.toBeInTheDocument();
   });
 });
+

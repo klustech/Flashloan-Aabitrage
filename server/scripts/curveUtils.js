@@ -130,7 +130,7 @@ async function getCurveQuote(
     lastError?.message ||
     "unknown error";
   throw new Error(
-    `Curve pool quote failed for ${poolAddress} (${i} -> ${j}) with amount ${amountIn}: ${reason}`,
+    `Curve pool quote failed for ${poolAddress} using ${methods[0].name}(${i}, ${j}) with amount ${amountIn}: ${reason}`,
     { cause: lastError }
   );
 }
@@ -396,3 +396,4 @@ module.exports = {
   CURVE_REGISTRY,
   KNOWN_POOLS,
 };
+

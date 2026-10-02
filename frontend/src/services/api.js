@@ -6,21 +6,12 @@ import {
   settingsUpdateSchema,
 } from "../validation/settingsSchema";
 
-// SECURITY NOTE: The backend API is fail-closed and authenticates EVERY
-// non-health route by matching an `x-api-key` header. This dashboard attaches
-// that key (from REACT_APP_API_KEY) on every request. Because the key is baked
-// into the client bundle at build time, the dashboard must only be served in a
-// trusted operator context (e.g. behind a VPN / internal network), never on a
-// public origin. The Auth0 Bearer token below is for the dashboard's own
-// login/UX gating; the backend does NOT verify JWTs, so `x-api-key` is the only
-// credential the server actually checks.
-const API_BASE_URL =
-  process.env.REACT_APP_API_BASE_URL || "http://localhost:3001";
-const STATIC_API_KEY = process.env.REACT_APP_API_KEY;
-const STATIC_BEARER_TOKEN = process.env.REACT_APP_API_BEARER_TOKEN;
+// The private dashboard server proxies requests and adds API_KEY server-side.
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "";
 
 export const API = axios.create({
   baseURL: API_BASE_URL,
+  headers: { "X-Requested-With": "XMLHttpRequest" },
 });
 
 let authTokenProvider = null;
@@ -56,9 +47,6 @@ const setHeader = (config, key, value) => {
 };
 
 API.interceptors.request.use(async (config) => {
-  if (STATIC_API_KEY) {
-    setHeader(config, "x-api-key", STATIC_API_KEY);
-  }
 
   if (authTokenProvider) {
     try {
@@ -69,8 +57,6 @@ API.interceptors.request.use(async (config) => {
     } catch (error) {
       console.warn("Failed to acquire auth token", error);
     }
-  } else if (STATIC_BEARER_TOKEN) {
-    setHeader(config, "Authorization", `Bearer ${STATIC_BEARER_TOKEN}`);
   }
 
   return config;
@@ -360,3 +346,4 @@ export const getGraphStats = async () => {
   const response = await API.get("/api/tier1/graph-stats");
   return response.data;
 };
+

@@ -1,21 +1,15 @@
-FROM node:20-alpine
-
+FROM node:22-alpine
 WORKDIR /usr/src/app
-
-# Install production dependencies. Use a deterministic install when a lockfile
-# is present in the build context (server/package-lock.json); fall back to a
-# regular install otherwise.
 COPY package*.json ./
-RUN if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi
-
-COPY . .
-
+RUN npm ci --omit=dev --ignore-scripts --legacy-peer-deps
+COPY server ./server
+RUN cd server && npm ci --omit=dev --ignore-scripts --legacy-peer-deps
+COPY utils ./utils
+COPY scripts ./scripts
+COPY database ./database
+RUN mkdir runtime && chown node:node runtime
 ENV NODE_ENV=production
+ENV API_BIND_HOST=0.0.0.0
 EXPOSE 3001
-
-# Drop privileges: run as the built-in non-root "node" user.
 USER node
-
-# scripts/server.js boots the Express/WebSocket HTTP server (exposes /healthz,
-# /metrics, /api/*) and internally requires ../botLogic to run the bot worker.
-CMD ["node", "scripts/server.js"]
+CMD ["node", "server/scripts/server.js"]

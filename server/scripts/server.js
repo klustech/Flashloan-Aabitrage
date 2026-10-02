@@ -266,7 +266,13 @@ const loadDbClient = () => {
   return require("../dbClient");
 };
 
-const { getRecentTrades } = loadDbClient();
+const { getRecentTrades: getLegacyRecentTrades } = loadDbClient();
+async function getRecentTrades(limit = 100) {
+  if (process.env.NODE_ENV === "test") return getLegacyRecentTrades(limit);
+  return require("../bot/coordinator").getCoordinator().ledger.recent(10000)
+    .filter(r=>r.mode==="LIVE" && ["INCLUDED","REVERTED"].includes(r.status) && r.token?.symbol==="DAI")
+    .slice(0,limit).map(r=>({id:r.id,route:r.swapData?.route||r.route?.strategy,profit:ethers.utils.formatUnits(r.realizedNetProfit,r.token.decimals),txHash:r.txHash,timestamp:new Date(r.updatedAt).toISOString(),status:r.status,token:r.token}));
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DEX ABIs & Provider for real-time quotes (market-data endpoint)
@@ -360,6 +366,31 @@ app.use((req, res, next) => {
     return res.sendStatus(401);
   }
   next();
+});
+
+const { tradingState } = require("../bot/stateMachine");
+const coordinator = () => require("../bot/coordinator").getCoordinator();
+app.get("/api/trading", (_req, res) => {
+  try { res.json(coordinator().status()); } catch (err) { res.status(503).json({ error: err.message, trading: tradingState.snapshot() }); }
+});
+app.post("/api/trading/paper", (_req, res) => {
+  tradingState.paper();
+  botSettings.botActive = true;
+  savePersistedSettings(botSettings);
+  res.json({ trading: tradingState.snapshot() });
+});
+app.post("/api/trading/pause", (_req, res) => { tradingState.pause(); res.json({ trading: tradingState.snapshot() }); });
+app.post("/api/trading/arm", async (_req, res) => {
+  try { res.json({ trading: await coordinator().arm() }); } catch (err) { res.status(409).json({ error: err.message }); }
+});
+app.post("/api/trading/live", (_req, res) => {
+  try { res.json({ trading: tradingState.live() }); } catch (err) { res.status(409).json({ error: err.message }); }
+});
+app.get("/api/trading/readiness", async (_req, res) => {
+  try { res.json(await coordinator().checkReadiness()); } catch (err) { res.status(503).json({ ready: false, errors: [err.message] }); }
+});
+app.get("/api/executions", (_req, res) => {
+  try { res.json({ executions: coordinator().ledger.recent(100), summary: coordinator().ledger.summary() }); } catch (err) { res.status(503).json({ error: err.message }); }
 });
 
 // Winston logger for server.log
@@ -1173,6 +1204,14 @@ app.post(
         updateSimulationInputAmount(updates.simulationInputAmount);
       }
 
+      if (process.env.NODE_ENV !== "test") {
+        const overrides = coordinator().overrides;
+        if (updates.gasPriceCeiling !== undefined) overrides.gasCeilingGwei = String(updates.gasPriceCeiling);
+        if (updates.slippageBips !== undefined) overrides.slippageBps = updates.slippageBips;
+        if (updates.minBorrowAmount !== undefined) overrides.minBorrowAmount = String(updates.minBorrowAmount);
+        if (updates.simulationInputAmount !== undefined) overrides.maxBorrowAmount = String(updates.simulationInputAmount);
+        tradingState.paper(); // Changed settings require fresh explicit LIVE arming.
+      }
       // Persist settings to disk
       savePersistedSettings(botSettings);
 
@@ -1187,10 +1226,13 @@ app.post(
   })
 );
 
+if (botSettings.botActive) tradingState.paper();
+
 // POST /api/start-bot
 app.post(
   "/api/start-bot",
   withErrorBoundary("start_bot", (_req, res) => {
+    tradingState.paper();
     botSettings.botActive = true;
     savePersistedSettings(botSettings);
     logger.info("Bot started");
@@ -1203,6 +1245,7 @@ app.post(
 app.post(
   "/api/stop-bot",
   withErrorBoundary("stop_bot", (_req, res) => {
+    tradingState.stop();
     botSettings.botActive = false;
     savePersistedSettings(botSettings);
     logger.info("Bot stopped");
@@ -1611,7 +1654,7 @@ app.post("/api/simulate-arbitrage", async (req, res) => {
     const netProfit = grossProfit - gasCostEth * 1800; // Rough ETH to token conversion
 
     // ML score (mock if ML not available)
-    const mlScore = mlScorer
+    const mlScore = typeof mlScorer?.scoreRoute === "function"
       ? await mlScorer
           .scoreRoute({ hops, borrowAmount, gasPrice })
           .catch(() => 0.5)
@@ -1619,6 +1662,8 @@ app.post("/api/simulate-arbitrage", async (req, res) => {
 
     res.json({
       success: true,
+      illustrative: true,
+      executable: false,
       simulation: {
         borrowAmount: parseFloat(borrowAmount),
         borrowToken: borrowToken || "DAI",
@@ -1658,6 +1703,7 @@ app.get("/api/connext/status", async (req, res) => {
 
 // POST /api/connext/forward
 app.post("/api/connext/forward", async (req, res) => {
+  if (process.env.NODE_ENV !== "test") return res.status(409).json({error:"Cross-chain forwarding disabled in the production profile"});
   try {
     const { token, amount } = req.body;
 
@@ -2133,7 +2179,7 @@ function initWebSocketServer(server) {
     return null;
   }
 
-  wss = new WebSocket.Server({ server, path: "/ws" });
+  wss = new WebSocket.Server({ server, path: "/ws", verifyClient: info => safeKeyEqual(info.req.headers["x-api-key"], process.env.API_KEY) });
 
   wss.on("connection", (ws, req) => {
     const clientIp = req.socket.remoteAddress;
@@ -2241,7 +2287,7 @@ const start = async (port = PORT) => {
   initWebSocketServer(server);
 
   return new Promise((resolve) => {
-    server.listen(port, () => {
+    server.listen(port, process.env.API_BIND_HOST || "127.0.0.1", () => {
       logger.info(`API listening on :${port}`);
       logger.info(`WebSocket available at ws://localhost:${port}/ws`);
       resolve(server);

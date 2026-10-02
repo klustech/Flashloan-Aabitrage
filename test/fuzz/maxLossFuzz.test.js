@@ -60,7 +60,7 @@ describe("Fuzz: profit-or-revert boundary", function () {
       router: ethers.constants.AddressZero,
       tokenIn: ethers.constants.AddressZero,
       tokenOut: ethers.constants.AddressZero,
-      minAmountOut: 0,
+      minAmountOut: 1,
       v3Fee: 0,
       balancerPoolId: ethers.constants.HashZero,
       curveIndexIn: 0,
@@ -108,3 +108,4 @@ describe("Fuzz: profit-or-revert boundary", function () {
     }
   });
 });
+

@@ -78,7 +78,7 @@ async function buildArbitrageData(route, options = {}, provider) {
   const minProfitBN = toBigNumber(minProfit);
 
   const slippage = Number(slippageBips);
-  if (!Number.isFinite(slippage) || slippage < 0) throw new Error("Invalid slippageBips provided");
+  if (!Number.isInteger(slippage) || slippage < 0 || slippage >= 10000) throw new Error("Invalid slippageBips provided");
 
   const steps = [];
   let currentAmtBN = borrowAmtBN;
@@ -105,10 +105,6 @@ async function buildArbitrageData(route, options = {}, provider) {
       tokenIn = tokenB;
       tokenOut = tokenA;
       currentToken = tokenA;
-    } else if (idx === 0) {
-      tokenIn = tokenA;
-      tokenOut = tokenB;
-      currentToken = tokenB;
     } else {
       throw new Error(`Hop ${idx} does not connect from current token`);
     }
@@ -164,6 +160,7 @@ async function buildArbitrageData(route, options = {}, provider) {
       }
 
       case DexType.BALANCER: {
+        if (!poolId || poolId === ethers.constants.HashZero) throw new Error("Balancer poolId required");
         outputAmt = await getBalancerQuote(tokenIn, tokenOut, currentAmtBN);
 
         step = {
@@ -173,7 +170,7 @@ async function buildArbitrageData(route, options = {}, provider) {
           tokenOut,
           minAmountOut: applySlippage(outputAmt, slippage),
           v3Fee: 0,
-          balancerPoolId: poolId || ethers.constants.HashZero,
+          balancerPoolId: poolId,
           curveIndexIn: 0,
           curveIndexOut: 0,
           curveUnderlying: false,
@@ -184,11 +181,12 @@ async function buildArbitrageData(route, options = {}, provider) {
 
       case DexType.CURVE: {
         if (!poolAddress) throw new Error(`Curve hop at index ${idx} missing poolAddress`);
-        const iIn = curveIndexIn !== undefined ? curveIndexIn : 0;
-        const iOut = curveIndexOut !== undefined ? curveIndexOut : 1;
+        if (curveIndexIn === undefined || curveIndexOut === undefined) throw new Error("Curve indices required");
+        const iIn = curveIndexIn;
+        const iOut = curveIndexOut;
 
         outputAmt = await getCurveQuote(provider, poolAddress, iIn, iOut, currentAmtBN, {
-          useUnderlying: useUnderlying || false,
+          useUnderlying: hop.curveUnderlying ?? useUnderlying ?? false,
         });
 
         step = {
@@ -201,7 +199,7 @@ async function buildArbitrageData(route, options = {}, provider) {
           balancerPoolId: ethers.constants.HashZero,
           curveIndexIn: iIn,
           curveIndexOut: iOut,
-          curveUnderlying: useUnderlying || false,
+          curveUnderlying: hop.curveUnderlying ?? useUnderlying ?? false,
           v2Path: [],
         };
         break;
@@ -258,7 +256,7 @@ async function buildSwapDataFromDynamic(route, options = {}, provider) {
   const minProfitBN = toBigNumber(minProfit);
 
   const slippage = Number(slippageBips);
-  if (!Number.isFinite(slippage) || slippage < 0) throw new Error("Invalid slippageBips provided");
+  if (!Number.isInteger(slippage) || slippage < 0 || slippage >= 10000) throw new Error("Invalid slippageBips provided");
 
   const paths = [];
   const minOuts = [];
@@ -288,10 +286,6 @@ async function buildSwapDataFromDynamic(route, options = {}, provider) {
       tokenIn = tokenB;
       tokenOut = tokenA;
       currentToken = tokenA;
-    } else if (idx === 0) {
-      tokenIn = tokenA;
-      tokenOut = tokenB;
-      currentToken = tokenB;
     } else {
       throw new Error(`Hop ${idx} does not connect from current token`);
     }
@@ -348,7 +342,7 @@ function toBigNumber(value) {
     return value;
   }
   if (typeof value === "string" && value.includes(".")) {
-    return ethers.utils.parseUnits(value, 18);
+    throw new Error("Amounts must be integer token base units; use tokenRegistry.parse");
   }
   return ethers.BigNumber.from(value.toString());
 }
@@ -377,3 +371,4 @@ module.exports = {
   getDexType,
   DexType,
 };
+

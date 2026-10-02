@@ -13,8 +13,6 @@ import {
   ListItemSecondaryAction,
   Divider,
   Tooltip,
-  Switch,
-  FormControlLabel,
   Paper,
   Alert,
 } from "@mui/material";
@@ -45,7 +43,6 @@ const RealTimeOpportunities = ({ wsEndpoint }) => {
   const [connected, setConnected] = useState(false);
   const [paused, setPaused] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(false);
-  const [autoExecute, setAutoExecute] = useState(false);
   const [loading, setLoading] = useState(false);
   const wsRef = useRef(null);
   const audioRef = useRef(null);
@@ -114,7 +111,7 @@ const RealTimeOpportunities = ({ wsEndpoint }) => {
   // WebSocket connection for real-time updates
   useEffect(() => {
     const connectWebSocket = () => {
-      const endpoint = wsEndpoint || `ws://${window.location.hostname}:3001/ws`;
+      const endpoint = wsEndpoint || `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws`;
 
       try {
         wsRef.current = new WebSocket(endpoint);
@@ -255,21 +252,7 @@ const RealTimeOpportunities = ({ wsEndpoint }) => {
           </Alert>
         )}
 
-        <FormControlLabel
-          control={
-            <Switch
-              checked={autoExecute}
-              onChange={(e) => setAutoExecute(e.target.checked)}
-              size="small"
-            />
-          }
-          label={
-            <Typography variant="caption" color="text.secondary">
-              Auto-execute high-confidence opportunities (ML score &gt; 85%)
-            </Typography>
-          }
-          sx={{ mb: 2 }}
-        />
+
 
         <List sx={{ maxHeight: 400, overflow: "auto" }}>
           {displayOpportunities.map((opp, idx) => (
@@ -378,3 +361,4 @@ const RealTimeOpportunities = ({ wsEndpoint }) => {
 };
 
 export default RealTimeOpportunities;
+

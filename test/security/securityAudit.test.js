@@ -59,7 +59,7 @@ describe("Security Audit Tests", function () {
       router: router.address,
       tokenIn: dai.address,
       tokenOut: weth.address,
-      minAmountOut: 0,
+      minAmountOut: 1,
       v3Fee: 0,
       balancerPoolId: ethers.constants.HashZero,
       curveIndexIn: 0,
@@ -246,3 +246,4 @@ describe("Security Audit Tests", function () {
     });
   });
 });
+

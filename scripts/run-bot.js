@@ -47,6 +47,7 @@ async function runBot({
   console.log(featureStatus("Balancer routing", features.balancer));
   console.log(featureStatus("Curve routing", features.curve));
   console.log(describePriceIngestion());
+  require("../server/bot/stateMachine").tradingState.paper();
   let cycles = 0;
   let lastResult = { executed: false, estimatedProfitInDai: null };
 
@@ -55,7 +56,7 @@ async function runBot({
       lastResult = await simulateAndExecuteArb(useFlashbots);
       if (lastResult?.executed) {
         console.log(
-          `✅ Executed with profit ${lastResult.estimatedProfitInDai.toString()} wei`
+          `✅ Executed with profit ${lastResult.realizedNetProfit?.toString() || lastResult.estimatedProfitInDai.toString()} token base units`
         );
       } else {
         console.log("🔄  Cycle complete: No action");
@@ -81,3 +82,4 @@ if (require.main === module) {
 }
 
 module.exports = { runBot };
+
