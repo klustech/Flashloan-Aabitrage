@@ -1,445 +1,444 @@
-import React, { useState, useCallback } from "react";
+import React, { useState } from "react";
 import {
-  Box,
-  Card,
-  CardContent,
-  Typography,
-  TextField,
-  Button,
-  Grid,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  Slider,
-  Paper,
-  Divider,
-  Chip,
-  CircularProgress,
   Alert,
-  Tooltip,
-  IconButton,
+  Box,
+  Button,
+  Chip,
+  MenuItem,
+  Slider,
+  TextField,
+  Typography,
 } from "@mui/material";
 import {
-  Calculate,
-  TrendingUp,
-  TrendingDown,
-  LocalGasStation,
-  SwapHoriz,
-  Info,
-  Refresh,
+  AddRounded,
+  DeleteOutlineRounded,
+  PlayArrowRounded,
+  ScienceOutlined,
 } from "@mui/icons-material";
 import { simulateArbitrage } from "../services/api";
-
+import { EmptyState, Metric, Panel } from "../ui/Primitives";
+import { DEX_LABELS, number } from "../ui/format";
 const TOKENS = [
-  { symbol: "WETH", address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", decimals: 18 },
-  { symbol: "DAI", address: "0x6B175474E89094C44Da98b954EesaDCAE", decimals: 18 },
-  { symbol: "USDC", address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", decimals: 6 },
-  { symbol: "USDT", address: "0xdAC17F958D2ee523a2206206994597C13D831ec7", decimals: 6 },
-  { symbol: "WBTC", address: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599", decimals: 8 },
+  { symbol: "DAI", address: "0x6B175474E89094C44Da98b954EedeAC495271d0F" },
+  { symbol: "WETH", address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" },
+  { symbol: "USDC", address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" },
+  { symbol: "USDT", address: "0xdAC17F958D2ee523a2206206994597C13D831ec7" },
+  { symbol: "WBTC", address: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599" },
 ];
-
-const DEXES = ["uniswap_v2", "uniswap_v3", "sushiswap", "balancer", "curve"];
-
-const DEX_LABELS = {
-  uniswap_v2: "Uniswap V2",
-  uniswap_v3: "Uniswap V3",
-  sushiswap: "SushiSwap",
-  balancer: "Balancer",
-  curve: "Curve",
-};
-
-const ProfitSimulator = () => {
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
-
-  // Simulation parameters
-  const [borrowAmount, setBorrowAmount] = useState("1000");
-  const [borrowToken, setBorrowToken] = useState("DAI");
+const DEXES = [
+  "uniswap_v2",
+  "sushiswap",
+  "uniswap_v3",
+  "pancake_v3",
+  "balancer",
+  "curve",
+];
+export default function ProfitSimulator() {
+  const [borrowAmount, setBorrowAmount] = useState("1000"),
+    [borrowToken, setBorrowToken] = useState("DAI"),
+    [slippageBps, setSlippageBps] = useState(30),
+    [gasPrice, setGasPrice] = useState(30);
   const [route, setRoute] = useState([
     { tokenIn: "DAI", tokenOut: "WETH", dex: "uniswap_v2" },
-    { tokenIn: "WETH", tokenOut: "USDC", dex: "uniswap_v3" },
-    { tokenIn: "USDC", tokenOut: "DAI", dex: "curve" },
+    { tokenIn: "WETH", tokenOut: "DAI", dex: "sushiswap" },
   ]);
-  const [slippageBps, setSlippageBps] = useState(50); // 0.5%
-  const [gasPrice, setGasPrice] = useState(30); // Gwei
-
+  const [loading, setLoading] = useState(false),
+    [result, setResult] = useState(null),
+    [error, setError] = useState(""),
+    [dirty, setDirty] = useState(false);
+  const change = (setter, value) => {
+    setter(value);
+    if (result) setDirty(true);
+  };
+  const changeToken = (value) => {
+    change(setBorrowToken, value);
+    setRoute((prev) =>
+      prev.map((hop, i) => ({
+        ...hop,
+        ...(i === 0 ? { tokenIn: value } : {}),
+        ...(i === prev.length - 1 ? { tokenOut: value } : {}),
+      }))
+    );
+  };
+  const updateHop = (index, key, value) => {
+    const next = route.map((h) => ({ ...h }));
+    next[index][key] = value;
+    if (key === "tokenOut" && index < next.length - 1)
+      next[index + 1].tokenIn = value;
+    if (key === "tokenIn" && index > 0) next[index - 1].tokenOut = value;
+    change(setRoute, next);
+  };
   const addHop = () => {
-    if (route.length < 4) {
-      const lastToken = route[route.length - 1]?.tokenOut || borrowToken;
-      setRoute([...route, { tokenIn: lastToken, tokenOut: borrowToken, dex: "uniswap_v2" }]);
-    }
+    if (route.length >= 4) return;
+    const last = route.at(-1),
+      middle = TOKENS.find(
+        (t) => ![borrowToken, last.tokenIn].includes(t.symbol)
+      ).symbol;
+    change(setRoute, [
+      ...route.slice(0, -1),
+      { ...last, tokenOut: middle },
+      { tokenIn: middle, tokenOut: borrowToken, dex: "uniswap_v3" },
+    ]);
   };
-
   const removeHop = (index) => {
-    if (route.length > 2) {
-      setRoute(route.filter((_, i) => i !== index));
-    }
+    if (route.length <= 2) return;
+    const next = route.filter((_, i) => i !== index).map((h) => ({ ...h }));
+    next[0].tokenIn = borrowToken;
+    for (let i = 1; i < next.length; i++)
+      next[i].tokenIn = next[i - 1].tokenOut;
+    next.at(-1).tokenOut = borrowToken;
+    change(setRoute, next);
   };
-
-  const updateHop = (index, field, value) => {
-    const newRoute = [...route];
-    newRoute[index] = { ...newRoute[index], [field]: value };
-
-    // Auto-chain token connections
-    if (field === "tokenOut" && index < route.length - 1) {
-      newRoute[index + 1] = { ...newRoute[index + 1], tokenIn: value };
+  const simulate = async (event) => {
+    event.preventDefault();
+    setError("");
+    if (!Number.isFinite(Number(borrowAmount)) || Number(borrowAmount) <= 0) {
+      setError("Enter a positive borrow amount.");
+      return;
     }
-    if (field === "tokenIn" && index > 0) {
-      newRoute[index - 1] = { ...newRoute[index - 1], tokenOut: value };
+    if (
+      route.some((h) => h.tokenIn === h.tokenOut) ||
+      route[0].tokenIn !== borrowToken ||
+      route.at(-1).tokenOut !== borrowToken
+    ) {
+      setError(
+        "Each swap needs different tokens, and the route must return to the borrow token."
+      );
+      return;
     }
-
-    setRoute(newRoute);
-  };
-
-  const runSimulation = async () => {
     setLoading(true);
-    setError(null);
     setResult(null);
-
+    setDirty(false);
     try {
-      const params = {
-        borrowAmount: parseFloat(borrowAmount),
+      const response = await simulateArbitrage({
+        borrowAmount: Number(borrowAmount),
         borrowToken,
-        route: route.map(hop => ({
-          ...hop,
-          tokenInAddress: TOKENS.find(t => t.symbol === hop.tokenIn)?.address,
-          tokenOutAddress: TOKENS.find(t => t.symbol === hop.tokenOut)?.address,
+        route: route.map((h) => ({
+          ...h,
+          tokenInAddress: TOKENS.find((t) => t.symbol === h.tokenIn).address,
+          tokenOutAddress: TOKENS.find((t) => t.symbol === h.tokenOut).address,
         })),
         slippageBps,
         gasPrice,
-      };
-
-      const response = await simulateArbitrage(params);
+      });
       setResult(response);
-    } catch (err) {
-      // Show actual error instead of mock data
-      const errorMessage = err.response?.data?.error || err.message || "Simulation failed";
-      setError(errorMessage);
+    } catch (e) {
+      setError(e.response?.data?.error || e.message || "Simulation failed");
     } finally {
       setLoading(false);
     }
   };
-
-  const formatCurrency = (value, decimals = 4) => {
-    return parseFloat(value || 0).toFixed(decimals);
-  };
-
+  const simulation = result?.simulation,
+    currency = simulation?.borrowToken || borrowToken;
   return (
-    <Card>
-      <CardContent>
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Calculate color="primary" />
-            <Typography variant="h6">Profit Simulator</Typography>
-          </Box>
-          <Tooltip title="Simulate arbitrage routes before execution">
-            <IconButton size="small">
-              <Info />
-            </IconButton>
-          </Tooltip>
-        </Box>
-
-        <Grid container spacing={3}>
-          {/* Input Parameters */}
-          <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 2, bgcolor: "background.default" }}>
-              <Typography variant="subtitle2" gutterBottom>
-                Borrow Parameters
-              </Typography>
-
-              <Grid container spacing={2}>
-                <Grid item xs={8}>
-                  <TextField
-                    fullWidth
-                    label="Borrow Amount"
-                    type="number"
-                    value={borrowAmount}
-                    onChange={(e) => setBorrowAmount(e.target.value)}
-                    size="small"
-                    InputProps={{
-                      inputProps: { min: 0 },
-                    }}
-                  />
-                </Grid>
-                <Grid item xs={4}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Token</InputLabel>
-                    <Select
-                      value={borrowToken}
-                      label="Token"
-                      onChange={(e) => setBorrowToken(e.target.value)}
-                    >
-                      {TOKENS.map((token) => (
-                        <MenuItem key={token.symbol} value={token.symbol}>
-                          {token.symbol}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-              </Grid>
-
-              <Box sx={{ mt: 3 }}>
-                <Typography variant="caption" color="text.secondary" gutterBottom>
-                  Slippage Tolerance: {(slippageBps / 100).toFixed(2)}%
+    <Box sx={{ display: "grid", gap: 3 }}>
+      <Alert severity="info">
+        Illustrative scenario tool. This API uses approximate economics; it does
+        not obtain executable pool quotes or simulate the production executor.
+        Use PAPER records to inspect on-chain validation.
+      </Alert>
+      <Box className="dashboard-split">
+        <Box
+          component="form"
+          onSubmit={simulate}
+          sx={{ display: "grid", gap: 3 }}
+        >
+          <Panel
+            title="Borrow & costs"
+            subtitle="Choose the input amount and assumed transaction costs."
+          >
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: "minmax(0,2fr) minmax(0,1fr)",
+                gap: 2,
+              }}
+            >
+              <TextField
+                fullWidth
+                size="small"
+                label="Borrow amount"
+                type="number"
+                value={borrowAmount}
+                onChange={(e) => change(setBorrowAmount, e.target.value)}
+                inputProps={{ min: 0, step: "any" }}
+              />
+              <TextField
+                select
+                fullWidth
+                size="small"
+                label="Borrow token"
+                value={borrowToken}
+                onChange={(e) => changeToken(e.target.value)}
+              >
+                {TOKENS.map((t) => (
+                  <MenuItem key={t.symbol} value={t.symbol}>
+                    {t.symbol}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Box>
+            <Box sx={{ mt: 3 }}>
+              <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                <Typography variant="body2" color="text.secondary">
+                  Slippage tolerance
                 </Typography>
-                <Slider
-                  value={slippageBps}
-                  onChange={(_, value) => setSlippageBps(value)}
-                  min={10}
-                  max={300}
-                  step={10}
-                  marks={[
-                    { value: 50, label: "0.5%" },
-                    { value: 100, label: "1%" },
-                    { value: 200, label: "2%" },
-                  ]}
-                  size="small"
-                />
+                <Typography variant="body2">{slippageBps / 100}%</Typography>
               </Box>
-
-              <Box sx={{ mt: 2 }}>
-                <Typography variant="caption" color="text.secondary" gutterBottom>
-                  Gas Price: {gasPrice} Gwei
+              <Slider
+                aria-label="Slippage tolerance"
+                value={slippageBps}
+                onChange={(_, v) => change(setSlippageBps, v)}
+                min={0}
+                max={300}
+                step={10}
+                size="small"
+                valueLabelDisplay="auto"
+              />
+            </Box>
+            <Box sx={{ mt: 2 }}>
+              <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                <Typography variant="body2" color="text.secondary">
+                  Assumed gas price
                 </Typography>
-                <Slider
-                  value={gasPrice}
-                  onChange={(_, value) => setGasPrice(value)}
-                  min={10}
-                  max={200}
-                  step={5}
-                  marks={[
-                    { value: 30, label: "30" },
-                    { value: 100, label: "100" },
-                    { value: 200, label: "200" },
-                  ]}
-                  size="small"
-                />
+                <Typography variant="body2">{gasPrice} gwei</Typography>
               </Box>
-            </Paper>
-
-            {/* Route Builder */}
-            <Paper sx={{ p: 2, bgcolor: "background.default", mt: 2 }}>
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
-                <Typography variant="subtitle2">Route Configuration</Typography>
-                <Button
-                  size="small"
-                  onClick={addHop}
-                  disabled={route.length >= 4}
+              <Slider
+                aria-label="Assumed gas price"
+                value={gasPrice}
+                onChange={(_, v) => change(setGasPrice, v)}
+                min={0}
+                max={200}
+                step={5}
+                size="small"
+                valueLabelDisplay="auto"
+              />
+            </Box>
+          </Panel>
+          <Panel
+            title="Route builder"
+            subtitle="The output of each swap becomes the next swap's input."
+            action={
+              <Button
+                type="button"
+                size="small"
+                startIcon={<AddRounded />}
+                onClick={addHop}
+                disabled={route.length >= 4}
+              >
+                Add swap
+              </Button>
+            }
+          >
+            <Box sx={{ display: "grid", gap: 2 }}>
+              {route.map((hop, i) => (
+                <Box
+                  key={i}
+                  sx={{
+                    p: 2,
+                    bgcolor: "background.default",
+                    borderRadius: 2,
+                    border: "1px solid",
+                    borderColor: "divider",
+                  }}
                 >
-                  Add Hop
-                </Button>
-              </Box>
-
-              {route.map((hop, idx) => (
-                <Box key={idx} sx={{ mb: 2 }}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-                    <Chip label={`Hop ${idx + 1}`} size="small" />
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      mb: 2,
+                    }}
+                  >
+                    <Chip label={`Swap ${i + 1}`} variant="outlined" />
                     {route.length > 2 && (
                       <Button
+                        type="button"
                         size="small"
                         color="error"
-                        onClick={() => removeHop(idx)}
-                        sx={{ minWidth: "auto", p: 0.5 }}
+                        aria-label={`Remove swap ${i + 1}`}
+                        startIcon={<DeleteOutlineRounded />}
+                        onClick={() => removeHop(i)}
                       >
                         Remove
                       </Button>
                     )}
                   </Box>
-                  <Grid container spacing={1} alignItems="center">
-                    <Grid item xs={3}>
-                      <FormControl fullWidth size="small">
-                        <InputLabel>In</InputLabel>
-                        <Select
-                          value={hop.tokenIn}
-                          label="In"
-                          onChange={(e) => updateHop(idx, "tokenIn", e.target.value)}
-                        >
-                          {TOKENS.map((t) => (
-                            <MenuItem key={t.symbol} value={t.symbol}>
-                              {t.symbol}
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                    </Grid>
-                    <Grid item xs={1} sx={{ textAlign: "center" }}>
-                      <SwapHoriz color="action" />
-                    </Grid>
-                    <Grid item xs={3}>
-                      <FormControl fullWidth size="small">
-                        <InputLabel>Out</InputLabel>
-                        <Select
-                          value={hop.tokenOut}
-                          label="Out"
-                          onChange={(e) => updateHop(idx, "tokenOut", e.target.value)}
-                        >
-                          {TOKENS.map((t) => (
-                            <MenuItem key={t.symbol} value={t.symbol}>
-                              {t.symbol}
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                    </Grid>
-                    <Grid item xs={5}>
-                      <FormControl fullWidth size="small">
-                        <InputLabel>DEX</InputLabel>
-                        <Select
-                          value={hop.dex}
-                          label="DEX"
-                          onChange={(e) => updateHop(idx, "dex", e.target.value)}
-                        >
-                          {DEXES.map((dex) => (
-                            <MenuItem key={dex} value={dex}>
-                              {DEX_LABELS[dex]}
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                    </Grid>
-                  </Grid>
-                </Box>
-              ))}
-
-              <Button
-                fullWidth
-                variant="contained"
-                onClick={runSimulation}
-                disabled={loading}
-                startIcon={loading ? <CircularProgress size={20} /> : <Calculate />}
-                sx={{ mt: 2 }}
-              >
-                {loading ? "Simulating..." : "Run Simulation"}
-              </Button>
-            </Paper>
-          </Grid>
-
-          {/* Results */}
-          <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 2, bgcolor: "background.default", minHeight: 400 }}>
-              <Typography variant="subtitle2" gutterBottom>
-                Simulation Results
-              </Typography>
-
-              {error && (
-                <Alert severity="error" sx={{ mb: 2 }}>
-                  {error}
-                </Alert>
-              )}
-
-              {!result && !loading && (
-                <Box sx={{ textAlign: "center", py: 4, color: "text.secondary" }}>
-                  <Calculate sx={{ fontSize: 48, opacity: 0.5, mb: 2 }} />
-                  <Typography>
-                    Configure your route and click "Run Simulation" to see expected results
-                  </Typography>
-                </Box>
-              )}
-
-              {result?.simulation && (
-                <>
-                  {/* Profit Summary */}
-                  <Grid container spacing={2} sx={{ mb: 3 }}>
-                    <Grid item xs={6}>
-                      <Paper sx={{ p: 2, textAlign: "center", bgcolor: "background.paper" }}>
-                        <Typography variant="caption" color="text.secondary">
-                          Gross Profit
-                        </Typography>
-                        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0.5 }}>
-                          <TrendingUp color="success" />
-                          <Typography variant="h6" color="success.main">
-                            +{formatCurrency(result.simulation.grossProfit)} {borrowToken}
-                          </Typography>
-                        </Box>
-                      </Paper>
-                    </Grid>
-                    <Grid item xs={6}>
-                      <Paper sx={{ p: 2, textAlign: "center", bgcolor: "background.paper" }}>
-                        <Typography variant="caption" color="text.secondary">
-                          Gas Cost
-                        </Typography>
-                        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0.5 }}>
-                          <LocalGasStation color="action" />
-                          <Typography variant="h6">
-                            {formatCurrency(result.simulation.gasCost)} ETH
-                          </Typography>
-                        </Box>
-                      </Paper>
-                    </Grid>
-                  </Grid>
-
-                  {/* Net Profit Highlight */}
-                  <Paper
+                  <Box
                     sx={{
-                      p: 2,
-                      textAlign: "center",
-                      bgcolor: parseFloat(result.simulation.netProfit) > 0 ? "success.dark" : "error.dark",
-                      color: "white",
-                      mb: 3,
+                      display: "grid",
+                      gridTemplateColumns: {
+                        xs: "repeat(2,minmax(0,1fr))",
+                        sm: "1fr 1fr 1.4fr",
+                      },
+                      gap: 1.5,
                     }}
                   >
-                    <Typography variant="caption">Net Profit</Typography>
-                    <Typography variant="h4">
-                      {parseFloat(result.simulation.netProfit) >= 0 ? "+" : ""}
-                      {formatCurrency(result.simulation.netProfit)} {borrowToken}
-                    </Typography>
-                    <Typography variant="caption">
-                      ML Score: {((result.simulation.mlScore || 0) * 100).toFixed(0)}%
-                    </Typography>
-                  </Paper>
-
-                  {/* Detailed Breakdown */}
-                  <Typography variant="subtitle2" gutterBottom>
-                    Swap Details
-                  </Typography>
-                  {result.simulation.hops?.map((hop, idx) => (
+                    {[
+                      ["tokenIn", "Input token"],
+                      ["tokenOut", "Output token"],
+                    ].map(([key, label]) => (
+                      <TextField
+                        select
+                        size="small"
+                        key={key}
+                        label={`${label} ${i + 1}`}
+                        value={hop[key]}
+                        disabled={
+                          (key === "tokenIn" && i === 0) ||
+                          (key === "tokenOut" && i === route.length - 1)
+                        }
+                        onChange={(e) => updateHop(i, key, e.target.value)}
+                      >
+                        {TOKENS.map((t) => (
+                          <MenuItem key={t.symbol} value={t.symbol}>
+                            {t.symbol}
+                          </MenuItem>
+                        ))}
+                      </TextField>
+                    ))}
+                    <TextField
+                      select
+                      size="small"
+                      label={`Venue ${i + 1}`}
+                      value={hop.dex}
+                      onChange={(e) => updateHop(i, "dex", e.target.value)}
+                      sx={{ gridColumn: { xs: "span 2", sm: "auto" } }}
+                    >
+                      {DEXES.map((dex) => (
+                        <MenuItem key={dex} value={dex}>
+                          {DEX_LABELS[dex]}
+                          {["balancer", "curve"].includes(dex)
+                            ? " · legacy"
+                            : ""}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Box>
+                </Box>
+              ))}
+            </Box>
+            {error && (
+              <Alert severity="error" sx={{ mt: 2 }}>
+                {error}
+              </Alert>
+            )}
+            <Button
+              type="submit"
+              fullWidth
+              variant="contained"
+              startIcon={<PlayArrowRounded />}
+              disabled={loading}
+              sx={{ mt: 3 }}
+            >
+              {loading
+                ? "Calculating scenario…"
+                : "Run illustrative simulation"}
+            </Button>
+          </Panel>
+        </Box>
+        <Panel
+          title="Scenario results"
+          subtitle="Estimates from the manual simulator, separate from production trading."
+          sx={{ alignSelf: "start" }}
+        >
+          {loading ? (
+            <EmptyState
+              icon={ScienceOutlined}
+              title="Calculating scenario"
+              description="Applying the selected route and cost assumptions."
+            />
+          ) : !simulation ? (
+            <EmptyState
+              icon={ScienceOutlined}
+              title="Build a route to get started"
+              description="Enter a borrow amount, choose venues and run the scenario. No trade will be signed or submitted."
+            />
+          ) : (
+            <>
+              <Chip
+                label="ILLUSTRATIVE · NOT EXECUTABLE"
+                variant="outlined"
+                color="info"
+                sx={{ mb: 2 }}
+              />
+              {dirty && (
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                  Inputs changed. Run again to update these results.
+                </Alert>
+              )}
+              <Box sx={{ display: "grid", gap: 2 }}>
+                <Metric
+                  label="Projected net profit"
+                  value={number(simulation.netProfit, 4)}
+                  unit={currency}
+                  hint="Approximate costs; not a production quote"
+                  color={
+                    Number(simulation.netProfit) >= 0
+                      ? "success.main"
+                      : "error.main"
+                  }
+                />
+                <Box sx={{ display: "grid", gap: 1.5, my: 1 }}>
+                  {[
+                    [
+                      "Borrow amount",
+                      number(simulation.borrowAmount, 4),
+                      currency,
+                    ],
+                    [
+                      "Expected return",
+                      number(simulation.expectedReturn, 4),
+                      currency,
+                    ],
+                    [
+                      "Gross difference",
+                      number(simulation.grossProfit, 4),
+                      currency,
+                    ],
+                    ["Gas cost", number(simulation.gasCost, 6), "ETH"],
+                    ["Price impact", number(simulation.priceImpact, 4), "%"],
+                  ].map(([label, value, unit]) => (
                     <Box
-                      key={idx}
+                      key={label}
                       sx={{
                         display: "flex",
                         justifyContent: "space-between",
-                        alignItems: "center",
-                        p: 1,
-                        bgcolor: "background.paper",
-                        borderRadius: 1,
-                        mb: 1,
+                        gap: 1,
                       }}
                     >
-                      <Box>
-                        <Typography variant="body2">
-                          {hop.tokenIn} → {hop.tokenOut}
-                        </Typography>
-                        <Chip label={DEX_LABELS[hop.dex]} size="small" sx={{ mt: 0.5 }} />
-                      </Box>
-                      <Typography variant="caption" color="text.secondary">
-                        Impact: {hop.priceImpact}%
+                      <Typography variant="body2" color="text.secondary">
+                        {label}
+                      </Typography>
+                      <Typography variant="body2">
+                        {value} {unit}
                       </Typography>
                     </Box>
                   ))}
-
-                  {/* Warnings */}
-                  {parseFloat(result.simulation.priceImpact) > 0.5 && (
-                    <Alert severity="warning" sx={{ mt: 2 }}>
-                      High price impact detected ({result.simulation.priceImpact}%). Consider reducing borrow amount.
-                    </Alert>
-                  )}
-
-                  {parseFloat(result.simulation.netProfit) < 0 && (
-                    <Alert severity="error" sx={{ mt: 2 }}>
-                      This trade is projected to be unprofitable. Review your route configuration.
-                    </Alert>
-                  )}
-                </>
-              )}
-            </Paper>
-          </Grid>
-        </Grid>
-      </CardContent>
-    </Card>
+                </Box>
+                {simulation.hops?.map((hop, i) => (
+                  <Box
+                    key={i}
+                    sx={{
+                      p: 1.5,
+                      bgcolor: "background.default",
+                      borderRadius: 2,
+                    }}
+                  >
+                    <Typography variant="body2">
+                      {i + 1}. {hop.tokenIn} → {hop.tokenOut}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {DEX_LABELS[hop.dex] || hop.dex} · impact{" "}
+                      {hop.priceImpact}%
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
+            </>
+          )}
+        </Panel>
+      </Box>
+    </Box>
   );
-};
-
-export default ProfitSimulator;
+}

@@ -3,20 +3,14 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
+import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import "./index.css";
 import App from "./App.jsx";
 import reportWebVitals from "./reportWebVitals";
 import Auth0ProviderWithNavigate from "./Auth0ProviderWithNavigate";
 
-const theme = createTheme({
-  palette: {
-    mode: "dark",
-    primary: { main: "#FFD700" },
-    background: { default: "#000", paper: "#111" },
-  },
-});
+import theme from "./theme";
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(

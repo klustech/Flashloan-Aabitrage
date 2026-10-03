@@ -1,16 +1,200 @@
-/* frontend/src/index.css */
-
-/* Reset and basic styling */
-*,
-*::before,
-*::after {
+* {
   box-sizing: border-box;
-  margin: 0;
-  padding: 0;
 }
-
+html {
+  color-scheme: dark;
+}
 body {
-  font-family: "Roboto", sans-serif;
-  background-color: #000;
-  color: #ffd700;
+  margin: 0;
+  background: #0b111b;
+  color: #edf3fc;
+  font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+}
+button,
+input,
+select {
+  font: inherit;
+}
+a {
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+:focus-visible {
+  outline: 2px solid #7ce9bf;
+  outline-offset: 3px;
+}
+.mono {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.dashboard-shell {
+  display: grid;
+  grid-template-columns: 224px minmax(0, 1fr);
+  min-height: 100vh;
+}
+.dashboard-sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  background: #0d1622;
+  border-right: 1px solid #263345;
+  display: flex;
+  flex-direction: column;
+  padding: 30px 16px 20px;
+}
+.dashboard-body {
+  min-width: 0;
+}
+.dashboard-topbar {
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 32px;
+  border-bottom: 1px solid #263345;
+}
+.dashboard-main {
+  max-width: 1660px;
+  margin: 0 auto;
+  padding: 30px 32px 40px;
+}
+.dashboard-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 32px 0 24px;
+}
+.dashboard-nav button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  color: #9caec4;
+  padding: 13px 14px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+.dashboard-nav button:hover {
+  color: #edf3fc;
+  background: #172334;
+}
+.dashboard-nav button[aria-current="page"] {
+  color: #7ce9bf;
+  background: #7ce9bf0c;
+  border-color: #7ce9bf24;
+}
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+.dashboard-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.75fr) minmax(280px, 1fr);
+  gap: 20px;
+}
+.panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+.route-flow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.mobile-navigation {
+  display: none;
+}
+.execution-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.skip-link {
+  position: fixed;
+  top: -100px;
+  left: 16px;
+  z-index: 2000;
+  background: #7ce9bf;
+  color: #10261e;
+  padding: 12px 18px;
+  border-radius: 8px;
+}
+.skip-link:focus {
+  top: 12px;
+}
+@media (max-width: 1200px) {
+  .dashboard-shell {
+    grid-template-columns: 200px minmax(0, 1fr);
+  }
+  .dashboard-main {
+    padding: 24px;
+  }
+  .dashboard-topbar {
+    padding: 16px 24px;
+  }
+  .dashboard-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .dashboard-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 800px) {
+  .dashboard-shell {
+    display: block;
+  }
+  .dashboard-sidebar {
+    display: none;
+  }
+  .mobile-navigation {
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+    border-bottom: 1px solid #263345;
+    gap: 4px;
+    padding: 8px 16px;
+  }
+  .mobile-navigation button {
+    white-space: nowrap;
+    min-width: max-content;
+  }
+  .dashboard-main {
+    padding: 22px 16px;
+  }
+  .dashboard-topbar {
+    padding: 14px 16px;
+    min-height: 66px;
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 480px) {
+  .dashboard-grid {
+    gap: 10px;
+  }
+  .execution-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

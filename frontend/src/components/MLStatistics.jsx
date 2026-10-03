@@ -1,344 +1,215 @@
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
+  Alert,
   Box,
-  Card,
-  CardContent,
-  Typography,
-  Grid,
-  LinearProgress,
+  Button,
   Chip,
-  Tooltip,
-  IconButton,
+  LinearProgress,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
-  CircularProgress,
+  Typography,
 } from "@mui/material";
-import {
-  TrendingUp,
-  TrendingDown,
-  Psychology,
-  Speed,
-  CheckCircle,
-  Cancel,
-  Refresh,
-  Info,
-} from "@mui/icons-material";
+import { PsychologyOutlined, RefreshRounded } from "@mui/icons-material";
 import { getMLStats } from "../services/api";
-
-const MLStatistics = () => {
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  const fetchStats = async () => {
+import { EmptyState, Metric, Panel } from "../ui/Primitives";
+import { number } from "../ui/format";
+const percent = (value) =>
+  value == null || !Number.isFinite(Number(value))
+    ? "—"
+    : `${number(Number(value) * 100, 2)}%`;
+export default function MLStatistics() {
+  const [stats, setStats] = useState(null),
+    [loading, setLoading] = useState(true),
+    [error, setError] = useState("");
+  const fetchStats = useCallback(async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const data = await getMLStats();
-      setStats(data);
-      setError(null);
-    } catch (err) {
-      setError(err.message || "Failed to fetch ML statistics");
+      setStats(await getMLStats());
+      setError("");
+    } catch (e) {
+      setError(e.response?.data?.error || e.message);
     } finally {
       setLoading(false);
     }
-  };
-
+  }, []);
   useEffect(() => {
     fetchStats();
-    const interval = setInterval(fetchStats, 30000); // Refresh every 30s
-    return () => clearInterval(interval);
-  }, []);
-
-  const formatPercentage = (value) => {
-    if (value === null || value === undefined) return "N/A";
-    return `${(value * 100).toFixed(2)}%`;
-  };
-
-  const getScoreColor = (score) => {
-    if (score >= 0.8) return "success";
-    if (score >= 0.6) return "warning";
-    return "error";
-  };
-
-  if (loading && !stats) {
-    return (
-      <Card>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            ML Model Statistics
-          </Typography>
-          <LinearProgress />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // Check if ML model is available and has data
-  const isMLAvailable = stats?.available !== false;
-  const hasData = stats?.totalPredictions > 0 || stats?.accuracy !== null;
-
-  // Show not available state
-  if (!isMLAvailable || (!hasData && !loading)) {
-    return (
-      <Card>
-        <CardContent>
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Psychology color="disabled" />
-              <Typography variant="h6">ML Model Statistics</Typography>
-            </Box>
-            <IconButton onClick={fetchStats} size="small" disabled={loading}>
-              <Refresh />
-            </IconButton>
-          </Box>
-          <Paper sx={{ p: 3, textAlign: "center", bgcolor: "background.default" }}>
-            <Psychology sx={{ fontSize: 48, opacity: 0.3, mb: 2 }} />
-            <Typography variant="body1" color="text.secondary" gutterBottom>
-              {stats?.message || "ML model not configured or no predictions yet"}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              Configure ML_MODEL_ENDPOINT environment variable to enable ML scoring
-            </Typography>
-          </Paper>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // Use API data with safe defaults
-  const displayStats = {
-    modelVersion: stats?.modelVersion || "unknown",
-    lastTrained: stats?.lastTrained || new Date().toISOString(),
-    accuracy: stats?.accuracy ?? null,
-    precision: stats?.precision ?? null,
-    recall: stats?.recall ?? null,
-    f1Score: stats?.f1Score ?? null,
-    auc: stats?.auc ?? null,
-    totalPredictions: stats?.totalPredictions || 0,
-    correctPredictions: stats?.correctPredictions || 0,
-    avgResponseTime: stats?.avgResponseTime || 0,
-    featureImportance: stats?.featureImportance || [],
-    recentPredictions: stats?.recentPredictions || [],
-  };
-
+    const timer = setInterval(fetchStats, 30000);
+    return () => clearInterval(timer);
+  }, [fetchStats]);
+  const available =
+    stats &&
+    stats.available !== false &&
+    (Number(stats.totalPredictions) > 0 || stats.accuracy != null);
   return (
-    <Card>
-      <CardContent>
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Psychology color="primary" />
-            <Typography variant="h6">ML Model Statistics</Typography>
-          </Box>
-          <Box>
-            <Chip
-              label={displayStats.modelVersion}
+    <Box sx={{ display: "grid", gap: 3 }}>
+      <Alert severity="info">
+        ML scores are optional diagnostics. Production quotes, transaction
+        simulations and execution guards make trading decisions.
+      </Alert>
+      <Panel
+        title="Model performance"
+        subtitle="Metrics reported by the configured model service."
+        action={
+          <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+            {stats?.modelVersion && (
+              <Chip label={stats.modelVersion} variant="outlined" />
+            )}
+            <Button
               size="small"
-              color="primary"
-              variant="outlined"
-              sx={{ mr: 1 }}
-            />
-            <IconButton onClick={fetchStats} size="small" disabled={loading}>
-              <Refresh />
-            </IconButton>
+              onClick={fetchStats}
+              disabled={loading}
+              startIcon={<RefreshRounded />}
+            >
+              Refresh
+            </Button>
           </Box>
-        </Box>
-
+        }
+      >
         {error && (
-          <Typography color="error" sx={{ mb: 2 }}>
+          <Alert severity="error" sx={{ mb: 2 }}>
             {error}
-          </Typography>
+          </Alert>
         )}
-
-        {/* Model Performance Metrics */}
-        <Grid container spacing={2} sx={{ mb: 3 }}>
-          <Grid item xs={6} sm={3}>
-            <Paper sx={{ p: 2, textAlign: "center", bgcolor: "background.default" }}>
-              <Typography variant="caption" color="text.secondary">
-                Accuracy
-              </Typography>
-              <Typography variant="h5" color="success.main">
-                {formatPercentage(displayStats.accuracy)}
-              </Typography>
-            </Paper>
-          </Grid>
-          <Grid item xs={6} sm={3}>
-            <Paper sx={{ p: 2, textAlign: "center", bgcolor: "background.default" }}>
-              <Typography variant="caption" color="text.secondary">
-                Precision
-              </Typography>
-              <Typography variant="h5" color="info.main">
-                {formatPercentage(displayStats.precision)}
-              </Typography>
-            </Paper>
-          </Grid>
-          <Grid item xs={6} sm={3}>
-            <Paper sx={{ p: 2, textAlign: "center", bgcolor: "background.default" }}>
-              <Typography variant="caption" color="text.secondary">
-                Recall
-              </Typography>
-              <Typography variant="h5" color="warning.main">
-                {formatPercentage(displayStats.recall)}
-              </Typography>
-            </Paper>
-          </Grid>
-          <Grid item xs={6} sm={3}>
-            <Paper sx={{ p: 2, textAlign: "center", bgcolor: "background.default" }}>
-              <Tooltip title="Area Under ROC Curve">
-                <Typography variant="caption" color="text.secondary">
-                  AUC-ROC
-                </Typography>
-              </Tooltip>
-              <Typography variant="h5" color="primary.main">
-                {formatPercentage(displayStats.auc)}
-              </Typography>
-            </Paper>
-          </Grid>
-        </Grid>
-
-        {/* Prediction Stats */}
-        <Grid container spacing={2} sx={{ mb: 3 }}>
-          <Grid item xs={12} sm={6}>
-            <Paper sx={{ p: 2, bgcolor: "background.default" }}>
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Total Predictions
-                  </Typography>
-                  <Typography variant="h6">{displayStats.totalPredictions.toLocaleString()}</Typography>
-                </Box>
-                <Box sx={{ textAlign: "right" }}>
-                  <Typography variant="caption" color="text.secondary">
-                    Correct
-                  </Typography>
-                  <Typography variant="h6" color="success.main">
-                    {displayStats.correctPredictions.toLocaleString()}
-                  </Typography>
-                </Box>
-              </Box>
-              <LinearProgress
-                variant="determinate"
-                value={(displayStats.correctPredictions / displayStats.totalPredictions) * 100}
-                sx={{ mt: 1, height: 8, borderRadius: 4 }}
-                color="success"
-              />
-            </Paper>
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <Paper sx={{ p: 2, bgcolor: "background.default" }}>
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Avg Response Time
-                  </Typography>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                    <Speed fontSize="small" color="primary" />
-                    <Typography variant="h6">{displayStats.avgResponseTime}ms</Typography>
-                  </Box>
-                </Box>
-                <Chip
-                  label={displayStats.avgResponseTime < 100 ? "Fast" : "Normal"}
-                  size="small"
-                  color={displayStats.avgResponseTime < 100 ? "success" : "warning"}
-                />
-              </Box>
-            </Paper>
-          </Grid>
-        </Grid>
-
-        {/* Feature Importance */}
-        <Typography variant="subtitle2" gutterBottom sx={{ mt: 2 }}>
-          Feature Importance
-        </Typography>
-        <Box sx={{ mb: 3 }}>
-          {displayStats.featureImportance.map((item, idx) => (
-            <Box key={idx} sx={{ mb: 1 }}>
-              <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
-                <Typography variant="caption">{item.feature.replace(/_/g, " ")}</Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {formatPercentage(item.importance)}
-                </Typography>
-              </Box>
-              <LinearProgress
-                variant="determinate"
-                value={item.importance * 100}
-                sx={{ height: 6, borderRadius: 3 }}
-              />
-            </Box>
-          ))}
-        </Box>
-
-        {/* Recent Predictions */}
-        <Typography variant="subtitle2" gutterBottom>
-          Recent Predictions
-        </Typography>
-        <TableContainer component={Paper} sx={{ maxHeight: 200 }}>
-          <Table size="small" stickyHeader>
-            <TableHead>
-              <TableRow>
-                <TableCell>Score</TableCell>
-                <TableCell align="center">Outcome</TableCell>
-                <TableCell align="right">Profit (ETH)</TableCell>
-                <TableCell align="center">Correct</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {displayStats.recentPredictions.map((pred, idx) => (
-                <TableRow key={idx}>
-                  <TableCell>
-                    <Chip
-                      label={`${(pred.score * 100).toFixed(0)}%`}
-                      size="small"
-                      color={getScoreColor(pred.score)}
-                    />
-                  </TableCell>
-                  <TableCell align="center">
-                    {pred.actual ? (
-                      <Chip label="Executed" size="small" color="success" variant="outlined" />
-                    ) : (
-                      <Chip label="Skipped" size="small" color="default" variant="outlined" />
-                    )}
-                  </TableCell>
-                  <TableCell align="right">
-                    {pred.profit > 0 ? (
-                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
-                        <TrendingUp fontSize="small" color="success" />
-                        <Typography variant="body2" color="success.main" sx={{ ml: 0.5 }}>
-                          +{pred.profit.toFixed(4)}
-                        </Typography>
-                      </Box>
-                    ) : (
-                      <Typography variant="body2" color="text.secondary">
-                        -
-                      </Typography>
-                    )}
-                  </TableCell>
-                  <TableCell align="center">
-                    {(pred.score >= 0.5 && pred.actual) || (pred.score < 0.5 && !pred.actual) ? (
-                      <CheckCircle fontSize="small" color="success" />
-                    ) : (
-                      <Cancel fontSize="small" color="error" />
-                    )}
-                  </TableCell>
-                </TableRow>
+        {!available ? (
+          <EmptyState
+            icon={PsychologyOutlined}
+            title={
+              loading ? "Loading model diagnostics" : "No model results yet"
+            }
+            description={
+              stats?.message ||
+              "No configured model has supplied prediction metrics. The production scanner can operate independently."
+            }
+          />
+        ) : (
+          <>
+            <Box className="dashboard-grid">
+              {[
+                ["Accuracy", stats.accuracy],
+                ["Precision", stats.precision],
+                ["Recall", stats.recall],
+                ["AUC", stats.auc],
+              ].map(([label, value]) => (
+                <Metric key={label} label={label} value={percent(value)} />
               ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-
-        {/* Last Updated */}
-        <Box sx={{ mt: 2, textAlign: "right" }}>
-          <Typography variant="caption" color="text.secondary">
-            Model trained: {new Date(displayStats.lastTrained).toLocaleDateString()}
-          </Typography>
+            </Box>
+            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 3, mt: 3 }}>
+              <Typography variant="body2" color="text.secondary">
+                Predictions:{" "}
+                <Box component="span" sx={{ color: "text.primary" }}>
+                  {number(stats.totalPredictions)}
+                </Box>
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Correct:{" "}
+                <Box component="span" sx={{ color: "text.primary" }}>
+                  {number(stats.correctPredictions)}
+                </Box>
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Response time:{" "}
+                <Box component="span" sx={{ color: "text.primary" }}>
+                  {number(stats.avgResponseTime)} ms
+                </Box>
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Trained:{" "}
+                {stats.lastTrained
+                  ? new Date(stats.lastTrained).toLocaleDateString()
+                  : "—"}
+              </Typography>
+            </Box>
+          </>
+        )}
+      </Panel>
+      {available && (
+        <Box className="dashboard-split">
+          <Panel
+            title="Feature importance"
+            subtitle="Relative contribution reported by the model."
+          >
+            {stats.featureImportance?.length ? (
+              stats.featureImportance.map((item, i) => (
+                <Box key={i} sx={{ mb: 2.5 }}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      mb: 1,
+                    }}
+                  >
+                    <Typography variant="body2">
+                      {item.feature?.replaceAll("_", " ")}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {percent(item.importance)}
+                    </Typography>
+                  </Box>
+                  <LinearProgress
+                    variant="determinate"
+                    value={Math.max(
+                      0,
+                      Math.min(100, Number(item.importance || 0) * 100)
+                    )}
+                  />
+                </Box>
+              ))
+            ) : (
+              <EmptyState
+                compact
+                title="No feature breakdown"
+                description="Feature contributions have not been supplied."
+              />
+            )}
+          </Panel>
+          <Panel
+            title="Recent predictions"
+            subtitle="Recorded model predictions and observed outcomes."
+          >
+            {stats.recentPredictions?.length ? (
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Score</TableCell>
+                      <TableCell>Outcome</TableCell>
+                      <TableCell align="right">Reported profit (ETH)</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {stats.recentPredictions.map((prediction, i) => (
+                      <TableRow key={i}>
+                        <TableCell>{percent(prediction.score)}</TableCell>
+                        <TableCell>
+                          <Chip
+                            label={prediction.actual ? "Executed" : "Skipped"}
+                            color={prediction.actual ? "success" : "default"}
+                            variant="outlined"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          {number(prediction.profit, 4)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : (
+              <EmptyState
+                compact
+                title="No predictions recorded"
+                description="Recent prediction outcomes will appear here."
+              />
+            )}
+          </Panel>
         </Box>
-      </CardContent>
-    </Card>
+      )}
+    </Box>
   );
-};
-
-export default MLStatistics;
+}

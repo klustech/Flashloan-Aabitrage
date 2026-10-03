@@ -4,10 +4,31 @@ import { useAuth0 } from "@auth0/auth0-react";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Dashboard from "./components/Dashboard";
 import Login from "./components/Login";
-import {
-  setAuthTokenProvider,
-  setUnauthorizedHandler,
-} from "./services/api";
+import { Box, Button, Typography } from "@mui/material";
+import { setAuthTokenProvider, setUnauthorizedHandler } from "./services/api";
+
+function StatusPage({ title, description }) {
+  return (
+    <Box
+      sx={{ minHeight: "100vh", display: "grid", placeItems: "center", p: 3 }}
+    >
+      <Box sx={{ textAlign: "center", maxWidth: 450 }}>
+        <Typography variant="overline" color="primary">
+          KLUSTER ARBITRAGE
+        </Typography>
+        <Typography component="h1" variant="h4" sx={{ mt: 2 }}>
+          {title}
+        </Typography>
+        <Typography color="text.secondary" sx={{ my: 3 }}>
+          {description}
+        </Typography>
+        <Button variant="outlined" href="/">
+          Return to workspace
+        </Button>
+      </Box>
+    </Box>
+  );
+}
 
 function App() {
   const location = useLocation();
@@ -41,15 +62,13 @@ function App() {
 
     setAuthTokenProvider(provider);
     return () => setAuthTokenProvider(null);
-  }, [
-    audience,
-    getAccessTokenSilently,
-    isAuthenticated,
-    scope,
-  ]);
+  }, [audience, getAccessTokenSilently, isAuthenticated, scope]);
 
   useEffect(() => {
-    if (process.env.REACT_APP_PRIVATE_DASHBOARD === "true" || typeof loginWithRedirect !== "function") {
+    if (
+      process.env.REACT_APP_PRIVATE_DASHBOARD === "true" ||
+      typeof loginWithRedirect !== "function"
+    ) {
       setUnauthorizedHandler(null);
       return () => setUnauthorizedHandler(null);
     }
@@ -104,11 +123,26 @@ function App() {
           </ProtectedRoute>
         }
       />
-      <Route path="/unauthorized" element={<div>Unauthorized</div>} />
-      <Route path="*" element={<div>404 Not Found</div>} />
+      <Route
+        path="/unauthorized"
+        element={
+          <StatusPage
+            title="Access restricted"
+            description="Your account does not have permission to open this workspace."
+          />
+        }
+      />
+      <Route
+        path="*"
+        element={
+          <StatusPage
+            title="Page not found"
+            description="This address is not part of the operator workspace."
+          />
+        }
+      />
     </Routes>
   );
 }
 
 export default App;
-

@@ -1,5 +1,6 @@
 import React from "react";
 import { useAuth0 } from "@auth0/auth0-react";
+import { Box, CircularProgress, Typography } from "@mui/material";
 import { Navigate, useLocation } from "react-router-dom";
 
 const ProtectedRoute = ({ children, roles = [] }) => {
@@ -14,7 +15,17 @@ const ProtectedRoute = ({ children, roles = [] }) => {
 
   if (process.env.REACT_APP_PRIVATE_DASHBOARD === "true") return children;
 
-  if (isLoading) return <div>Loading...</div>;
+  if (isLoading)
+    return (
+      <Box sx={{ minHeight: "100vh", display: "grid", placeItems: "center" }}>
+        <Box sx={{ textAlign: "center" }}>
+          <CircularProgress size={28} />
+          <Typography color="text.secondary" sx={{ mt: 2 }}>
+            Opening your workspace…
+          </Typography>
+        </Box>
+      </Box>
+    );
   if (!isAuthenticated)
     return <Navigate to="/login" replace state={{ from: fromState }} />;
 
@@ -31,4 +42,3 @@ const ProtectedRoute = ({ children, roles = [] }) => {
 };
 
 export default ProtectedRoute;
-
