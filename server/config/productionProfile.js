@@ -39,6 +39,7 @@ function productionProfile(env = process.env) {
     maxBuilderShareBps: integer(env.MAX_BUILDER_SHARE_BPS || 1500,'MAX_BUILDER_SHARE_BPS',0,5000),
     slippageBps: integer(env.SLIPPAGE_DEFAULT_BIPS || 30,'SLIPPAGE_DEFAULT_BIPS',0,500),
     maxCandidates: integer(env.EXACT_QUOTE_CANDIDATES || 4,'EXACT_QUOTE_CANDIDATES',1,12),
+    maxScreenedCandidates: integer(env.MAX_SCREENED_CANDIDATES || 48,'MAX_SCREENED_CANDIDATES',1,128),
     maxSizedCandidates: integer(env.SIZED_CANDIDATES || 1,'SIZED_CANDIDATES',1,3),
     sizingSamples: integer(env.SIZING_SAMPLES || 4,'SIZING_SAMPLES',2,10),
     sizingRefinements: integer(env.SIZING_REFINEMENTS || 1,'SIZING_REFINEMENTS',0,5),

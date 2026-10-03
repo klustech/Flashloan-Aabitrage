@@ -1,8 +1,17 @@
 const fs = require('fs');
 const path = require('path');
+const { utils } = require('ethers');
 const { PoolRegistry, edge } = require('./poolRegistry');
 const { address, serialize } = require('../bot/units');
 const { checkSignal, abortable, mapLimit } = require('../bot/asyncControl');
+// ethers v5 accepts one address in getLogs, not an address array. Filter by
+// state-changing event topics once, then restrict results to our registry.
+const FACTORY_TOPICS = ['PairCreated(address,address,address,uint256)', 'PoolCreated(address,address,uint24,int24,address)'].map(utils.id);
+const POOL_TOPICS = ['Sync(uint112,uint112)', 'Initialize(uint160,int24)',
+  'Swap(address,address,int256,int256,uint160,uint128,int24)',
+  'Swap(address,address,int256,int256,uint160,uint128,int24,uint128,uint128)', // Pancake V3
+  'Mint(address,address,int24,int24,uint128,uint256,uint256)',
+  'Burn(address,int24,int24,uint128,uint256,uint256)'].map(utils.id);
 
 // Persist topology only. Restarted processes always verify metadata and read
 // fresh on-chain state before any candidate can use a saved pool.
@@ -12,7 +21,13 @@ class PoolStateCache {
     this.registry = new PoolRegistry(tokens);
     this.head = null;
     this.discoveredAtBlock = null;
-    this.stats = { discoveryRuns: 0, stateReads: 0, logRequests: 0, reusedPools: 0, reorgs: 0, logFallbacks: 0 };
+    this.stats = { discoveryRuns: 0, stateReads: 0, logRequests: 0, reusedPools: 0, reorgs: 0, logFallbacks: 0, lastLogError: null };
+  }
+  async logs(addresses,fromBlock,toBlock,signal,factoriesOnly=false){
+    this.stats.logRequests++;
+    const tracked=new Set(addresses.map(address));
+    const logs=await abortable(this.provider.getLogs({topics:[factoriesOnly?FACTORY_TOPICS:[...POOL_TOPICS,...FACTORY_TOPICS]],fromBlock,toBlock}),signal);
+    return logs.filter(log=>tracked.has(address(log.address)));
   }
   async discover(block, signal) {
     const tokenAddresses = this.profile.tokenSymbols.map(s => address(this.profile.tokens[s]));
@@ -74,7 +89,7 @@ class PoolStateCache {
       if(registry&&this.loadedDiscoveryBlock<block.number){
         // Catch pools created while this process was offline before extending
         // the discovery epoch of a persisted topology.
-        try {this.stats.logRequests++;const logs=await abortable(this.provider.getLogs({address:[...new Set(Object.values(this.profile.routers).map(c=>address(c.factory)))],fromBlock:this.loadedDiscoveryBlock+1,toBlock:block.number}),signal);if(logs.length)registry=null;}
+        try {const logs=await this.logs(Object.values(this.profile.routers).map(c=>c.factory),this.loadedDiscoveryBlock+1,block.number,signal,true);if(logs.length)registry=null;}
         catch(err){checkSignal(signal);registry=null;}
       }
       if (registry && registry.values().length) reads += await this.readStates(registry, registry.values(), block, signal, true);
@@ -86,21 +101,18 @@ class PoolStateCache {
       if (!fullRefresh) {
         const factories = new Set(Object.values(this.profile.routers).map(c => address(c.factory)));
         const addresses = [...new Set([...registry.values().map(p => p.poolAddress), ...factories])];
-        const chunks = []; for (let i = 0; i < addresses.length; i += 100) chunks.push(addresses.slice(i, i + 100));
         try {
-          const lists = await mapLimit(chunks, this.profile.rpcConcurrency || 8, async list => {
-            this.stats.logRequests++;
-            return this.provider.getLogs({ address: list, fromBlock: oldHead.number + 1, toBlock: block.number });
-          }, signal);
+          const logs = await this.logs(addresses,oldHead.number+1,block.number,signal);
           let created = false;
-          for (const log of lists.flat()) {
+          for (const log of logs) {
             if (log.removed || log.blockNumber < oldHead.number + 1 || log.blockNumber > block.number) throw new Error('Noncanonical pool logs');
             if (log.blockNumber === block.number && log.blockHash !== block.hash) throw new Error('Pool log block hash mismatch');
             if (factories.has(address(log.address))) created = true;
             else changed.add(address(log.address));
           }
           if (created) { registry = await this.discover(block, signal); discovered = true; reads += registry.values().length; for (const p of registry.values()) changed.add(p.poolAddress); }
-        } catch (err) { checkSignal(signal); fullRefresh = true; logFallback = true; }
+          this.stats.lastLogError=null;
+        } catch (err) { checkSignal(signal); fullRefresh = true; logFallback = true; this.stats.lastLogError=err.message; }
       }
       if (!discovered) {
         const pools = registry.values().filter(p => fullRefresh || changed.has(p.poolAddress));

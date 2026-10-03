@@ -15,13 +15,13 @@ function discoverCandidates(registry,borrowTokens,block){
 }
 function priceMovementBps(oldLeg,newLeg){const a=marginalRate(oldLeg),b=marginalRate(newLeg);const old=a.numerator.mul(b.denominator),next=b.numerator.mul(a.denominator);return next.sub(old).abs().mul(10000).div(old);}
 class CandidateIndex {
-  constructor(){this.routes=new Map();this.byPool=new Map();this.scores=new Map();this.stats={rebuilds:0,repriced:0};}
+  constructor(){this.routes=new Map();this.byPool=new Map();this.scores=new Map();this.attempts=new Map();this.sequence=0;this.stats={rebuilds:0,repriced:0};}
   candidates(registry,borrowTokens,block,changedPools,limit){
     const pools=registry.values(),byAddress=new Map(pools.map(p=>[`${p.dex}:${p.poolAddress}`,p]));
     const topology=JSON.stringify([borrowTokens,[...pools.map(p=>`${p.dex}:${p.poolAddress}:${p.token0}:${p.token1}:${p.feeTier}`)].sort()]);
     let affected=new Set();
     if(topology!==this.topology){
-      this.topology=topology;this.routes.clear();this.byPool.clear();this.scores.clear();this.stats.rebuilds++;
+      this.topology=topology;this.routes.clear();this.byPool.clear();this.scores.clear();this.attempts.clear();this.sequence=0;this.stats.rebuilds++;
       const edges=registry.edges();
       for(const route of [...scanTwoLeg(edges,borrowTokens,block),...scanTriangles(edges,borrowTokens,block)]){
         this.routes.set(route.id,route);affected.add(route.id);
@@ -34,10 +34,27 @@ class CandidateIndex {
       for(const leg of route.legs){if(leg.protocolVersion===2?bn(leg.reserveIn).lte(0)||bn(leg.reserveOut).lte(0):bn(leg.liquidity).lte(0)||bn(leg.sqrtPriceX96).lte(0)){liquid=false;break;}const r=marginalRate(leg);n=n.mul(r.numerator);d=d.mul(r.denominator);}
       this.scores.set(id,liquid?n.mul(1000000).div(d).sub(1000000):bn(0));
     }
-    this.stats.repriced=affected.size;this.stats.indexed=this.routes.size;
-    const ranked=[...this.routes.values()].filter(r=>this.scores.get(r.id)?.gt(0)).sort((a,b)=>this.scores.get(a.id).gt(this.scores.get(b.id))?-1:1);
+    this.affected=affected;this.stats.repriced=affected.size;this.stats.indexed=this.routes.size;
+    const ranked=[...this.routes.values()].filter(r=>this.scores.get(r.id)?.gt(0)).sort((a,b)=>this.scores.get(a.id).gt(this.scores.get(b.id))?-1:this.scores.get(a.id).lt(this.scores.get(b.id))?1:0);
     this.stats.profitableMarginal=ranked.length;
     return ranked.slice(0,limit??ranked.length).map(materialize);
   }
+  screeningCandidates(registry,borrowTokens,block,changedPools){
+    const ranked=this.candidates(registry,borrowTokens,block,changedPools);
+    // Changed routes go first. Give two-leg routes and triangles alternating
+    // slots so a long triangle prefix cannot hide a direct cross-DEX trade.
+    // Within each lane rotate previously attempted routes behind untried ones;
+    // unchanged markets must not repeat the same failed prefix every block.
+    const result=[],lanes=[];
+    for(const affected of [true,false])for(const hops of [2,3])lanes.push(ranked
+      .filter(r=>this.affected.has(r.id)===affected&&r.legs.length===hops)
+      .sort((a,b)=>(this.attempts.get(a.id)||0)-(this.attempts.get(b.id)||0)));
+    // Keep slots for unchanged routes too; a busy pool must not monopolize
+    // every batch indefinitely. Empty lanes cost no screening/RPC work.
+    for(let i=0;i<Math.max(...lanes.map(l=>l.length));i++)for(const lane of lanes)if(lane[i])result.push(lane[i]);
+    this.stats.affectedProfitable=ranked.filter(r=>this.affected.has(r.id)).length;
+    return result;
+  }
+  markScreened(id){if(this.routes.has(id))this.attempts.set(id,++this.sequence);}
 }
 module.exports={discoverCandidates,marginalRate,priceMovementBps,CandidateIndex};

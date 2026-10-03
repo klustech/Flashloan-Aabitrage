@@ -58,7 +58,7 @@ class Coordinator {
   async discover(signal){
     await abortable(this.initialize(),signal);const block=await abortable(pinnedBlock(this.provider),signal);
     const snapshot=await this.marketCache.sync(block,{signal});this.poolRegistry=snapshot.registry;
-    return {block,candidates:this.candidateIndex.candidates(this.poolRegistry,this.profile.borrowSymbols.map(s=>address(this.profile.tokens[s])),block.number,snapshot.changedPools,this.profile.maxCandidates)};
+    return {block,candidates:this.candidateIndex.screeningCandidates(this.poolRegistry,this.profile.borrowSymbols.map(s=>address(this.profile.tokens[s])),block.number,snapshot.changedPools)};
   }
   async refresh(route,block,signal){
     const registry=new PoolRegistry(this.tokens);
@@ -126,6 +126,46 @@ class Coordinator {
     await this.ledger.write(record);
     return {quote,economics,tip,terms,block,transaction,record};
   }
+  async screenCandidates(candidates,block,revision,signal,cycleDeadline){
+    const controller=new AbortController(),cancel=()=>controller.abort();
+    signal?.addEventListener('abort',cancel,{once:true});if(signal?.aborted)cancel();
+    const budget=this.profile.scanBudgetMs||5000;
+    // Reserve half the warm budget for sizing and mandatory executor checks.
+    const allowance=Math.max(1,Math.min(budget/2,cycleDeadline-Date.now()-budget/2));
+    const timer=setTimeout(cancel,allowance),screenSignal=controller.signal,screened=[];
+    const cap=Math.min(candidates.length,this.profile.maxScreenedCandidates||48),batchSize=this.profile.maxCandidates||4;
+    this.scanStats.screeningAttempted=0;this.scanStats.screeningPassed=0;this.scanStats.screeningBatches=0;
+    this.scanStats.screeningStopReason=cap<candidates.length?'candidate_cap':'exhausted';
+    try{
+      for(let offset=0;offset<cap;offset+=batchSize){
+        checkSignal(signal);checkSignal(screenSignal);this.scanStats.screeningBatches++;
+        await mapLimit(candidates.slice(offset,Math.min(offset+batchSize,cap)),2,async candidate=>{
+          try{
+            checkSignal(screenSignal);if(revision!==this.state.revision)throw abortError('Scan interrupted');
+            this.scanStats.screeningAttempted++;this.candidateIndex?.markScreened(candidate.id);
+            const route=await this.refresh(candidate,block,screenSignal),terms=await this.terms(route.borrowToken,block,screenSignal);
+            // Marginal rates only prefilter; exact quotes decide executability.
+            if(route.spreadPpm&&route.spreadPpm.lte(terms.premiumBps*100)){await this.reject(candidate,'marginal_spread_below_premium');return;}
+            const bounds=this.bounds(route,terms);if(bounds.maxInput.lt(bounds.minInput))throw new Error('Insufficient liquidity for minimum size');
+            let seed=bounds.minInput;try{seed=bn(sizingSeed(route,bounds.maxInput,terms.premiumBps));}catch(_){}
+            if(seed.lt(bounds.minInput))seed=bounds.minInput;if(seed.gt(bounds.maxInput))seed=bounds.maxInput;
+            this.scanStats.screened++;
+            const result=await this.evaluate(route,seed,terms,block,screenSignal);
+            if(!result.economics.profitable){checkSignal(screenSignal);await this.reject(candidate,'exact_screen_not_profitable');return;}
+            const netNative=await abortable(this.converter(route.borrowToken).toNative(result.economics.expectedNetProfit,block.number),screenSignal);
+            checkSignal(screenSignal);screened.push({route,terms,bounds,result,netNative});this.scanStats.screeningPassed++;
+          }catch(err){if(err.name==='AbortError')throw err;checkSignal(screenSignal);await this.reject(candidate,err.message);}
+        },screenSignal);
+        if(screened.length>=(this.profile.maxSizedCandidates||1)){this.scanStats.screeningStopReason='enough_profitable';break;}
+      }
+    }catch(err){
+      // A screening deadline may retain completed exact quotes for preparation.
+      // A new block, pause or outer timeout must still cancel the entire scan.
+      checkSignal(signal);if(revision!==this.state.revision)throw abortError('Scan interrupted');
+      if(err.name!=='AbortError')throw err;this.scanStats.screeningStopReason='screening_budget';
+    }finally{clearTimeout(timer);signal?.removeEventListener('abort',cancel);controller.abort();}
+    return screened.sort((a,b)=>a.netNative.gt(b.netNative)?-1:a.netNative.lt(b.netNative)?1:0);
+  }
   async cycle({signal}={}){
     if(this.busy)return {executed:false,reason:'cycle_already_running'};
     const scanning=['PAPER','LIVE_RUNNING'].includes(this.state.state);
@@ -133,7 +173,8 @@ class Coordinator {
     this.busy=true;const revision=this.state.revision;let prepared=null;
     const startedAt=Date.now(),controller=new AbortController(),externalSignal=signal;
     const cancel=()=>controller.abort();externalSignal?.addEventListener('abort',cancel,{once:true});if(externalSignal?.aborted)cancel();signal=controller.signal;
-    const timer=setTimeout(cancel,this.marketCache&&!this.marketCache.head?60000:(this.profile.scanBudgetMs||5000));
+    const cycleBudget=this.marketCache&&!this.marketCache.head?60000:(this.profile.scanBudgetMs||5000),cycleDeadline=startedAt+cycleBudget;
+    const timer=setTimeout(cancel,cycleBudget);
     this.scanStats={screened:0,sized:0,transactionCalls:0,gasEstimates:0,stageTimes:{}};
     try{
       checkSignal(signal);
@@ -143,25 +184,9 @@ class Coordinator {
       if(await this.execution.reconcile())return {executed:false,reason:'pending_receipt'};
       if(!scanning)return {executed:false,reason:'receipts_reconciled_while_paused'};
       const screeningStarted=Date.now();
-      const screened=await mapLimit(found.candidates.slice(0,this.profile.maxCandidates),2,async candidate=>{
-        try{
-          checkSignal(signal);if(revision!==this.state.revision)throw abortError('Scan interrupted');
-          const route=await this.refresh(candidate,block,signal),terms=await this.terms(route.borrowToken,block,signal);
-          // Fee-aware marginal spread is a mathematical upper-bound prefilter;
-          // it never replaces exact V3 quotes or final transaction simulation.
-          if(route.spreadPpm&&route.spreadPpm.lte(terms.premiumBps*100)){await this.reject(candidate,'marginal_spread_below_premium');return null;}
-          const bounds=this.bounds(route,terms);if(bounds.maxInput.lt(bounds.minInput))throw new Error('Insufficient liquidity for minimum size');
-          let seed=bounds.minInput;try{seed=bn(sizingSeed(route,bounds.maxInput,terms.premiumBps));}catch(_){}
-          if(seed.lt(bounds.minInput))seed=bounds.minInput;if(seed.gt(bounds.maxInput))seed=bounds.maxInput;
-          this.scanStats.screened++;
-          const result=await this.evaluate(route,seed,terms,block,signal);
-          if(!result.economics.profitable){await this.reject(candidate,'exact_screen_not_profitable');return null;}
-          const netNative=await abortable(this.converter(route.borrowToken).toNative(result.economics.expectedNetProfit,block.number),signal);
-          return {route,terms,bounds,result,netNative};
-        }catch(err){if(err.name==='AbortError')throw err;await this.reject(candidate,err.message);return null;}
-      },signal);
+      const ranked=await this.screenCandidates(found.candidates,block,revision,signal,cycleDeadline);
       this.scanStats.stageTimes.screeningMs=Date.now()-screeningStarted;
-      const ranked=screened.filter(Boolean).sort((a,b)=>a.netNative.gt(b.netNative)?-1:1),sizingStarted=Date.now();
+      const sizingStarted=Date.now();
       const finalists=[];
       for(const item of ranked.slice(0,this.profile.maxSizedCandidates||1)){
         checkSignal(signal);this.scanStats.sized++;

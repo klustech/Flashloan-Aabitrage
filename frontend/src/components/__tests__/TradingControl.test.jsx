@@ -4,10 +4,13 @@ import TradingControl from '../TradingControl';
 import {API} from '../../services/api';
 jest.mock('../../services/api',()=>({API:{get:jest.fn(),post:jest.fn()}}));
 test('shows measured scan latency and cached block without enabling live trading',async()=>{
-  API.get.mockResolvedValue({data:{trading:{state:'PAPER'},summary:{pending:0},executions:[],latency:{durationMs:240,cache:{block:123,pools:40},screened:4,sized:1,transactionCalls:2},scanner:{source:'websocket+http'}}});
+  API.get.mockResolvedValue({data:{trading:{state:'PAPER'},summary:{pending:0},executions:[],latency:{durationMs:240,cache:{block:123,pools:40,logFallbacks:0},screened:12,sized:1,transactionCalls:2,screeningBatches:3,screeningPassed:1,screeningStopReason:'candidate_cap',candidates:{profitableMarginal:443}},scanner:{source:'websocket+http'}}});
   render(<TradingControl/>);
   expect(await screen.findByText(/Last scan: 240 ms/)).toHaveTextContent('Block 123');
   expect(screen.getByText(/Cached pools: 40/)).toHaveTextContent('Transaction simulations: 2');
+  expect(screen.getByText(/Screening batches: 3/)).toHaveTextContent('Marginal candidates: 443');
+  expect(screen.getByText(/Screening batches: 3/)).toHaveTextContent('Pool log fallbacks: 0');
+  expect(screen.getByText(/Screening limit reached/)).toBeInTheDocument();
   expect(screen.getByRole('button',{name:'GO LIVE'})).toBeDisabled();
 });
 test('PAPER does not enable GO LIVE without backend arming',async()=>{
