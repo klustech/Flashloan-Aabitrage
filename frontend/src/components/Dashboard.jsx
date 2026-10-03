@@ -1,385 +1,442 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
+  Alert,
   Box,
-  Grid,
-  Paper,
-  Typography,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
-  Tabs,
-  Tab,
+  Button,
   Chip,
-  LinearProgress,
+  IconButton,
+  MenuItem,
+  TextField,
+  Tooltip,
+  Typography,
 } from "@mui/material";
 import {
-  TrendingUp,
-  Speed,
-  LocalGasStation,
-  Assessment,
+  AccountBalanceWalletOutlined,
+  ArrowOutwardRounded,
+  BoltRounded,
+  DashboardOutlined,
+  HubOutlined,
+  InsightsOutlined,
+  ReceiptLongOutlined,
+  RefreshRounded,
+  ScienceOutlined,
+  SettingsOutlined,
+  SpeedRounded,
+  StackedLineChartOutlined,
 } from "@mui/icons-material";
-import { getMetrics, getTradeHistory, getDailyStats } from "../services/api";
+import {
+  TradingStatusProvider,
+  useTradingStatus,
+} from "../hooks/useTradingStatus";
+import { Metric, Panel, StatusBadge } from "../ui/Primitives";
+import { formatUnits, number, time } from "../ui/format";
+import TradingControl from "./TradingControl";
+import ExecutionHistory from "./ExecutionHistory";
+import ScannerPanel from "./ScannerPanel";
+import ProfitChart from "./ProfitChart";
+import BotStatus from "./BotStatus";
 import RouteVisualization from "./RouteVisualization";
 import RealTimeOpportunities from "./RealTimeOpportunities";
 import MLStatistics from "./MLStatistics";
 import ProfitSimulator from "./ProfitSimulator";
-import BotStatus from "./BotStatus";
-import ProfitChart from "./ProfitChart";
-import TradingControl from "./TradingControl";
-
-const TabPanel = ({ children, value, index }) => (
-  <div hidden={value !== index} style={{ paddingTop: 16 }}>
-    {value === index && children}
-  </div>
-);
-
-const Dashboard = ({ adminMode = false }) => {
-  const [metrics, setMetrics] = useState(null);
-  const [trades, setTrades] = useState([]);
-  const [dailyStats, setDailyStats] = useState(null);
-  const [tradesLoading, setTradesLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState(0);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const fetchMetrics = async () => {
-      try {
-        const data = await getMetrics();
-        if (isMounted) {
-          setMetrics(data);
-        }
-      } catch (e) {
-        console.error("metrics fetch error", e);
+const PAGES = [
+  {
+    id: "overview",
+    label: "Overview",
+    icon: DashboardOutlined,
+    title: "Market overview",
+    description:
+      "Your scanner, performance and latest executions in one workspace.",
+  },
+  {
+    id: "executions",
+    label: "Executions",
+    icon: ReceiptLongOutlined,
+    title: "Execution ledger",
+    description: "Inspect simulations, rejected candidates and settled trades.",
+  },
+  {
+    id: "routes",
+    label: "Route explorer",
+    icon: HubOutlined,
+    title: "Route explorer",
+    description:
+      "Explore exact pools, swap directions and candidate economics.",
+  },
+  {
+    id: "opportunities",
+    label: "Opportunities",
+    icon: BoltRounded,
+    title: "Opportunity monitor",
+    description:
+      "Follow production simulations as they reach the execution ledger.",
+  },
+  {
+    id: "simulator",
+    label: "Simulator",
+    icon: ScienceOutlined,
+    title: "Strategy simulator",
+    description:
+      "Explore illustrative route economics before reviewing production quotes.",
+  },
+  {
+    id: "analytics",
+    label: "ML analytics",
+    icon: InsightsOutlined,
+    title: "Model analytics",
+    description:
+      "Optional model diagnostics. Production execution remains deterministic.",
+  },
+  {
+    id: "system",
+    label: "System & settings",
+    icon: SettingsOutlined,
+    title: "System & settings",
+    description:
+      "Inspect health, scanner diagnostics and your operator settings.",
+  },
+];
+function Workspace({ adminMode }) {
+  const { status, error, loading, refreshing, stale, updatedAt, refresh } =
+    useTradingStatus();
+  const [active, setActive] = useState("overview"),
+    [token, setToken] = useState("");
+  const page = PAGES.find((p) => p.id === active),
+    groups = Object.values(status?.summary?.tokens || {});
+  const selected =
+    groups.find((g) => g.borrowToken === token) ||
+    groups.find((g) => g.token?.symbol === "DAI") ||
+    groups[0];
+  const currency = selected?.token?.symbol || "DAI",
+    unit = selected?.token?.decimals;
+  const simulations = status?.executions?.filter(
+    (r) => r.mode === "PAPER" && r.status === "SIMULATED"
+  ).length;
+  const nav = (mobile = false) => (
+    <Box
+      component="nav"
+      aria-label={
+        mobile ? "Mobile workspace navigation" : "Workspace navigation"
       }
-    };
-
-    const fetchTrades = async () => {
-      try {
-        const data = await getTradeHistory(10);
-        if (isMounted) {
-          setTrades(Array.isArray(data) ? data : []);
-        }
-      } catch (e) {
-        console.error("trade history fetch error", e);
-        if (isMounted) {
-          setTrades([]);
-        }
-      } finally {
-        if (isMounted) {
-          setTradesLoading(false);
-        }
-      }
-    };
-
-    const fetchDailyStats = async () => {
-      try {
-        const data = await getDailyStats();
-        if (isMounted) {
-          setDailyStats(data);
-        }
-      } catch (e) {
-        console.error("daily stats fetch error", e);
-      }
-    };
-
-    fetchMetrics();
-    fetchTrades();
-    fetchDailyStats();
-
-    const id = setInterval(() => {
-      fetchMetrics();
-      fetchTrades();
-      fetchDailyStats();
-    }, 30000);
-
-    return () => {
-      isMounted = false;
-      clearInterval(id);
-    };
-  }, []);
-
-  const metricMap = {};
-  if (Array.isArray(metrics)) {
-    metrics.forEach((m) => {
-      if (m.values && m.values.length) {
-        metricMap[m.name] = m.values[0].value;
-      }
-    });
-  }
-
-  const getNumericMetric = (name) => {
-    if (!Object.prototype.hasOwnProperty.call(metricMap, name)) {
-      return null;
-    }
-    if (metricMap[name] === null || metricMap[name] === undefined) return null;
-    const parsed = Number(metricMap[name]);
-    return Number.isFinite(parsed) ? parsed : null;
-  };
-
-  const avgProfitDai = getNumericMetric("avg_profit_dai");
-  const arbAttemptsTotal = getNumericMetric("arb_attempts_total");
-  const avgLatencyMs = getNumericMetric("avg_latency_ms");
-  const successRate = getNumericMetric("arb_success_rate") ||
-    (dailyStats?.successfulTrades && dailyStats?.totalAttempts
-      ? (dailyStats.successfulTrades / dailyStats.totalAttempts) * 100
-      : null);
-
-  return (
-    <Box sx={{ maxWidth: 1400, mx: "auto", p: 2 }}>
-      {/* Header */}
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
-        <Typography variant="h4" color="primary">
-          Arbitrage Dashboard
-          {adminMode && (
-            <Chip label="Admin Mode" color="secondary" size="small" sx={{ ml: 2 }} />
-          )}
-        </Typography>
-        <BotStatus compact />
-      </Box>
-
-      <TradingControl />
-
-      {/* Top Stats Cards */}
-      <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={6} md={3}>
-          <Paper sx={{ p: 2, bgcolor: "background.default" }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-              <TrendingUp color="success" />
-              <Typography variant="subtitle2" color="text.secondary">
-                Expected average profit
-              </Typography>
-            </Box>
-            <Typography variant="h4" color="success.main">
-              {avgProfitDai !== null ? `${avgProfitDai.toFixed(4)}` : "-"}
-              <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 0.5 }}>
-                DAI
-              </Typography>
-            </Typography>
-            {dailyStats?.profitChange && (
-              <Typography variant="caption" color={dailyStats.profitChange >= 0 ? "success.main" : "error.main"}>
-                {dailyStats.profitChange >= 0 ? "+" : ""}{dailyStats.profitChange.toFixed(2)}% today
-              </Typography>
-            )}
-          </Paper>
-        </Grid>
-
-        <Grid item xs={6} md={3}>
-          <Paper sx={{ p: 2, bgcolor: "background.default" }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-              <Assessment color="primary" />
-              <Typography variant="subtitle2" color="text.secondary">
-                Arb Attempts
-              </Typography>
-            </Box>
-            <Typography variant="h4">
-              {arbAttemptsTotal !== null ? arbAttemptsTotal.toLocaleString() : "-"}
-            </Typography>
-            {successRate !== null && (
-              <Box sx={{ mt: 1 }}>
-                <Typography variant="caption" color="text.secondary">
-                  Success Rate: {successRate.toFixed(1)}%
-                </Typography>
-                <LinearProgress
-                  variant="determinate"
-                  value={successRate}
-                  sx={{ mt: 0.5, height: 4, borderRadius: 2 }}
-                  color={successRate > 70 ? "success" : successRate > 40 ? "warning" : "error"}
-                />
-              </Box>
-            )}
-          </Paper>
-        </Grid>
-
-        <Grid item xs={6} md={3}>
-          <Paper sx={{ p: 2, bgcolor: "background.default" }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-              <Speed color="info" />
-              <Typography variant="subtitle2" color="text.secondary">
-                Avg Latency
-              </Typography>
-            </Box>
-            <Typography variant="h4">
-              {avgLatencyMs !== null ? `${avgLatencyMs.toFixed(0)}` : "-"}
-              <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 0.5 }}>
-                ms
-              </Typography>
-            </Typography>
-            <Chip
-              label={avgLatencyMs !== null && avgLatencyMs < 500 ? "Fast" : "Normal"}
-              size="small"
-              color={avgLatencyMs !== null && avgLatencyMs < 500 ? "success" : "default"}
-              sx={{ mt: 1 }}
-            />
-          </Paper>
-        </Grid>
-
-        <Grid item xs={6} md={3}>
-          <Paper sx={{ p: 2, bgcolor: "background.default" }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-              <LocalGasStation color="warning" />
-              <Typography variant="subtitle2" color="text.secondary">
-                Gas Spent
-              </Typography>
-            </Box>
-            <Typography variant="h4">
-              {dailyStats?.totalGasSpent !== undefined
-                ? dailyStats.totalGasSpent.toFixed(4)
-                : getNumericMetric("total_gas_spent")?.toFixed(4) || "-"}
-              <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 0.5 }}>
-                ETH
-              </Typography>
-            </Typography>
-            {dailyStats?.avgGasPrice && (
-              <Typography variant="caption" color="text.secondary">
-                Avg: {dailyStats.avgGasPrice} gwei
-              </Typography>
-            )}
-          </Paper>
-        </Grid>
-      </Grid>
-
-      {/* Main Content Tabs */}
-      <Paper sx={{ mb: 3 }}>
-        <Tabs
-          value={activeTab}
-          onChange={(_, newValue) => setActiveTab(newValue)}
-          variant="scrollable"
-          scrollButtons="auto"
-          sx={{ borderBottom: 1, borderColor: "divider" }}
+      className={mobile ? "mobile-navigation dashboard-nav" : "dashboard-nav"}
+      sx={mobile ? { m: 0 } : undefined}
+    >
+      {PAGES.map(({ id, label, icon: Icon }) => (
+        <button
+          type="button"
+          key={id}
+          aria-current={active === id ? "page" : undefined}
+          onClick={() => setActive(id)}
         >
-          <Tab label="Overview" />
-          <Tab label="Route Candidates" />
-          <Tab label="Live Opportunities" />
-          <Tab label="ML Analytics" />
-          <Tab label="Simulator" />
-        </Tabs>
-
-        {/* Overview Tab */}
-        <TabPanel value={activeTab} index={0}>
-          <Box sx={{ p: 2 }}>
-            {/* Profit Chart */}
-            <Box sx={{ mb: 3 }}>
-              <ProfitChart />
-            </Box>
-
-            <Grid container spacing={3}>
-              {/* Recent Trades */}
-              <Grid item xs={12} lg={7}>
-                <Typography variant="h6" color="primary" gutterBottom>
-                  Recent Trades
-                </Typography>
-                <Paper sx={{ overflowX: "auto" }}>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell sx={{ color: "primary.main" }}>Time</TableCell>
-                        <TableCell sx={{ color: "primary.main" }}>Route</TableCell>
-                        <TableCell sx={{ color: "primary.main" }}>Profit</TableCell>
-                        <TableCell sx={{ color: "primary.main" }}>Status</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {tradesLoading ? (
-                        <TableRow>
-                          <TableCell colSpan={4}>
-                            <LinearProgress />
-                          </TableCell>
-                        </TableRow>
-                      ) : trades.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={4} sx={{ textAlign: "center", py: 3 }}>
-                            No trades recorded yet.
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        trades.map((trade) => {
-                          const profitValue = Number(trade.profit);
-                          const profitDisplay = Number.isFinite(profitValue)
-                            ? `${profitValue >= 0 ? "+" : ""}${profitValue.toFixed(4)} DAI`
-                            : trade.profit || "-";
-                          const timestamp = trade.timestamp
-                            ? new Date(trade.timestamp).toLocaleString()
-                            : "-";
-                          return (
-                            <TableRow key={`${trade.txHash ?? "trade"}-${trade.timestamp}`}>
-                              <TableCell>{timestamp}</TableCell>
-                              <TableCell>
-                                <Typography variant="body2" noWrap sx={{ maxWidth: 200 }}>
-                                  {trade.route || "-"}
-                                </Typography>
-                              </TableCell>
-                              <TableCell>
-                                <Typography
-                                  variant="body2"
-                                  color={profitValue >= 0 ? "success.main" : "error.main"}
-                                >
-                                  {profitDisplay}
-                                </Typography>
-                              </TableCell>
-                              <TableCell>
-                                <Chip
-                                  label={trade.status || "completed"}
-                                  size="small"
-                                  color={
-                                    trade.status === "success" || trade.status === "completed"
-                                      ? "success"
-                                      : trade.status === "failed"
-                                      ? "error"
-                                      : "default"
-                                  }
-                                />
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })
-                      )}
-                    </TableBody>
-                  </Table>
-                </Paper>
-              </Grid>
-
-              {/* Quick Stats */}
-              <Grid item xs={12} lg={5}>
-                <BotStatus />
-              </Grid>
-            </Grid>
-          </Box>
-        </TabPanel>
-
-        {/* Route Candidates Tab */}
-        <TabPanel value={activeTab} index={1}>
-          <Box sx={{ p: 2 }}>
-            <RouteVisualization />
-          </Box>
-        </TabPanel>
-
-        {/* Live Opportunities Tab */}
-        <TabPanel value={activeTab} index={2}>
-          <Box sx={{ p: 2 }}>
-            <RealTimeOpportunities />
-          </Box>
-        </TabPanel>
-
-        {/* ML Analytics Tab */}
-        <TabPanel value={activeTab} index={3}>
-          <Box sx={{ p: 2 }}>
-            <MLStatistics />
-          </Box>
-        </TabPanel>
-
-        {/* Simulator Tab */}
-        <TabPanel value={activeTab} index={4}>
-          <Box sx={{ p: 2 }}>
-            <ProfitSimulator />
-          </Box>
-        </TabPanel>
-      </Paper>
+          <Icon sx={{ fontSize: 20 }} />
+          {label}
+        </button>
+      ))}
     </Box>
   );
-};
-
-export default Dashboard;
-
+  return (
+    <Box className="dashboard-shell">
+      <a className="skip-link" href="#workspace-content">
+        Skip to content
+      </a>
+      <Box component="aside" className="dashboard-sidebar">
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 1 }}>
+          <Box
+            sx={{
+              display: "grid",
+              placeItems: "center",
+              width: 37,
+              height: 37,
+              bgcolor: "primary.main",
+              color: "primary.contrastText",
+              borderRadius: 2.5,
+            }}
+          >
+            <StackedLineChartOutlined />
+          </Box>
+          <Box>
+            <Typography
+              sx={{
+                fontSize: "1.05rem",
+                fontWeight: 650,
+                letterSpacing: "-.04em",
+              }}
+            >
+              Kluster Arbitrage
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Operator workspace
+            </Typography>
+          </Box>
+        </Box>
+        {nav()}
+        <Box
+          sx={{
+            mt: "auto",
+            p: 1.5,
+            border: "1px solid",
+            borderColor: "divider",
+            borderRadius: 2,
+          }}
+        >
+          <Typography variant="caption" color="text.secondary">
+            PRODUCTION PROFILE
+          </Typography>
+          <Typography variant="body2" sx={{ mt: 1 }}>
+            Ethereum · Aave V2
+          </Typography>
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ display: "block", mt: 0.5 }}
+          >
+            Private execution · 2–3 swaps
+          </Typography>
+          <Box sx={{ mt: 1.5 }}>
+            <StatusBadge value={status?.trading?.state} />
+          </Box>
+        </Box>
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{ pt: 2, px: 1 }}
+        >
+          Klustertech / Ethereum
+        </Typography>
+      </Box>
+      <Box className="dashboard-body">
+        <Box component="header" className="dashboard-topbar">
+          <Typography variant="body2" color="text.secondary">
+            Workspace{" "}
+            <Box component="span" sx={{ px: 1.5, opacity: 0.5 }}>
+              /
+            </Box>
+            <Box component="span" sx={{ color: "text.primary" }}>
+              {page.label}
+            </Box>
+          </Typography>
+          <Box sx={{ display: "flex", gap: 1.5, alignItems: "center" }}>
+            {adminMode && (
+              <Chip label="Admin" color="secondary" variant="outlined" />
+            )}
+            <Chip label="Ethereum" variant="outlined" />
+            <Typography
+              variant="caption"
+              color={stale ? "warning.main" : "text.secondary"}
+            >
+              {loading
+                ? "Connecting…"
+                : stale
+                ? "Connection needs attention"
+                : `Updated ${time(updatedAt)}`}
+            </Typography>
+            <Tooltip title="Refresh trading status">
+              <span>
+                <IconButton
+                  aria-label="Refresh trading status"
+                  onClick={refresh}
+                  disabled={refreshing}
+                >
+                  <RefreshRounded sx={{ fontSize: 20 }} />
+                </IconButton>
+              </span>
+            </Tooltip>
+          </Box>
+        </Box>
+        {nav(true)}
+        <Box
+          component="main"
+          id="workspace-content"
+          className="dashboard-main"
+          tabIndex={-1}
+        >
+          <Box
+            sx={{
+              mb: 3,
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 2,
+              flexWrap: "wrap",
+            }}
+          >
+            <Box>
+              <Typography
+                variant="overline"
+                color="primary"
+                sx={{ letterSpacing: ".16em", fontSize: ".65rem" }}
+              >
+                ARBITRAGE OPERATIONS
+              </Typography>
+              <Typography component="h1" variant="h4" sx={{ mt: 0.5 }}>
+                {page.title}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                {page.description}
+              </Typography>
+            </Box>
+            {active === "overview" && groups.length > 1 && (
+              <TextField
+                select
+                size="small"
+                label="Account token"
+                value={selected?.borrowToken || ""}
+                onChange={(e) => setToken(e.target.value)}
+                sx={{ minWidth: 140, alignSelf: "center" }}
+              >
+                {groups.map((g) => (
+                  <MenuItem key={g.borrowToken} value={g.borrowToken}>
+                    {g.token?.symbol || g.borrowToken}
+                  </MenuItem>
+                ))}
+              </TextField>
+            )}
+          </Box>
+          <TradingControl compact />
+          {error && (
+            <Alert severity="warning" sx={{ mb: 3 }}>
+              The API could not be refreshed. Last received values may be stale;
+              trading changes require a fresh status.
+            </Alert>
+          )}
+          {active === "overview" && (
+            <Box sx={{ display: "grid", gap: 3 }}>
+              <Box className="dashboard-grid">
+                <Metric
+                  label="Realized net profit"
+                  value={formatUnits(selected?.realizedNet, unit)}
+                  unit={currency}
+                  hint="Settled LIVE trades only"
+                  icon={AccountBalanceWalletOutlined}
+                  color="success.main"
+                />
+                <Metric
+                  label="PAPER simulations"
+                  value={number(simulations)}
+                  hint="In the latest 100 execution records"
+                  icon={ReceiptLongOutlined}
+                />
+                <Metric
+                  label="Last scan latency"
+                  value={number(status?.latency?.durationMs)}
+                  unit="ms"
+                  hint="Measured production cycle"
+                  icon={SpeedRounded}
+                />
+                <Metric
+                  label="Cached pools"
+                  value={number(status?.latency?.cache?.pools)}
+                  hint={`${number(
+                    status?.latency?.cache?.reusedPools
+                  )} reused in last scan`}
+                  icon={HubOutlined}
+                />
+              </Box>
+              <Box className="dashboard-split">
+                <ProfitChart borrowToken={selected?.borrowToken} />
+                <Panel
+                  title="Operating profile"
+                  subtitle="A deterministic path from quote to private execution."
+                >
+                  <Box sx={{ display: "grid", gap: 2.2 }}>
+                    {[
+                      ["Network", "Ethereum"],
+                      ["Flash-loan provider", "Aave V2"],
+                      ["Strategies", "Two-pool & three-leg cycles"],
+                      ["Submission", "Approved private relays"],
+                      ["Head", number(status?.latency?.cache?.block)],
+                    ].map(([label, value]) => (
+                      <Box
+                        key={label}
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: 1,
+                        }}
+                      >
+                        <Typography variant="body2" color="text.secondary">
+                          {label}
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          sx={{ fontWeight: 500, textAlign: "right" }}
+                        >
+                          {value}
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Box>
+                  <Box
+                    sx={{
+                      mt: 3,
+                      p: 2,
+                      bgcolor: "background.default",
+                      borderRadius: 2,
+                    }}
+                  >
+                    <Typography variant="subtitle2">
+                      {status?.readiness?.ready
+                        ? "Readiness checks passed"
+                        : "Commissioning remains gated"}
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ mt: 1 }}
+                    >
+                      LIVE requires matching contract verification, fork proof,
+                      continuous PAPER evidence and relay simulation.
+                    </Typography>
+                  </Box>
+                  <Button
+                    endIcon={<ArrowOutwardRounded />}
+                    sx={{ mt: 2, px: 0 }}
+                    onClick={() => setActive("system")}
+                  >
+                    Inspect system & settings
+                  </Button>
+                </Panel>
+              </Box>
+              <ScannerPanel />
+              <ExecutionHistory compact />
+            </Box>
+          )}
+          {active === "executions" && <ExecutionHistory />}
+          {active === "routes" && <RouteVisualization />}
+          {active === "opportunities" && <RealTimeOpportunities />}
+          {active === "simulator" && <ProfitSimulator />}
+          {active === "analytics" && <MLStatistics />}
+          {active === "system" && (
+            <Box sx={{ display: "grid", gap: 3 }}>
+              <ScannerPanel />
+              <BotStatus />
+            </Box>
+          )}
+          <Box
+            component="footer"
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: 1,
+              pt: 4,
+            }}
+          >
+            <Typography variant="caption" color="text.secondary">
+              Kluster Arbitrage · Private operator dashboard
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Expected profit ≠ realized profit
+            </Typography>
+          </Box>
+        </Box>
+      </Box>
+    </Box>
+  );
+}
+export default function Dashboard(props) {
+  return (
+    <TradingStatusProvider>
+      <Workspace {...props} />
+    </TradingStatusProvider>
+  );
+}

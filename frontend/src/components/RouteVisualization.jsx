@@ -1,344 +1,229 @@
-import React, { useState, useEffect } from "react";
+import React, { useMemo, useState } from "react";
 import {
+  Alert,
   Box,
-  Card,
-  CardContent,
-  Typography,
+  Button,
   Chip,
-  Grid,
-  LinearProgress,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  Tooltip,
-  IconButton,
-  Collapse,
-  Badge,
+  Drawer,
+  InputAdornment,
+  TextField,
+  Typography,
 } from "@mui/material";
-import {
-  TrendingUp,
-  TrendingDown,
-  SwapHoriz,
-  ExpandMore,
-  ExpandLess,
-  Refresh,
-  Star,
-} from "@mui/icons-material";
+import { SearchRounded, HubOutlined } from "@mui/icons-material";
 import { getOpportunities } from "../services/api";
-
-// DEX colors for visualization
-const DEX_COLORS = {
-  uniswap_v2: "#FF007A",
-  uniswap_v3: "#FC72FF",
-  sushiswap: "#0E0F23",
-  balancer: "#1E1E1E",
-  curve: "#A5A4CE",
-};
-
-const DEX_LABELS = {
-  uniswap_v2: "Uni V2",
-  uniswap_v3: "Uni V3",
-  sushiswap: "Sushi",
-  balancer: "Balancer",
-  curve: "Curve",
-};
-
-const RouteVisualization = () => {
-  const [routes, setRoutes] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [expandedRoute, setExpandedRoute] = useState(null);
-  const [sortBy, setSortBy] = useState("profit");
-
-  const fetchRoutes = async () => {
+import { useTradingStatus } from "../hooks/useTradingStatus";
+import {
+  EmptyState,
+  Panel,
+  RouteFlow,
+  StatusBadge,
+  Address,
+} from "../ui/Primitives";
+import { DEX_LABELS, formatUnits, positive, routeLabel } from "../ui/format";
+import { ExecutionDetails } from "./ExecutionHistory";
+import OpportunitiesTable from "./OpportunitiesTable";
+export default function RouteVisualization() {
+  const { status } = useTradingStatus();
+  const [query, setQuery] = useState(""),
+    [selected, setSelected] = useState(null),
+    [legacy, setLegacy] = useState(null),
+    [legacyError, setLegacyError] = useState(""),
+    [loadingLegacy, setLoadingLegacy] = useState(false);
+  const routes = useMemo(() => {
+    const map = new Map();
+    for (const row of status?.executions || [])
+      if (row.route?.legs?.length && !map.has(row.candidateId || row.id))
+        map.set(row.candidateId || row.id, row);
+    return [...map.values()].filter((r) =>
+      `${routeLabel(r)} ${r.token?.symbol || ""} ${r.route.legs
+        .map((l) => l.poolAddress)
+        .join(" ")}`
+        .toLowerCase()
+        .includes(query.toLowerCase())
+    );
+  }, [status, query]);
+  const fetchLegacy = async () => {
+    setLoadingLegacy(true);
+    setLegacyError("");
     try {
-      setLoading(true);
-      const data = await getOpportunities();
-      setRoutes(data.opportunities || []);
-      setError(null);
-    } catch (err) {
-      setError(err.message || "Failed to fetch routes");
+      const response = await getOpportunities();
+      setLegacy(response.opportunities || []);
+    } catch (e) {
+      setLegacyError(e.response?.data?.error || e.message);
     } finally {
-      setLoading(false);
+      setLoadingLegacy(false);
     }
   };
-
-  useEffect(() => {
-    fetchRoutes();
-    const interval = setInterval(fetchRoutes, 10000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const sortedRoutes = [...routes].sort((a, b) => {
-    switch (sortBy) {
-      case "profit":
-        return parseFloat(b.estimatedProfit || 0) - parseFloat(a.estimatedProfit || 0);
-      case "hops":
-        return (a.hops?.length || 0) - (b.hops?.length || 0);
-      case "liquidity":
-        return parseFloat(b.liquidity || 0) - parseFloat(a.liquidity || 0);
-      default:
-        return 0;
-    }
-  });
-
-  const formatProfit = (profit) => {
-    const num = parseFloat(profit || 0);
-    if (num >= 0) {
-      return `+${num.toFixed(4)}`;
-    }
-    return num.toFixed(4);
-  };
-
-  const renderRouteFlow = (route) => {
-    if (!route.hops || route.hops.length === 0) return null;
-
-    return (
-      <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1 }}>
-        {route.hops.map((hop, idx) => (
-          <React.Fragment key={idx}>
-            <Chip
-              label={hop.tokenIn?.symbol || hop.tokenA?.slice(0, 8)}
-              size="small"
-              variant="outlined"
-            />
-            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-              <SwapHoriz fontSize="small" color="action" />
-              <Chip
-                label={DEX_LABELS[hop.dex] || hop.dex}
-                size="small"
-                sx={{
-                  backgroundColor: DEX_COLORS[hop.dex] || "#666",
-                  color: "white",
-                  fontSize: "0.65rem",
-                  height: "18px",
-                }}
-              />
-            </Box>
-            {idx === route.hops.length - 1 && (
-              <Chip
-                label={hop.tokenOut?.symbol || hop.tokenB?.slice(0, 8)}
-                size="small"
-                variant="outlined"
-              />
-            )}
-          </React.Fragment>
-        ))}
-      </Box>
-    );
-  };
-
-  if (loading && routes.length === 0) {
-    return (
-      <Card>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            Route Candidates
-          </Typography>
-          <LinearProgress />
-        </CardContent>
-      </Card>
-    );
-  }
-
+  const record = status?.executions?.find((r) => r.id === selected);
   return (
-    <Card>
-      <CardContent>
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
-          <Typography variant="h6">
-            Route Candidates
-            <Badge badgeContent={routes.length} color="primary" sx={{ ml: 2 }} />
-          </Typography>
-          <Box>
-            <Chip
-              label="By Profit"
-              onClick={() => setSortBy("profit")}
-              color={sortBy === "profit" ? "primary" : "default"}
-              size="small"
-              sx={{ mr: 1 }}
-            />
-            <Chip
-              label="By Hops"
-              onClick={() => setSortBy("hops")}
-              color={sortBy === "hops" ? "primary" : "default"}
-              size="small"
-              sx={{ mr: 1 }}
-            />
-            <IconButton onClick={fetchRoutes} size="small">
-              <Refresh />
-            </IconButton>
-          </Box>
-        </Box>
-
-        {error && (
-          <Typography color="error" sx={{ mb: 2 }}>
-            {error}
-          </Typography>
-        )}
-
-        <TableContainer component={Paper} sx={{ maxHeight: 400 }}>
-          <Table stickyHeader size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell width={40}></TableCell>
-                <TableCell>Route</TableCell>
-                <TableCell align="right">Est. Profit</TableCell>
-                <TableCell align="right">Gas Cost</TableCell>
-                <TableCell align="right">Net</TableCell>
-                <TableCell align="center">ML Score</TableCell>
-                <TableCell align="center">Hops</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {sortedRoutes.map((route, idx) => (
-                <React.Fragment key={route.id || idx}>
-                  <TableRow
-                    hover
-                    onClick={() => setExpandedRoute(expandedRoute === idx ? null : idx)}
-                    sx={{ cursor: "pointer" }}
-                  >
-                    <TableCell>
-                      {idx === 0 && <Star fontSize="small" color="warning" />}
-                      {expandedRoute === idx ? <ExpandLess /> : <ExpandMore />}
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" noWrap sx={{ maxWidth: 200 }}>
-                        {route.route || route.routeTokens?.join(" → ") || "N/A"}
+    <Box sx={{ display: "grid", gap: 3 }}>
+      <Panel
+        title="Production routes"
+        subtitle="Latest record for each route in the available execution window."
+        action={<Chip label={`${routes.length} routes`} variant="outlined" />}
+      >
+        <TextField
+          fullWidth
+          size="small"
+          label="Search venue, token or pool address"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          sx={{ mb: 3 }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchRounded sx={{ fontSize: 18 }} />
+              </InputAdornment>
+            ),
+          }}
+        />
+        {routes.length ? (
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", xl: "repeat(2,minmax(0,1fr))" },
+              gap: 2,
+            }}
+          >
+            {routes.map((r) => (
+              <Box
+                key={r.id}
+                sx={{
+                  p: 2.5,
+                  bgcolor: "background.default",
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: 2.5,
+                }}
+              >
+                <Box className="panel-heading">
+                  <Box>
+                    <Typography variant="subtitle2">
+                      {r.token?.symbol || "Token"} cycle · {r.route.legs.length}{" "}
+                      swaps
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Block {r.stateBlock ?? "—"} · {r.mode}
+                    </Typography>
+                  </Box>
+                  <StatusBadge value={r.status} />
+                </Box>
+                <RouteFlow legs={r.route.legs} />
+                <Box sx={{ display: "grid", gap: 0.8, my: 2 }}>
+                  {r.route.legs.map((leg, i) => (
+                    <Box
+                      key={i}
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: 1,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <Typography variant="caption" color="text.secondary">
+                        Swap {i + 1} · {DEX_LABELS[leg.dex] || leg.dex}
                       </Typography>
-                    </TableCell>
-                    <TableCell align="right">
-                      <Typography
-                        variant="body2"
-                        color={parseFloat(route.estimatedProfit) >= 0 ? "success.main" : "error.main"}
+                      <Box
+                        sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
                       >
-                        {formatProfit(route.estimatedProfit)} DAI
-                      </Typography>
-                    </TableCell>
-                    <TableCell align="right">
-                      <Typography variant="body2" color="text.secondary">
-                        {parseFloat(route.gasCostDai || 0).toFixed(4)} DAI
-                      </Typography>
-                    </TableCell>
-                    <TableCell align="right">
-                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
-                        {parseFloat(route.netProfit) >= 0 ? (
-                          <TrendingUp fontSize="small" color="success" />
-                        ) : (
-                          <TrendingDown fontSize="small" color="error" />
-                        )}
-                        <Typography
-                          variant="body2"
-                          color={parseFloat(route.netProfit) >= 0 ? "success.main" : "error.main"}
-                          sx={{ ml: 0.5 }}
-                        >
-                          {formatProfit(route.netProfit)} DAI
+                        <Address value={leg.tokenIn} />
+                        <Typography variant="caption" color="text.secondary">
+                          →
                         </Typography>
+                        <Address value={leg.tokenOut} />
                       </Box>
-                    </TableCell>
-                    <TableCell align="center">
-                      <Tooltip title="ML Prediction Score">
-                        <Chip
-                          label={route.mlScore ? `${(route.mlScore * 100).toFixed(0)}%` : "N/A"}
-                          size="small"
-                          color={route.mlScore > 0.7 ? "success" : route.mlScore > 0.4 ? "warning" : "default"}
-                        />
-                      </Tooltip>
-                    </TableCell>
-                    <TableCell align="center">
-                      <Chip label={route.hops?.length || "?"} size="small" />
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell colSpan={7} sx={{ py: 0, borderBottom: expandedRoute === idx ? 1 : 0 }}>
-                      <Collapse in={expandedRoute === idx} timeout="auto" unmountOnExit>
-                        <Box sx={{ p: 2, bgcolor: "background.default" }}>
-                          <Typography variant="subtitle2" gutterBottom>
-                            Route Flow
-                          </Typography>
-                          {renderRouteFlow(route)}
-
-                          <Grid container spacing={2} sx={{ mt: 1 }}>
-                            <Grid item xs={4}>
-                              <Typography variant="caption" color="text.secondary">
-                                Borrow Amount
-                              </Typography>
-                              <Typography variant="body2">
-                                {parseFloat(route.borrowAmount || 0).toFixed(2)} DAI
-                              </Typography>
-                            </Grid>
-                            <Grid item xs={4}>
-                              <Typography variant="caption" color="text.secondary">
-                                Liquidity
-                              </Typography>
-                              <Typography variant="body2">
-                                ${parseFloat(route.liquidity || 0).toLocaleString()}
-                              </Typography>
-                            </Grid>
-                            <Grid item xs={4}>
-                              <Typography variant="caption" color="text.secondary">
-                                Volatility
-                              </Typography>
-                              <Typography variant="body2">
-                                {(route.volatility || 0).toFixed(2)}%
-                              </Typography>
-                            </Grid>
-                          </Grid>
-
-                          {route.hops && (
-                            <Box sx={{ mt: 2 }}>
-                              <Typography variant="subtitle2" gutterBottom>
-                                Swap Details
-                              </Typography>
-                              {route.hops.map((hop, hopIdx) => (
-                                <Box
-                                  key={hopIdx}
-                                  sx={{
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    p: 1,
-                                    bgcolor: "background.paper",
-                                    borderRadius: 1,
-                                    mb: 0.5,
-                                  }}
-                                >
-                                  <Typography variant="caption">
-                                    {hopIdx + 1}. {hop.tokenA?.slice(0, 8)} → {hop.tokenB?.slice(0, 8)}
-                                  </Typography>
-                                  <Chip
-                                    label={DEX_LABELS[hop.dex] || hop.dex}
-                                    size="small"
-                                    sx={{ height: 20 }}
-                                  />
-                                  <Typography variant="caption" color="text.secondary">
-                                    Pool: {hop.poolAddress?.slice(0, 10)}...
-                                  </Typography>
-                                </Box>
-                              ))}
-                            </Box>
-                          )}
-                        </Box>
-                      </Collapse>
-                    </TableCell>
-                  </TableRow>
-                </React.Fragment>
-              ))}
-              {sortedRoutes.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={7} align="center">
-                    <Typography color="text.secondary">No routes found</Typography>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </CardContent>
-    </Card>
+                    </Box>
+                  ))}
+                </Box>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "end",
+                    justifyContent: "space-between",
+                    gap: 1,
+                  }}
+                >
+                  <Box>
+                    <Typography variant="caption" color="text.secondary">
+                      Expected net
+                    </Typography>
+                    <Typography
+                      variant="h6"
+                      sx={{
+                        color: positive(r.economics?.expectedNetProfit)
+                          ? "success.main"
+                          : "text.secondary",
+                      }}
+                    >
+                      {formatUnits(
+                        r.economics?.expectedNetProfit,
+                        r.token?.decimals
+                      )}{" "}
+                      {r.token?.symbol}
+                    </Typography>
+                  </Box>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => setSelected(r.id)}
+                  >
+                    Inspect route
+                  </Button>
+                </Box>
+                {r.reason && (
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ display: "block", mt: 2 }}
+                  >
+                    {r.reason}
+                  </Typography>
+                )}
+              </Box>
+            ))}
+          </Box>
+        ) : (
+          <EmptyState
+            icon={HubOutlined}
+            title={
+              query ? "No matching routes" : "Routes appear after scanning"
+            }
+            description="Production candidates retain the exact venue, pool and swap direction. Start PAPER to populate the route explorer."
+          />
+        )}
+      </Panel>
+      <Panel
+        title="Legacy route diagnostics"
+        subtitle="Optional discovery output from the existing opportunity API. This is separate from the production ledger."
+        action={
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={fetchLegacy}
+            disabled={loadingLegacy}
+          >
+            {loadingLegacy
+              ? "Loading…"
+              : legacy === null
+              ? "Load diagnostics"
+              : "Refresh diagnostics"}
+          </Button>
+        }
+      >
+        {legacyError && <Alert severity="error">{legacyError}</Alert>}
+        {legacy !== null && <OpportunitiesTable opportunities={legacy} />}
+      </Panel>
+      <Drawer
+        anchor="right"
+        open={Boolean(record)}
+        onClose={() => setSelected(null)}
+        PaperProps={{
+          sx: { width: { xs: "100%", sm: 580 }, maxWidth: "100%" },
+        }}
+      >
+        <ExecutionDetails record={record} onClose={() => setSelected(null)} />
+      </Drawer>
+    </Box>
   );
-};
-
-export default RouteVisualization;
+}

@@ -1,207 +1,96 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   Box,
-  Paper,
-  Typography,
+  Chip,
   Table,
+  TableBody,
+  TableCell,
+  TableContainer,
   TableHead,
   TableRow,
-  TableCell,
-  TableBody,
-  Chip,
-  CircularProgress,
-  IconButton,
-  Tooltip,
   TablePagination,
+  Typography,
 } from "@mui/material";
-import RefreshIcon from "@mui/icons-material/Refresh";
-import TrendingUpIcon from "@mui/icons-material/TrendingUp";
-import TrendingDownIcon from "@mui/icons-material/TrendingDown";
-import { getOpportunities } from "../services/api";
-
-const OpportunitiesTable = () => {
-  const [opportunities, setOpportunities] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [lastUpdate, setLastUpdate] = useState(null);
-
-  const fetchOpportunities = async () => {
-    setLoading(true);
-    try {
-      const data = await getOpportunities();
-      setOpportunities(Array.isArray(data) ? data : []);
-      setLastUpdate(new Date());
-    } catch (err) {
-      console.error("Failed to fetch opportunities:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchOpportunities();
-    const interval = setInterval(fetchOpportunities, 15000); // Refresh every 15s
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleChangePage = (event, newPage) => {
-    setPage(newPage);
-  };
-
-  const handleChangeRowsPerPage = (event) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0);
-  };
-
-  const formatProfit = (profit) => {
-    const value = Number(profit);
-    if (!Number.isFinite(value)) return "-";
-    return value.toFixed(4);
-  };
-
-  const getDexColor = (dex) => {
-    const colors = {
-      uniswap_v2: "#FF007A",
-      uniswap_v3: "#FF007A",
-      sushiswap: "#FA52A0",
-      balancer: "#1E1E1E",
-      curve: "#3465A4",
-    };
-    return colors[dex?.toLowerCase()] || "#666";
-  };
-
-  const paginatedData = opportunities.slice(
-    page * rowsPerPage,
-    page * rowsPerPage + rowsPerPage
-  );
-
+import { EmptyState } from "../ui/Primitives";
+import { DEX_LABELS, number } from "../ui/format";
+export default function OpportunitiesTable({ opportunities = [] }) {
+  const [page, setPage] = useState(0),
+    [rowsPerPage, setRowsPerPage] = useState(10);
+  if (!opportunities.length)
+    return (
+      <EmptyState
+        compact
+        title="No legacy candidates"
+        description="Production simulations remain available in the execution ledger."
+      />
+    );
   return (
-    <Paper sx={{ p: 2, mb: 3 }}>
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
-        <Typography variant="h6" color="primary">
-          Live Arbitrage Opportunities
-        </Typography>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-          {lastUpdate && (
-            <Typography variant="caption" color="text.secondary">
-              Updated: {lastUpdate.toLocaleTimeString()}
-            </Typography>
-          )}
-          <Tooltip title="Refresh">
-            <IconButton onClick={fetchOpportunities} disabled={loading} size="small">
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
-        </Box>
-      </Box>
-
-      {loading && opportunities.length === 0 ? (
-        <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
-          <CircularProgress />
-        </Box>
-      ) : opportunities.length === 0 ? (
-        <Typography color="text.secondary" sx={{ textAlign: "center", py: 4 }}>
-          No opportunities found at the moment.
-        </Typography>
-      ) : (
-        <>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ color: "primary.main" }}>Route</TableCell>
-                <TableCell sx={{ color: "primary.main" }}>DEXes</TableCell>
-                <TableCell sx={{ color: "primary.main" }} align="right">Est. Profit (DAI)</TableCell>
-                <TableCell sx={{ color: "primary.main" }} align="right">ML Score</TableCell>
-                <TableCell sx={{ color: "primary.main" }} align="right">Gas Cost</TableCell>
-                <TableCell sx={{ color: "primary.main" }}>Status</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {paginatedData.map((opp, idx) => {
-                const profit = Number(opp.estimatedProfit);
-                const isProfitable = profit > 0;
-
-                return (
-                  <TableRow key={opp.id || idx} hover>
-                    <TableCell>
-                      <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
-                        {opp.route || "-"}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
-                        {(opp.dexes || []).map((dex, i) => (
+    <Box>
+      <TableContainer>
+        <Table size="small" aria-label="Legacy route diagnostics">
+          <TableHead>
+            <TableRow>
+              <TableCell>Route</TableCell>
+              <TableCell>Venues</TableCell>
+              <TableCell align="right">Estimated net (DAI)</TableCell>
+              <TableCell align="right">Gas estimate (DAI)</TableCell>
+              <TableCell align="right">ML score</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {opportunities
+              .slice(page * rowsPerPage, (page + 1) * rowsPerPage)
+              .map((row, i) => (
+                <TableRow key={row.id || i}>
+                  <TableCell sx={{ minWidth: 220 }}>
+                    <Typography variant="body2">
+                      {row.route || "Route unavailable"}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Box sx={{ display: "flex", gap: 0.6, flexWrap: "wrap" }}>
+                      {(row.dexes || row.hops?.map((h) => h.dex) || []).map(
+                        (dex, j) => (
                           <Chip
-                            key={i}
-                            label={dex}
-                            size="small"
-                            sx={{
-                              backgroundColor: getDexColor(dex),
-                              color: "white",
-                              fontSize: "0.7rem",
-                            }}
+                            key={j}
+                            label={DEX_LABELS[dex] || dex}
+                            variant="outlined"
                           />
-                        ))}
-                      </Box>
-                    </TableCell>
-                    <TableCell align="right">
-                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 0.5 }}>
-                        {isProfitable ? (
-                          <TrendingUpIcon sx={{ color: "success.main", fontSize: 16 }} />
-                        ) : (
-                          <TrendingDownIcon sx={{ color: "error.main", fontSize: 16 }} />
-                        )}
-                        <Typography
-                          variant="body2"
-                          sx={{ color: isProfitable ? "success.main" : "error.main" }}
-                        >
-                          {formatProfit(opp.estimatedProfit)}
-                        </Typography>
-                      </Box>
-                    </TableCell>
-                    <TableCell align="right">
-                      <Chip
-                        label={`${((opp.mlScore || 0) * 100).toFixed(0)}%`}
-                        size="small"
-                        color={opp.mlScore > 0.7 ? "success" : opp.mlScore > 0.4 ? "warning" : "default"}
-                        variant="outlined"
-                      />
-                    </TableCell>
-                    <TableCell align="right">
-                      <Typography variant="body2">
-                        {opp.gasCost ? `${Number(opp.gasCost).toFixed(4)} ETH` : "-"}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={opp.status || "pending"}
-                        size="small"
-                        color={
-                          opp.status === "executed" ? "success" :
-                          opp.status === "skipped" ? "warning" :
-                          opp.status === "failed" ? "error" : "default"
-                        }
-                      />
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-          <TablePagination
-            component="div"
-            count={opportunities.length}
-            page={page}
-            onPageChange={handleChangePage}
-            rowsPerPage={rowsPerPage}
-            onRowsPerPageChange={handleChangeRowsPerPage}
-            rowsPerPageOptions={[5, 10, 25]}
-          />
-        </>
-      )}
-    </Paper>
+                        )
+                      )}
+                    </Box>
+                  </TableCell>
+                  <TableCell align="right">
+                    {number(row.netProfit ?? row.estimatedProfit, 4)}
+                  </TableCell>
+                  <TableCell align="right">
+                    {number(row.gasCostDai, 4)}
+                  </TableCell>
+                  <TableCell align="right">
+                    {row.mlScore == null
+                      ? "—"
+                      : `${number(row.mlScore * 100, 1)}%`}
+                  </TableCell>
+                </TableRow>
+              ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+      <TablePagination
+        component="div"
+        count={opportunities.length}
+        page={Math.min(
+          page,
+          Math.max(0, Math.ceil(opportunities.length / rowsPerPage) - 1)
+        )}
+        onPageChange={(_, value) => setPage(value)}
+        rowsPerPage={rowsPerPage}
+        onRowsPerPageChange={(e) => {
+          setRowsPerPage(Number(e.target.value));
+          setPage(0);
+        }}
+        rowsPerPageOptions={[5, 10, 25]}
+      />
+    </Box>
   );
-};
-
-export default OpportunitiesTable;
+}

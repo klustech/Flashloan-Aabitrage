@@ -1,448 +1,373 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import {
-  Box,
-  Card,
-  CardContent,
-  Typography,
-  Chip,
-  Grid,
-  LinearProgress,
-  IconButton,
-  Tooltip,
   Alert,
-  Divider,
+  Box,
   Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
+  Chip,
+  Divider,
   TextField,
+  Typography,
 } from "@mui/material";
+import { RefreshRounded, SaveOutlined, StopRounded } from "@mui/icons-material";
 import {
-  PlayArrow,
-  Stop,
-  Refresh,
-  Warning,
-  CheckCircle,
-  Error,
-  Pause,
-  Settings,
-} from "@mui/icons-material";
-import { getHealth, getMetrics, startBot, stopBot, updateSettings } from "../services/api";
-
-const STATUS_COLORS = {
-  active: "success",
-  stopped: "default",
-  paused: "warning",
-  error: "error",
-  emergency: "error",
-};
-
-const STATUS_ICONS = {
-  active: <CheckCircle fontSize="small" />,
-  stopped: <Stop fontSize="small" />,
-  paused: <Pause fontSize="small" />,
-  error: <Error fontSize="small" />,
-  emergency: <Warning fontSize="small" />,
-};
-
-const BotStatus = () => {
-  const [health, setHealth] = useState(null);
-  const [metrics, setMetrics] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settings, setSettings] = useState({
-    minProfitDai: "",
-    gasCeiling: "",
-    slippageBips: "",
-  });
-
-  const fetchData = useCallback(async () => {
+  getBotStatus,
+  getMetrics,
+  getSettings,
+  stopBot,
+  updateSettings,
+} from "../services/api";
+import {
+  settingsUpdateSchema,
+  pickSettingsFields,
+  normalizeFieldErrors,
+} from "../validation/settingsSchema";
+import { useTradingStatus } from "../hooks/useTradingStatus";
+import { EmptyState, Panel, StatusBadge } from "../ui/Primitives";
+import { number, time } from "../ui/format";
+const FIELDS = [
+  ["gasPriceCeiling", "Gas price ceiling", "gwei", 1, 1000000],
+  ["slippageBips", "Slippage tolerance", "basis points · 100 bps = 1%", 0, 500],
+  ["minBorrowAmount", "Minimum borrow amount", "borrow-token units", 1],
+  [
+    "simulationInputAmount",
+    "Legacy simulation input",
+    "token units · manual simulation only",
+    1,
+  ],
+  [
+    "pollingInterval",
+    "Legacy polling interval",
+    "seconds · production scans on new blocks",
+    5,
+    3600,
+  ],
+];
+export default function BotStatus({ compact = false }) {
+  const { status, refresh } = useTradingStatus();
+  const [health, setHealth] = useState(null),
+    [metrics, setMetrics] = useState([]),
+    [settings, setSettings] = useState(null),
+    [fieldErrors, setFieldErrors] = useState({}),
+    [error, setError] = useState(""),
+    [notice, setNotice] = useState(""),
+    [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (compact) return undefined;
+    let mounted = true;
+    const load = async () => {
+      const values = await Promise.allSettled([
+        getBotStatus(),
+        getMetrics(),
+        getSettings(),
+      ]);
+      if (!mounted) return;
+      if (values[0].status === "fulfilled") setHealth(values[0].value);
+      if (values[1].status === "fulfilled")
+        setMetrics(Array.isArray(values[1].value) ? values[1].value : []);
+      if (values[2].status === "fulfilled") setSettings(values[2].value);
+      if (values.some((v) => v.status === "rejected"))
+        setError(
+          "Some system details could not be loaded. Trading state remains available above."
+        );
+    };
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, [compact]);
+  const reload = async () => {
+    setBusy(true);
+    setError("");
+    setNotice("");
     try {
-      const [healthData, metricsData] = await Promise.all([
-        getHealth(),
+      const [h, s, m] = await Promise.all([
+        getBotStatus(),
+        getSettings(),
         getMetrics(),
       ]);
-      setHealth(healthData);
-      setMetrics(metricsData);
-      setError(null);
-    } catch (err) {
-      setError(err.message || "Failed to fetch bot status");
+      setHealth(h);
+      setSettings(s);
+      setMetrics(Array.isArray(m) ? m : []);
+    } catch (e) {
+      setError(e.response?.data?.error || e.message);
     } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 5000);
-    return () => clearInterval(interval);
-  }, [fetchData]);
-
-  const handleStartBot = async () => {
-    try {
-      await startBot();
-      await fetchData();
-    } catch (err) {
-      setError(err.message || "Failed to start bot");
+      setBusy(false);
     }
   };
-
-  const handleStopBot = async () => {
+  const save = async (event) => {
+    event.preventDefault();
+    setFieldErrors({});
+    setError("");
+    setNotice("");
+    const parsed = settingsUpdateSchema.safeParse(pickSettingsFields(settings));
+    if (!parsed.success) {
+      setFieldErrors(normalizeFieldErrors(parsed.error.flatten().fieldErrors));
+      return;
+    }
+    setBusy(true);
+    try {
+      const response = await updateSettings(parsed.data);
+      setSettings(response.settings);
+      setNotice("Settings saved. Configured production ceilings still apply.");
+      await refresh({ afterCurrent: true });
+    } catch (e) {
+      setError(e.response?.data?.error || e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const stop = async () => {
+    setBusy(true);
+    setError("");
     try {
       await stopBot();
-      await fetchData();
-    } catch (err) {
-      setError(err.message || "Failed to stop bot");
+      await refresh({ afterCurrent: true });
+      setNotice("Scanner stopped. Submitted receipts remain tracked.");
+    } catch (e) {
+      setError(e.response?.data?.error || e.message);
+    } finally {
+      setBusy(false);
     }
   };
-
-  const handleSettingsUpdate = async () => {
-    try {
-      const payload = {};
-      if (settings.minProfitDai) {
-        payload.minProfitDai = parseFloat(settings.minProfitDai);
-      }
-      if (settings.gasCeiling) {
-        payload.gasCeiling = parseInt(settings.gasCeiling, 10);
-      }
-      if (settings.slippageBips) {
-        payload.slippageBips = parseInt(settings.slippageBips, 10);
-      }
-
-      await updateSettings(payload);
-      setSettingsOpen(false);
-      await fetchData();
-    } catch (err) {
-      setError(err.message || "Failed to update settings");
-    }
-  };
-
-  const getStatusLabel = () => {
-    if (!health) return "unknown";
-    if (health.circuitBreaker?.state === "EMERGENCY") return "emergency";
-    if (health.circuitBreaker?.state === "OPEN") return "paused";
-    if (health.botActive) return "active";
-    return "stopped";
-  };
-
-  const status = getStatusLabel();
-
-  if (loading && !health) {
-    return (
-      <Card>
-        <CardContent>
-          <LinearProgress />
-          <Typography variant="body2" sx={{ mt: 1 }}>
-            Loading bot status...
-          </Typography>
-        </CardContent>
-      </Card>
-    );
-  }
-
+  if (compact) return <StatusBadge value={status?.trading?.state} />;
   return (
-    <Card>
-      <CardContent>
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-            {error}
-          </Alert>
-        )}
-
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Typography variant="h6">Bot Status</Typography>
-            <Chip
-              icon={STATUS_ICONS[status]}
-              label={status.toUpperCase()}
-              color={STATUS_COLORS[status]}
+    <Box sx={{ display: "grid", gap: 3 }}>
+      {error && <Alert severity="warning">{error}</Alert>}
+      {notice && (
+        <Alert severity="success" onClose={() => setNotice("")}>
+          {notice}
+        </Alert>
+      )}
+      <Box className="dashboard-split">
+        <Panel
+          title="System status"
+          subtitle="Reported API health and scanner state. Live readiness is checked separately."
+          action={
+            <Button
               size="small"
-            />
-          </Box>
-          <Box>
-            <Tooltip title="Refresh">
-              <IconButton onClick={fetchData} size="small">
-                <Refresh />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Settings">
-              <IconButton onClick={() => setSettingsOpen(true)} size="small">
-                <Settings />
-              </IconButton>
-            </Tooltip>
-            {status === "active" ? (
-              <Button
-                variant="contained"
-                color="error"
-                startIcon={<Stop />}
-                onClick={handleStopBot}
-                size="small"
-                sx={{ ml: 1 }}
-              >
-                Stop
-              </Button>
-            ) : (
-              <Button
-                variant="contained"
-                color="success"
-                startIcon={<PlayArrow />}
-                onClick={handleStartBot}
-                size="small"
-                sx={{ ml: 1 }}
-                disabled={status === "emergency"}
-              >
-                Start
-              </Button>
-            )}
-          </Box>
-        </Box>
-
-        <Divider sx={{ mb: 2 }} />
-
-        <Grid container spacing={2}>
-          {/* Performance Metrics */}
-          <Grid item xs={12} md={6}>
-            <Typography variant="subtitle2" gutterBottom color="text.secondary">
-              Performance
-            </Typography>
-            <Grid container spacing={1}>
-              <Grid item xs={6}>
-                <Box sx={{ p: 1, bgcolor: "background.default", borderRadius: 1 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    Daily P&L
-                  </Typography>
-                  <Typography
-                    variant="h6"
-                    color={
-                      parseFloat(metrics?.dailyPnL || 0) >= 0
-                        ? "success.main"
-                        : "error.main"
-                    }
-                  >
-                    {parseFloat(metrics?.dailyPnL || 0).toFixed(2)} DAI
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={6}>
-                <Box sx={{ p: 1, bgcolor: "background.default", borderRadius: 1 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    Win Rate
-                  </Typography>
-                  <Typography variant="h6">
-                    {metrics?.winRate ? `${(metrics.winRate * 100).toFixed(1)}%` : "N/A"}
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={6}>
-                <Box sx={{ p: 1, bgcolor: "background.default", borderRadius: 1 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    Trades Today
-                  </Typography>
-                  <Typography variant="h6">
-                    {metrics?.tradesToday || 0}
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={6}>
-                <Box sx={{ p: 1, bgcolor: "background.default", borderRadius: 1 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    Avg Profit
-                  </Typography>
-                  <Typography variant="h6">
-                    {parseFloat(metrics?.avgProfit || 0).toFixed(4)} DAI
-                  </Typography>
-                </Box>
-              </Grid>
-            </Grid>
-          </Grid>
-
-          {/* System Metrics */}
-          <Grid item xs={12} md={6}>
-            <Typography variant="subtitle2" gutterBottom color="text.secondary">
-              System
-            </Typography>
-            <Grid container spacing={1}>
-              <Grid item xs={6}>
-                <Box sx={{ p: 1, bgcolor: "background.default", borderRadius: 1 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    Gas Price
-                  </Typography>
-                  <Typography variant="h6">
-                    {parseFloat(metrics?.gasPrice || 0).toFixed(1)} Gwei
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={6}>
-                <Box sx={{ p: 1, bgcolor: "background.default", borderRadius: 1 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    Slippage
-                  </Typography>
-                  <Typography variant="h6">
-                    {metrics?.slippageBips || 50} bips
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={6}>
-                <Box sx={{ p: 1, bgcolor: "background.default", borderRadius: 1 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    Routes Found
-                  </Typography>
-                  <Typography variant="h6">
-                    {metrics?.routesFound || 0}
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={6}>
-                <Box sx={{ p: 1, bgcolor: "background.default", borderRadius: 1 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    Last Attempt
-                  </Typography>
-                  <Typography variant="body2">
-                    {metrics?.lastAttempt
-                      ? new Date(metrics.lastAttempt).toLocaleTimeString()
-                      : "N/A"}
-                  </Typography>
-                </Box>
-              </Grid>
-            </Grid>
-          </Grid>
-
-          {/* Circuit Breaker Status */}
-          {health?.circuitBreaker && (
-            <Grid item xs={12}>
-              <Typography variant="subtitle2" gutterBottom color="text.secondary">
-                Circuit Breaker
-              </Typography>
-              <Box sx={{ p: 1, bgcolor: "background.default", borderRadius: 1 }}>
-                <Grid container spacing={2}>
-                  <Grid item xs={3}>
-                    <Typography variant="caption" color="text.secondary">
-                      State
-                    </Typography>
-                    <Typography variant="body1">
-                      {health.circuitBreaker.state}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={3}>
-                    <Typography variant="caption" color="text.secondary">
-                      Consecutive Losses
-                    </Typography>
-                    <Typography variant="body1">
-                      {health.circuitBreaker.consecutiveLosses || 0}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={3}>
-                    <Typography variant="caption" color="text.secondary">
-                      Consecutive Failures
-                    </Typography>
-                    <Typography variant="body1">
-                      {health.circuitBreaker.consecutiveFailures || 0}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={3}>
-                    <Typography variant="caption" color="text.secondary">
-                      Cooldown
-                    </Typography>
-                    <Typography variant="body1">
-                      {health.circuitBreaker.cooldownRemaining
-                        ? `${health.circuitBreaker.cooldownRemaining}s`
-                        : "None"}
-                    </Typography>
-                  </Grid>
-                </Grid>
-              </Box>
-            </Grid>
-          )}
-
-          {/* Service Health */}
-          <Grid item xs={12}>
-            <Typography variant="subtitle2" gutterBottom color="text.secondary">
-              Services
-            </Typography>
-            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-              <Chip
-                label="Database"
-                color={health?.database ? "success" : "error"}
-                size="small"
-                variant="outlined"
-              />
-              <Chip
-                label="Redis"
-                color={health?.redis ? "success" : "default"}
-                size="small"
-                variant="outlined"
-              />
-              <Chip
-                label="ML Service"
-                color={health?.mlService ? "success" : "default"}
-                size="small"
-                variant="outlined"
-              />
-              <Chip
-                label="Flashbots"
-                color={health?.flashbots ? "success" : "default"}
-                size="small"
-                variant="outlined"
-              />
-              <Chip
-                label="WebSocket"
-                color={health?.websocket ? "success" : "error"}
-                size="small"
-                variant="outlined"
-              />
-            </Box>
-          </Grid>
-        </Grid>
-
-        {/* Settings Dialog */}
-        <Dialog open={settingsOpen} onClose={() => setSettingsOpen(false)}>
-          <DialogTitle>Bot Settings</DialogTitle>
-          <DialogContent>
-            <Box sx={{ pt: 1, display: "flex", flexDirection: "column", gap: 2 }}>
-              <TextField
-                label="Min Profit (DAI)"
-                type="number"
-                value={settings.minProfitDai}
-                onChange={(e) =>
-                  setSettings({ ...settings, minProfitDai: e.target.value })
-                }
-                helperText="Minimum profit threshold for trade execution"
-                inputProps={{ step: 0.1, min: 0 }}
-              />
-              <TextField
-                label="Gas Ceiling (Gwei)"
-                type="number"
-                value={settings.gasCeiling}
-                onChange={(e) =>
-                  setSettings({ ...settings, gasCeiling: e.target.value })
-                }
-                helperText="Maximum gas price for trade execution"
-                inputProps={{ step: 1, min: 1 }}
-              />
-              <TextField
-                label="Slippage (bips)"
-                type="number"
-                value={settings.slippageBips}
-                onChange={(e) =>
-                  setSettings({ ...settings, slippageBips: e.target.value })
-                }
-                helperText="Base slippage tolerance (1 bip = 0.01%)"
-                inputProps={{ step: 10, min: 10, max: 500 }}
-              />
-            </Box>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setSettingsOpen(false)}>Cancel</Button>
-            <Button onClick={handleSettingsUpdate} variant="contained">
-              Update
+              startIcon={<RefreshRounded />}
+              onClick={reload}
+              disabled={busy}
+            >
+              Reload
             </Button>
-          </DialogActions>
-        </Dialog>
-      </CardContent>
-    </Card>
+          }
+        >
+          <Box sx={{ display: "grid", gap: 2.2 }}>
+            {[
+              ["Trading state", status?.trading?.state],
+              ["Last worker run", time(health?.lastRunAt)],
+              ["Last successful cycle", time(health?.lastSuccessAt)],
+              ["Circuit breaker", health?.circuitBreaker?.state],
+              [
+                "Consecutive failures",
+                number(health?.circuitBreaker?.consecutiveFailures),
+              ],
+              ["Pending receipts", number(status?.summary?.pending)],
+            ].map(([label, value]) => (
+              <Box
+                key={label}
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 2,
+                }}
+              >
+                <Typography variant="body2" color="text.secondary">
+                  {label}
+                </Typography>
+                <Typography variant="body2">{value || "—"}</Typography>
+              </Box>
+            ))}
+          </Box>
+          {health?.lastErrorMessage && (
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              {health.lastErrorMessage}
+            </Alert>
+          )}
+          <Divider sx={{ my: 2.5 }} />
+          <Typography variant="subtitle2" sx={{ mb: 1.5 }}>
+            Service reports
+          </Typography>
+          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+            {[
+              ["Database", health?.services?.database],
+              ["ML service", health?.services?.mlService],
+              ["Timelock", health?.services?.timelock],
+            ].map(([label, value]) => (
+              <Chip
+                key={label}
+                variant="outlined"
+                label={`${label}: ${
+                  value === true
+                    ? "reported available"
+                    : value === false
+                    ? "reported unavailable"
+                    : "unknown"
+                }`}
+                color={value === true ? "info" : "default"}
+              />
+            ))}
+          </Box>
+          <Button
+            variant="outlined"
+            color="warning"
+            startIcon={<StopRounded />}
+            onClick={stop}
+            disabled={busy || !status || status.trading?.state === "STOPPED"}
+            sx={{ mt: 3 }}
+          >
+            Stop scanner
+          </Button>
+        </Panel>
+        <Panel
+          title="PAPER commissioning"
+          subtitle="Continuity evidence for this configured profile."
+        >
+          <Typography variant="h5" sx={{ mb: 1 }}>
+            {status?.paperBurnIn?.passed
+              ? "Evidence passed"
+              : "Evidence in progress"}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            At least seven continuous days and a complete profitable simulation
+            are required. Profile changes or long heartbeat gaps restart
+            continuity.
+          </Typography>
+          <Box sx={{ mt: 3, display: "grid", gap: 2 }}>
+            {[
+              ["Recorded simulations", number(status?.paperBurnIn?.simulated)],
+              [
+                "Window started",
+                status?.paperBurnIn?.startedAt
+                  ? new Date(status.paperBurnIn.startedAt).toLocaleString()
+                  : "—",
+              ],
+              ["Last heartbeat", time(status?.paperBurnIn?.lastHeartbeat)],
+              [
+                "Readiness",
+                status?.readiness
+                  ? status.readiness.ready
+                    ? "Checks passed"
+                    : "Checks outstanding"
+                  : "Not checked",
+              ],
+            ].map(([label, value]) => (
+              <Box key={label}>
+                <Typography variant="caption" color="text.secondary">
+                  {label}
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 0.3 }}>
+                  {value}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
+        </Panel>
+      </Box>
+      <Panel
+        title="Operator settings"
+        subtitle="Changes are validated by the API and remain subject to configured production limits."
+      >
+        {settings ? (
+          <Box component="form" onSubmit={save}>
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: {
+                  xs: "1fr",
+                  md: "repeat(2,minmax(0,1fr))",
+                  xl: "repeat(3,minmax(0,1fr))",
+                },
+                gap: 3,
+              }}
+            >
+              {FIELDS.map(([key, label, hint, min, max]) => (
+                <TextField
+                  key={key}
+                  fullWidth
+                  label={label}
+                  type="number"
+                  size="small"
+                  value={settings[key] ?? ""}
+                  onChange={(event) =>
+                    setSettings({ ...settings, [key]: event.target.value })
+                  }
+                  error={Boolean(fieldErrors[key])}
+                  helperText={fieldErrors[key] || hint}
+                  inputProps={{ min, max, step: 1 }}
+                />
+              ))}
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+              Production execution uses private relays and block-driven
+              scheduling. Legacy simulation and polling settings do not change
+              those rules.
+            </Typography>
+            <Box sx={{ display: "flex", gap: 1.5, mt: 3 }}>
+              <Button
+                type="submit"
+                variant="contained"
+                startIcon={<SaveOutlined />}
+                disabled={busy}
+              >
+                {busy ? "Saving…" : "Save settings"}
+              </Button>
+              <Button onClick={reload} disabled={busy}>
+                Reload saved settings
+              </Button>
+            </Box>
+          </Box>
+        ) : (
+          <EmptyState
+            compact
+            title="Settings unavailable"
+            description="Reload when the settings API is reachable. No placeholder values will be saved."
+          />
+        )}
+      </Panel>
+      <Panel
+        title="Diagnostics"
+        subtitle="Reported Prometheus metrics, for operator inspection."
+      >
+        {metrics.length ? (
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", md: "repeat(3,minmax(0,1fr))" },
+              gap: 2,
+            }}
+          >
+            {metrics
+              .filter((m) =>
+                [
+                  "avg_profit_dai",
+                  "avg_latency_ms",
+                  "arb_attempts_total",
+                  "arb_success_rate",
+                  "total_gas_spent",
+                ].includes(m.name)
+              )
+              .map((metric) => (
+                <Box
+                  key={metric.name}
+                  sx={{ p: 2, bgcolor: "background.default", borderRadius: 2 }}
+                >
+                  <Typography variant="caption" color="text.secondary">
+                    {metric.name.replaceAll("_", " ")}
+                  </Typography>
+                  <Typography variant="h6">
+                    {number(metric.values?.[0]?.value, 4)}
+                  </Typography>
+                </Box>
+              ))}
+          </Box>
+        ) : (
+          <Typography variant="body2" color="text.secondary">
+            No diagnostic metrics received.
+          </Typography>
+        )}
+      </Panel>
+    </Box>
   );
-};
-
-export default BotStatus;
+}

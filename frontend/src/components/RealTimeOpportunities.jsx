@@ -1,364 +1,237 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { Alert, Box, Button, Chip, Drawer, Typography } from "@mui/material";
 import {
-  Box,
-  Card,
-  CardContent,
-  Typography,
-  Chip,
-  IconButton,
-  Badge,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemSecondaryAction,
-  Divider,
-  Tooltip,
-  Paper,
-  Alert,
-} from "@mui/material";
-import {
-  FlashOn,
-  Pause,
-  PlayArrow,
-  NotificationsActive,
-  TrendingUp,
-  AccessTime,
-  LocalGasStation,
-  SwapHoriz,
-  Refresh,
+  BoltRounded,
+  PauseRounded,
+  PlayArrowRounded,
+  RefreshRounded,
 } from "@mui/icons-material";
-import { getOpportunities } from "../services/api";
-
-// DEX labels for display
-const DEX_LABELS = {
-  uniswap_v2: "Uni V2",
-  uniswap_v3: "Uni V3",
-  sushiswap: "Sushi",
-  balancer: "Balancer",
-  curve: "Curve",
-};
-
-const RealTimeOpportunities = ({ wsEndpoint }) => {
-  const [opportunities, setOpportunities] = useState([]);
-  const [connected, setConnected] = useState(false);
-  const [paused, setPaused] = useState(false);
-  const [soundEnabled, setSoundEnabled] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const wsRef = useRef(null);
-  const audioRef = useRef(null);
-  const pollIntervalRef = useRef(null);
-
-  // Fetch opportunities via REST API (fallback when WebSocket not connected)
-  const fetchOpportunities = async () => {
-    if (connected) return; // Skip if WebSocket is connected
-    try {
-      setLoading(true);
-      const data = await getOpportunities();
-      if (data?.opportunities && Array.isArray(data.opportunities)) {
-        // Transform API data to match WebSocket format
-        const transformed = data.opportunities.map((opp, idx) => ({
-          id: opp.id || `api-${idx}-${Date.now()}`,
-          route: opp.route || opp.swapData?.route || "Unknown Route",
-          dexPath: opp.dexPath || [],
-          netProfit: opp.netProfit || opp.profit || "0",
-          gasCost: opp.gasCost || opp.gasCostDai || "0",
-          mlScore: opp.mlScore || 0.5,
-          timestamp: opp.timestamp || Date.now(),
-        }));
-        setOpportunities(transformed);
-      }
-    } catch (err) {
-      console.error("[RealTimeOpportunities] API fetch error:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Sound notification for high-value opportunities
+import { useTradingStatus } from "../hooks/useTradingStatus";
+import { EmptyState, Panel, RouteFlow, StatusBadge } from "../ui/Primitives";
+import { formatUnits, time, positive } from "../ui/format";
+import { ExecutionDetails } from "./ExecutionHistory";
+export default function RealTimeOpportunities({ wsEndpoint }) {
+  const { status, refresh, stale } = useTradingStatus();
+  const [connected, setConnected] = useState(false),
+    [paused, setPaused] = useState(false),
+    [frozen, setFrozen] = useState([]),
+    [selected, setSelected] = useState(null);
+  const lastRefresh = useRef(0),
+    pausedRef = useRef(false);
   useEffect(() => {
-    audioRef.current = new Audio("/notification.mp3");
-
-    // Initial fetch
-    fetchOpportunities();
-
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-      }
-    };
-  }, []);
-
-  // Start/stop polling based on WebSocket connection
+    pausedRef.current = paused;
+  }, [paused]);
   useEffect(() => {
-    if (!connected && !paused) {
-      // Start polling when WebSocket is disconnected
-      pollIntervalRef.current = setInterval(fetchOpportunities, 15000);
-    } else if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
-    }
-
-    return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-      }
-    };
-  }, [connected, paused]);
-
-  // WebSocket connection for real-time updates
-  useEffect(() => {
-    const connectWebSocket = () => {
-      const endpoint = wsEndpoint || `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws`;
-
+    let mounted = true,
+      socket,
+      retry;
+    const connect = () => {
+      if (!mounted) return;
       try {
-        wsRef.current = new WebSocket(endpoint);
-
-        wsRef.current.onopen = () => {
-          setConnected(true);
-          console.log("[RealTimeOpportunities] WebSocket connected");
-        };
-
-        wsRef.current.onmessage = (event) => {
-          if (paused) return;
-
+        socket = new WebSocket(
+          wsEndpoint ||
+            `${window.location.protocol === "https:" ? "wss" : "ws"}://${
+              window.location.host
+            }/ws`
+        );
+        socket.onopen = () => mounted && setConnected(true);
+        socket.onmessage = (event) => {
+          if (!mounted || pausedRef.current) return;
           try {
-            const data = JSON.parse(event.data);
-
-            if (data.type === "opportunity") {
-              handleNewOpportunity(data.payload);
-            } else if (data.type === "price_update") {
-              // Could trigger opportunity recalculation
+            const message = JSON.parse(event.data);
+            if (
+              ["opportunity", "trade_executed", "scan_completed"].includes(
+                message.type
+              ) &&
+              Date.now() - lastRefresh.current > 1000
+            ) {
+              lastRefresh.current = Date.now();
+              refresh();
             }
-          } catch (err) {
-            console.error("[RealTimeOpportunities] Parse error:", err);
+          } catch (_) {
+            /* Ignore malformed or unrelated transport messages. */
           }
         };
-
-        wsRef.current.onclose = () => {
+        socket.onclose = () => {
+          if (!mounted) return;
           setConnected(false);
-          console.log("[RealTimeOpportunities] WebSocket disconnected");
-          // Reconnect after 5 seconds
-          setTimeout(connectWebSocket, 5000);
+          retry = setTimeout(connect, 5000);
         };
-
-        wsRef.current.onerror = (err) => {
-          console.error("[RealTimeOpportunities] WebSocket error:", err);
+        socket.onerror = () => {
+          if (mounted) setConnected(false);
+          socket.close();
         };
-      } catch (err) {
-        console.error("[RealTimeOpportunities] Connection failed:", err);
-        setTimeout(connectWebSocket, 5000);
+      } catch (_) {
+        if (mounted) {
+          setConnected(false);
+          retry = setTimeout(connect, 5000);
+        }
       }
     };
-
-    connectWebSocket();
-
+    connect();
     return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
+      mounted = false;
+      clearTimeout(retry);
+      if (socket) {
+        socket.onclose = null;
+        socket.close();
       }
     };
-  }, [wsEndpoint, paused]);
-
-  const handleNewOpportunity = (opp) => {
-    // Add timestamp if not present
-    const newOpp = {
-      ...opp,
-      id: opp.id || Date.now(),
-      timestamp: opp.timestamp || Date.now(),
-    };
-
-    // Play sound for high-value opportunities
-    if (soundEnabled && parseFloat(opp.netProfit) > 0.01) {
-      audioRef.current?.play().catch(() => {});
-    }
-
-    // Add to list (keep last 20)
-    setOpportunities((prev) => {
-      const updated = [newOpp, ...prev.filter(o => o.id !== newOpp.id)];
-      return updated.slice(0, 20);
-    });
+  }, [wsEndpoint, refresh]);
+  const current = (status?.executions || []).filter((r) =>
+    ["SIMULATED", "SUBMITTED", "INCLUDED"].includes(r.status)
+  );
+  const rows = (paused ? frozen : current).slice(0, 20),
+    record = rows.find((r) => r.id === selected);
+  const toggle = () => {
+    if (!paused) setFrozen(current);
+    setPaused(!paused);
   };
-
-  const formatProfit = (profit) => {
-    const num = parseFloat(profit || 0);
-    if (num >= 0) {
-      return `+${num.toFixed(4)}`;
-    }
-    return num.toFixed(4);
-  };
-
-  const getAge = (timestamp) => {
-    const seconds = Math.floor((Date.now() - timestamp) / 1000);
-    if (seconds < 60) return `${seconds}s ago`;
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-    return `${Math.floor(seconds / 3600)}h ago`;
-  };
-
-  const getProfitColor = (profit) => {
-    const num = parseFloat(profit || 0);
-    if (num >= 0.05) return "success.main";
-    if (num >= 0.01) return "warning.main";
-    if (num > 0) return "text.secondary";
-    return "error.main";
-  };
-
-  // Use real opportunities only - no demo data
-  const displayOpportunities = opportunities;
-
   return (
-    <Card>
-      <CardContent>
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Badge
-              color={connected ? "success" : "error"}
-              variant="dot"
-              overlap="circular"
-            >
-              <FlashOn color="primary" />
-            </Badge>
-            <Typography variant="h6">Real-Time Opportunities</Typography>
-            <Chip
-              label={connected ? "Live" : "Connecting..."}
-              size="small"
-              color={connected ? "success" : "default"}
-              sx={{ ml: 1 }}
-            />
-          </Box>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Tooltip title={paused ? "Resume feed" : "Pause feed"}>
-              <IconButton onClick={() => setPaused(!paused)} size="small">
-                {paused ? <PlayArrow /> : <Pause />}
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Sound alerts">
-              <IconButton
-                onClick={() => setSoundEnabled(!soundEnabled)}
-                size="small"
-                color={soundEnabled ? "primary" : "default"}
-              >
-                <NotificationsActive />
-              </IconButton>
-            </Tooltip>
-          </Box>
+    <Panel
+      title="Production opportunities"
+      subtitle="Full transaction simulations and tracked private submissions, sourced from the production ledger."
+      action={
+        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+          <Chip
+            label={
+              paused
+                ? "Feed paused"
+                : connected
+                ? "WebSocket updates"
+                : "Polling every 15s"
+            }
+            variant="outlined"
+            color={connected && !paused ? "success" : "default"}
+          />
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={paused ? <PlayArrowRounded /> : <PauseRounded />}
+            onClick={toggle}
+          >
+            {paused ? "Resume feed" : "Pause feed"}
+          </Button>
+          <Button
+            aria-label="Refresh opportunities"
+            size="small"
+            onClick={refresh}
+            startIcon={<RefreshRounded />}
+          >
+            Refresh
+          </Button>
         </Box>
-
-        {!connected && (
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            WebSocket disconnected. Showing cached data. Reconnecting...
-          </Alert>
-        )}
-
-
-
-        <List sx={{ maxHeight: 400, overflow: "auto" }}>
-          {displayOpportunities.map((opp, idx) => (
-            <React.Fragment key={opp.id}>
-              <ListItem
+      }
+    >
+      {paused && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Only this view is paused. The scanner and trading state are unchanged.
+        </Alert>
+      )}
+      {stale && status && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          Connection needs attention. Displayed records may be stale.
+        </Alert>
+      )}
+      {rows.length ? (
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", lg: "repeat(2,minmax(0,1fr))" },
+            gap: 2,
+          }}
+        >
+          {rows.map((row) => (
+            <Box
+              key={row.id}
+              sx={{
+                p: 2.5,
+                borderRadius: 2.5,
+                border: "1px solid",
+                borderColor: "divider",
+                bgcolor: "background.default",
+              }}
+            >
+              <Box className="panel-heading">
+                <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+                  <BoltRounded sx={{ color: "primary.main", fontSize: 20 }} />
+                  <Typography variant="subtitle2">
+                    {row.token?.symbol || "Token"} opportunity
+                  </Typography>
+                </Box>
+                <StatusBadge value={row.status} />
+              </Box>
+              <RouteFlow legs={row.route?.legs} />
+              <Box
                 sx={{
-                  bgcolor: "background.default",
-                  borderRadius: 1,
-                  mb: 1,
-                  flexDirection: "column",
-                  alignItems: "flex-start",
+                  display: "flex",
+                  gap: 1,
+                  alignItems: "end",
+                  justifyContent: "space-between",
+                  mt: 3,
                 }}
               >
-                <Box sx={{ width: "100%", display: "flex", justifyContent: "space-between", mb: 1 }}>
-                  <Typography variant="body2" fontWeight="medium">
-                    {opp.route || "Unknown Route"}
+                <Box>
+                  <Typography variant="caption" color="text.secondary">
+                    Expected net · {row.mode}
                   </Typography>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                    <AccessTime fontSize="small" sx={{ fontSize: 14 }} color="action" />
-                    <Typography variant="caption" color="text.secondary">
-                      {getAge(opp.timestamp)}
-                    </Typography>
-                  </Box>
-                </Box>
-
-                {/* DEX Path */}
-                <Box sx={{ display: "flex", gap: 0.5, mb: 1, flexWrap: "wrap" }}>
-                  {(opp.dexPath || []).map((dex, dexIdx) => (
-                    <React.Fragment key={dexIdx}>
-                      <Chip
-                        label={DEX_LABELS[dex] || dex}
-                        size="small"
-                        sx={{ height: 20, fontSize: "0.65rem" }}
-                      />
-                      {dexIdx < (opp.dexPath?.length || 0) - 1 && (
-                        <SwapHoriz fontSize="small" sx={{ color: "text.secondary" }} />
-                      )}
-                    </React.Fragment>
-                  ))}
-                </Box>
-
-                {/* Metrics Row */}
-                <Box sx={{ width: "100%", display: "flex", justifyContent: "space-between" }}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                      <TrendingUp fontSize="small" color="success" />
-                      <Typography
-                        variant="body2"
-                        fontWeight="bold"
-                        color={getProfitColor(opp.netProfit)}
-                      >
-                        {formatProfit(opp.netProfit)} ETH
-                      </Typography>
+                  <Typography
+                    variant="h5"
+                    color={
+                      positive(row.economics?.expectedNetProfit)
+                        ? "success.main"
+                        : "text.primary"
+                    }
+                  >
+                    {formatUnits(
+                      row.economics?.expectedNetProfit,
+                      row.token?.decimals
+                    )}{" "}
+                    <Box
+                      component="span"
+                      sx={{ fontSize: ".8rem", color: "text.secondary" }}
+                    >
+                      {row.token?.symbol}
                     </Box>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                      <LocalGasStation fontSize="small" color="action" />
-                      <Typography variant="caption" color="text.secondary">
-                        {parseFloat(opp.gasCost || 0).toFixed(4)} ETH
-                      </Typography>
-                    </Box>
-                  </Box>
-                  <Tooltip title="ML Confidence Score">
-                    <Chip
-                      label={`${((opp.mlScore || 0) * 100).toFixed(0)}%`}
-                      size="small"
-                      color={
-                        (opp.mlScore || 0) > 0.8
-                          ? "success"
-                          : (opp.mlScore || 0) > 0.6
-                          ? "warning"
-                          : "default"
-                      }
-                    />
-                  </Tooltip>
+                  </Typography>
                 </Box>
-              </ListItem>
-            </React.Fragment>
-          ))}
-
-          {displayOpportunities.length === 0 && (
-            <Paper sx={{ p: 3, textAlign: "center", bgcolor: "background.default" }}>
-              <Typography color="text.secondary">
-                No opportunities detected yet. The system is monitoring pools...
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => setSelected(row.id)}
+                >
+                  View details
+                </Button>
+              </Box>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ display: "block", mt: 2 }}
+              >
+                {time(row.updatedAt)} · Block {row.stateBlock ?? "—"} ·{" "}
+                {row.mode === "PAPER"
+                  ? "Unsigned simulation"
+                  : "Tracked execution"}
               </Typography>
-            </Paper>
-          )}
-        </List>
-
-        {/* Summary Stats */}
-        <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: "divider" }}>
-          <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-            <Typography variant="caption" color="text.secondary">
-              Total opportunities (last hour): {displayOpportunities.length}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              Avg profit: {formatProfit(
-                displayOpportunities.reduce((sum, o) => sum + parseFloat(o.netProfit || 0), 0) /
-                  (displayOpportunities.length || 1)
-              )} ETH
-            </Typography>
-          </Box>
+            </Box>
+          ))}
         </Box>
-      </CardContent>
-    </Card>
+      ) : (
+        <EmptyState
+          title="Listening for validated opportunities"
+          description="Profitable PAPER simulations and tracked LIVE submissions appear here. A quiet market can produce no executable opportunities."
+        />
+      )}
+      <Drawer
+        anchor="right"
+        open={Boolean(record)}
+        onClose={() => setSelected(null)}
+        PaperProps={{
+          sx: { width: { xs: "100%", sm: 580 }, maxWidth: "100%" },
+        }}
+      >
+        <ExecutionDetails record={record} onClose={() => setSelected(null)} />
+      </Drawer>
+    </Panel>
   );
-};
-
-export default RealTimeOpportunities;
-
+}
