@@ -141,6 +141,7 @@ export default function RouteVisualization() {
                     display: "flex",
                     alignItems: "end",
                     justifyContent: "space-between",
+                    flexWrap: "wrap",
                     gap: 1,
                   }}
                 >

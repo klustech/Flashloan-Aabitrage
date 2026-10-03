@@ -215,7 +215,14 @@ function Workspace({ adminMode }) {
               {page.label}
             </Box>
           </Typography>
-          <Box sx={{ display: "flex", gap: 1.5, alignItems: "center" }}>
+          <Box
+            sx={{
+              display: "flex",
+              gap: 1.5,
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
             {adminMode && (
               <Chip label="Admin" color="secondary" variant="outlined" />
             )}

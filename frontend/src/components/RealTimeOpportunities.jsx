@@ -168,6 +168,7 @@ export default function RealTimeOpportunities({ wsEndpoint }) {
                   gap: 1,
                   alignItems: "end",
                   justifyContent: "space-between",
+                  flexWrap: "wrap",
                   mt: 3,
                 }}
               >

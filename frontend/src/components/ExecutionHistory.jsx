@@ -150,7 +150,13 @@ export function ExecutionDetails({ record, onClose }) {
         Validation
       </Typography>
       <Box sx={{ display: "grid", gap: 1.5 }}>
-        <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+          }}
+        >
           <Typography variant="body2" color="text.secondary">
             Contract simulation
           </Typography>
@@ -159,7 +165,14 @@ export function ExecutionDetails({ record, onClose }) {
             color={record.simulation?.callStatic ? "success" : "default"}
           />
         </Box>
-        <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1 }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 1,
+          }}
+        >
           <Typography variant="body2" color="text.secondary">
             Private bundle
           </Typography>
