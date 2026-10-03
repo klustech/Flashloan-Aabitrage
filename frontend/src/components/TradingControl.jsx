@@ -28,6 +28,7 @@ export default function TradingControl({ compact = false }) {
     [readinessOpen, setReadinessOpen] = useState(false),
     [readiness, setReadiness] = useState(null),
     [checking, setChecking] = useState(false);
+  const paperOnly = status?.safety?.paperOnly || status?.trading?.paperOnly;
   const state = status?.trading?.state || "UNAVAILABLE",
     live = state === "LIVE_RUNNING";
   const action = async (name) => {
@@ -106,7 +107,9 @@ export default function TradingControl({ compact = false }) {
               />
             </Box>
             <Box>
-              <Typography variant="subtitle2">Trading controls</Typography>
+              <Typography variant="subtitle2">
+                {paperOnly ? "MAINNET PAPER-ONLY" : "Trading controls"}
+              </Typography>
               <Typography variant="caption" color="text.secondary">
                 {status?.busy
                   ? "Validating an opportunity"
@@ -132,7 +135,7 @@ export default function TradingControl({ compact = false }) {
             <Button
               variant="outlined"
               startIcon={<ShieldOutlined />}
-              disabled={busy || stale || state !== "PAPER"}
+              disabled={busy || stale || paperOnly || state !== "PAPER"}
               onClick={() => action("arm")}
             >
               Arm live trading
@@ -140,7 +143,7 @@ export default function TradingControl({ compact = false }) {
             <Button
               color="error"
               variant="contained"
-              disabled={busy || stale || !armed}
+              disabled={busy || stale || paperOnly || !armed}
               onClick={() => action("live")}
             >
               GO LIVE
@@ -192,6 +195,11 @@ export default function TradingControl({ compact = false }) {
             Live readiness
           </Button>
         </Box>
+        {paperOnly && (
+          <Alert severity="info" sx={{ mt: 2 }}>
+            Live signing disabled by deployment configuration.
+          </Alert>
+        )}
         {(error || actionError) && (
           <Alert severity="error" sx={{ mt: 2 }}>
             {actionError || error}

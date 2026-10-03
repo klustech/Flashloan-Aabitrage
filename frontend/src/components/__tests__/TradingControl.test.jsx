@@ -65,3 +65,19 @@ test("readiness inspection uses the read endpoint without changing trading mode"
   ).toBeInTheDocument();
   expect(API.post).not.toHaveBeenCalled();
 });
+test("deployment PAPER-only lock overrides even an armed snapshot in the UI", async () => {
+  const data = snapshot("LIVE_ARMED");
+  data.safety = { paperOnly: true, hasPrivateKey: false };
+  API.get.mockResolvedValue({ data });
+  render(<TradingControl />);
+  expect(await screen.findByText("MAINNET PAPER-ONLY")).toBeInTheDocument();
+  expect(
+    screen.getByText("Live signing disabled by deployment configuration.")
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Arm live trading" })
+  ).toBeDisabled();
+  expect(screen.getByRole("button", { name: "GO LIVE" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "PAPER" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Emergency pause" })).toBeEnabled();
+});

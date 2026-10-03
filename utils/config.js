@@ -1,7 +1,7 @@
 const path = require("path");
 require("dotenv").config({
   path: path.resolve(__dirname, "../.env"),
-  override: true,
+  override: false,
 });
 
 function getEnv(key, defaultValue = undefined) {
@@ -21,3 +21,4 @@ function loadRequired(keys) {
 }
 
 module.exports = { getEnv, loadRequired };
+

@@ -9,7 +9,9 @@
 const express = require("express");
 const path = require("path");
 const cors = require("cors");
-const rateLimit = require("express-rate-limit");
+const { createApiRateLimits, OPEN_PATHS } = require("../utils/apiRateLimits");
+const { assertPaperConfiguration, assertLiveAllowed } = require("../config/paperPolicy");
+const settingsPersistence = require("../utils/settingsPersistence");
 const fs = require("fs");
 const readline = require("readline");
 const winston = require("winston");
@@ -56,6 +58,8 @@ loadRequired([
   "TOKENS_DAI",
   "TOKENS_WETH",
 ]);
+
+assertPaperConfiguration();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Bot logic & helpers
@@ -321,17 +325,6 @@ const sanitizeLogPath = (requestedPath = "bot.log") => {
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Rate-limit: 30 requests per 5 minutes per IP
-app.use(
-  rateLimit({
-    windowMs: 300_000,
-    max: 30,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: "Too many requests – slow down 🙏",
-  })
-);
-
 // CORS restricted to explicitly configured origins. With CORS_ORIGIN unset,
 // cross-origin browser requests are blocked (same-origin / server-side only).
 const corsOrigins = (process.env.CORS_ORIGIN || "")
@@ -344,7 +337,7 @@ app.use(express.json());
 // Fail-closed x-api-key auth. Liveness/metrics stay open for probes; every other
 // route requires a matching API_KEY. If API_KEY is unset the server refuses the
 // request rather than running money-moving endpoints unauthenticated.
-const OPEN_PATHS = new Set(["/healthz", "/health", "/metrics"]);
+
 function safeKeyEqual(a, b) {
   if (typeof a !== "string" || typeof b !== "string") return false;
   const c = require("crypto");
@@ -367,8 +360,17 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use(createApiRateLimits());
+
 const { tradingState } = require("../bot/stateMachine");
-const coordinator = () => require("../bot/coordinator").getCoordinator();
+const coordinator = () => {
+  const c = require("../bot/coordinator").getCoordinator();
+  if (!c.operatorSettingsRestored) {
+    Object.assign(c.overrides, settingsPersistence.productionOverrides(botSettings, persistedSettings));
+    c.operatorSettingsRestored = true;
+  }
+  return c;
+};
 app.get("/api/trading", (_req, res) => {
   try { res.json(coordinator().status()); } catch (err) { res.status(503).json({ error: err.message, trading: tradingState.snapshot() }); }
 });
@@ -380,13 +382,17 @@ app.post("/api/trading/paper", (_req, res) => {
 });
 app.post("/api/trading/pause", (_req, res) => { tradingState.pause(); res.json({ trading: tradingState.snapshot() }); });
 app.post("/api/trading/arm", async (_req, res) => {
-  try { res.json({ trading: await coordinator().arm() }); } catch (err) { res.status(409).json({ error: err.message }); }
+  try { assertLiveAllowed(); res.json({ trading: await coordinator().arm() }); } catch (err) { res.status(409).json({ error: err.message }); }
 });
 app.post("/api/trading/live", (_req, res) => {
-  try { res.json({ trading: tradingState.live() }); } catch (err) { res.status(409).json({ error: err.message }); }
+  try { assertLiveAllowed(); res.json({ trading: tradingState.live() }); } catch (err) { res.status(409).json({ error: err.message }); }
 });
 app.get("/api/trading/readiness", async (_req, res) => {
   try { res.json(await coordinator().checkReadiness()); } catch (err) { res.status(503).json({ ready: false, errors: [err.message] }); }
+});
+app.get("/api/trading/paper-health", async (_req, res) => {
+  try { res.json(await require("../bot/paperHealth").paperHealth(coordinator(), require("../dbClient"))); }
+  catch (_) { res.status(503).json({ error:"PAPER persistence or mainnet health check failed" }); }
 });
 app.get("/api/executions", (_req, res) => {
   try { res.json({ executions: coordinator().ledger.recent(100), summary: coordinator().ledger.summary() }); } catch (err) { res.status(503).json({ error: err.message }); }
@@ -603,117 +609,11 @@ app.use((req, _res, next) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // In-memory bot settings
 // ─────────────────────────────────────────────────────────────────────────────
-const parseOptionalInt = (value) => {
-  if (value === undefined || value === null || value === "") return undefined;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Persistent Settings Storage
-// ─────────────────────────────────────────────────────────────────────────────
-const SETTINGS_FILE =
-  process.env.SETTINGS_FILE || path.join(__dirname, "../.settings.json");
-
-/**
- * Load persisted settings from disk
- * @returns {Object|null} Parsed settings or null if not found
- */
-function loadPersistedSettings() {
-  try {
-    if (!fs.existsSync(SETTINGS_FILE)) {
-      logger.info(
-        "[Settings] No persisted settings file found, using defaults"
-      );
-      return null;
-    }
-    const data = fs.readFileSync(SETTINGS_FILE, "utf8");
-    const settings = JSON.parse(data);
-    logger.info(`[Settings] Loaded persisted settings from ${SETTINGS_FILE}`);
-    return settings;
-  } catch (err) {
-    logger.warn(`[Settings] Failed to load persisted settings: ${err.message}`);
-    return null;
-  }
-}
-
-/**
- * Save settings to disk
- * @param {Object} settings - Settings to persist
- * @returns {boolean} Success status
- */
-function savePersistedSettings(settings) {
-  try {
-    // Create a clean copy without internal state
-    const toSave = {
-      botActive: settings.botActive,
-      flashbotsDefault: settings.flashbotsDefault,
-      pollingInterval: settings.pollingInterval,
-      gasPriceCeiling: settings.gasPriceCeiling,
-      slippageBips: settings.slippageBips,
-      minBorrowAmount: settings.minBorrowAmount,
-      simulationInputAmount: settings.simulationInputAmount,
-      _savedAt: new Date().toISOString(),
-    };
-    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(toSave, null, 2), "utf8");
-    logger.info(`[Settings] Persisted settings to ${SETTINGS_FILE}`);
-    return true;
-  } catch (err) {
-    logger.error(`[Settings] Failed to persist settings: ${err.message}`);
-    return false;
-  }
-}
-
-// Load persisted settings if available
+const SETTINGS_FILE = process.env.SETTINGS_FILE || path.join(__dirname, "../.settings.json");
+function loadPersistedSettings() { return settingsPersistence.readSettings(SETTINGS_FILE, logger); }
+function savePersistedSettings(settings) { return settingsPersistence.writeSettings(SETTINGS_FILE, settings, logger); }
 const persistedSettings = loadPersistedSettings();
-
-// Priority: Environment variables > Persisted settings > Defaults
-const rawInitialSettings = {
-  ...settingsDefaults,
-  // Apply persisted settings (if available)
-  ...(persistedSettings || {}),
-  // Environment variables take precedence over persisted settings
-  flashbotsDefault:
-    process.env.FLASHBOTS_DEFAULT === undefined
-      ? persistedSettings?.flashbotsDefault ?? settingsDefaults.flashbotsDefault
-      : process.env.FLASHBOTS_DEFAULT === "true",
-  pollingInterval:
-    parseOptionalInt(process.env.POLLING_INTERVAL) ??
-    persistedSettings?.pollingInterval ??
-    settingsDefaults.pollingInterval,
-  gasPriceCeiling:
-    parseOptionalInt(process.env.GAS_PRICE_CEILING) ??
-    persistedSettings?.gasPriceCeiling ??
-    settingsDefaults.gasPriceCeiling,
-  slippageBips:
-    parseOptionalInt(process.env.SLIPPAGE_BIPS) ??
-    persistedSettings?.slippageBips ??
-    settingsDefaults.slippageBips,
-  minBorrowAmount:
-    parseOptionalInt(process.env.MIN_BORROW_AMOUNT) ??
-    persistedSettings?.minBorrowAmount ??
-    settingsDefaults.minBorrowAmount,
-  simulationInputAmount:
-    parseOptionalInt(process.env.SIMULATION_INPUT_AMOUNT) ??
-    persistedSettings?.simulationInputAmount ??
-    settingsDefaults.simulationInputAmount,
-  // Don't auto-start bot from persisted settings for safety
-  botActive: process.env.BOT_AUTO_START === "true" ? true : false,
-};
-
-let botSettings;
-const initialSettingsResult = settingsSchema.safeParse(rawInitialSettings);
-if (!initialSettingsResult.success) {
-  const details = formatValidationErrors(initialSettingsResult.error);
-  logger.warn(
-    `Invalid initial settings detected, falling back to defaults: ${JSON.stringify(
-      details
-    )}`
-  );
-  botSettings = settingsSchema.parse(settingsDefaults);
-} else {
-  botSettings = initialSettingsResult.data;
-}
+let botSettings = settingsPersistence.initialSettings(persistedSettings, process.env, logger);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // REST endpoints
@@ -1198,7 +1098,9 @@ app.post(
         throw emptyPayloadError;
       }
 
-      botSettings = { ...botSettings, ...updates };
+      const nextSettings = { ...botSettings, ...updates };
+      if (!savePersistedSettings(nextSettings)) throw new Error("Settings persistence failed");
+      botSettings = nextSettings;
 
       if (updates.minBorrowAmount !== undefined) {
         updateMinBorrowAmount(updates.minBorrowAmount);
@@ -1216,8 +1118,6 @@ app.post(
         tradingState.paper(); // Changed settings require fresh explicit LIVE arming.
       }
       // Persist settings to disk
-      savePersistedSettings(botSettings);
-
       logger.info(`Settings updated: ${JSON.stringify(botSettings)}`);
       res.json({ status: "ok", settings: botSettings, persisted: true });
     } catch (err) {

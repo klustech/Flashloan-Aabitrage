@@ -1,7 +1,9 @@
 const { getNetworkConfig } = require('./networkConfig');
 const { integer, address, serialize } = require('../bot/units');
 const { utils } = require('ethers');
+const {paperOnly,assertPaperConfiguration}=require('./paperPolicy');
 function productionProfile(env = process.env) {
+  assertPaperConfiguration(env);
   const network = getNetworkConfig('ethereum');
   const tokens = { ...network.tokens };
   if (env.TOKENS_DAI) tokens.DAI = env.TOKENS_DAI;
@@ -18,7 +20,7 @@ function productionProfile(env = process.env) {
     },
   };
   const profile = {
-    chain: 'ethereum', chainId: 1, tokens, routers,
+    chain: 'ethereum', chainId: 1, paperOnly:paperOnly(env), tokens, routers,
     tokenSymbols: (env.SCAN_TOKENS || 'DAI,WETH,USDC,USDT,WBTC').split(',').map(s=>s.trim()),
     borrowSymbols: (env.BORROW_TOKENS || 'DAI').split(',').map(s=>s.trim()),
     flashloanProvider: { protocol:'aave', version:2, addressesProvider:env.AAVE_LENDING_POOL_ADDRESS_PROVIDER || network.aave.v2.lendingPoolAddressProvider, lendingPool:env.AAVE_V2_LENDING_POOL || network.aave.v2.lendingPool },

@@ -1,4 +1,5 @@
 const {Contract,Wallet,utils}=require('ethers');
+const {assertLiveAllowed}=require('../config/paperPolicy');
 const crypto=require('crypto');
 const {productionProfile}=require('../config/productionProfile');
 const {TokenRegistry}=require('../market/tokenRegistry');
@@ -25,6 +26,7 @@ const eventBus=require('../utils/eventBus');
 class Coordinator {
   constructor({provider,profile,state=tradingState,ledger,wallet,adapters}={}){
     this.profile=profile||productionProfile();this.provider=provider||createProvider();this.state=state;
+    if(this.profile.paperOnly&&wallet)throw new Error('PAPER_ONLY refuses a supplied signer');
     this.wallet=wallet|| (process.env.PRIVATE_KEY?new Wallet(process.env.PRIVATE_KEY,this.provider):null);
     this.contract=new Contract(this.profile.contractAddress,require('../abis/ArbitrageFlashloan.json'),this.provider);
     this.tokens=new TokenRegistry(this.provider,this.profile.chainId);this.poolRegistry=new PoolRegistry(this.tokens);
@@ -47,7 +49,7 @@ class Coordinator {
     this.initialized=true;}
   async checkReadiness(){await this.initialize();const chain=await startupChecks({provider:this.provider,contract:this.contract,profile:this.profile,operatorAddress:this.operatorAddress});const evidence=commissioningChecks(this.profile);const errors=[...chain.errors,...evidence.errors];
     if(process.env.NODE_ENV==='production'){const db=require('../dbClient');try{await db.getExecutions(1);}catch(err){errors.push('Execution persistence: '+err.message);}}if(this.ledger.pending().length)errors.push('Unsettled private submissions');this.readiness={...chain,ready:errors.length===0,errors,evidence:evidence.evidence};return this.readiness;}
-  async arm(){const revision=this.state.revision;const report=await this.checkReadiness();if(revision!==this.state.revision)throw new Error('Trading state changed during readiness check');return this.state.arm(report);}
+  async arm(){assertLiveAllowed(this.profile);const revision=this.state.revision;const report=await this.checkReadiness();if(revision!==this.state.revision)throw new Error('Trading state changed during readiness check');return this.state.arm(report);}
   converter(token){
     const borrow=address(token),weth=address(this.profile.tokens.WETH);
     if(borrow===weth)return {toBorrow:async v=>bn(v),toNative:async v=>bn(v)};
@@ -214,7 +216,7 @@ class Coordinator {
       return {executed:false,reason:err.message};
     }finally{clearTimeout(timer);externalSignal?.removeEventListener('abort',cancel);this.latency={durationMs:Date.now()-startedAt,...this.scanStats,quotes:this.quoter?.stats,cache:this.marketCache?.status(),candidates:this.candidateIndex?.stats};if(this.lastCycle)this.lastCycle.latency=this.latency;this.emit('scan_completed',this.latency);if(this.state.state==='PAPER' && revision===this.state.revision)this.burnIn.record(this.lastCycle);this.busy=false;}
   }
-  status(){return {trading:this.state.snapshot(),busy:this.busy,lastCycle:this.lastCycle,latency:this.latency,scanner:this.scheduler?.status(),readiness:this.readiness,profile:{chain:this.profile.chain,chainId:this.profile.chainId,flashloanProvider:this.profile.flashloanProvider,strategies:['CROSS_DEX_TWO_LEG','TRIANGULAR_THREE_LEG'],fingerprint:this.profile.fingerprint},paperBurnIn:this.burnIn.data,summary:this.ledger.summary(),executions:this.ledger.recent(100)};}
+  status(){return {trading:this.state.snapshot(),busy:this.busy,lastCycle:this.lastCycle,latency:this.latency,scanner:this.scheduler?.status(),readiness:this.readiness,safety:{paperOnly:this.profile.paperOnly,hasPrivateKey:Boolean(process.env.PRIVATE_KEY?.trim()),activity:{...this.execution.activity}},profile:{paperOnly:this.profile.paperOnly,chain:this.profile.chain,chainId:this.profile.chainId,flashloanProvider:this.profile.flashloanProvider,strategies:['CROSS_DEX_TWO_LEG','TRIANGULAR_THREE_LEG'],fingerprint:this.profile.fingerprint},paperBurnIn:this.burnIn.data,summary:this.ledger.summary(),executions:this.ledger.recent(100)};}
 }
 let instance;
 function getCoordinator(){if(!instance)instance=new Coordinator();return instance;}
