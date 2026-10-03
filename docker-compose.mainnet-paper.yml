@@ -1,0 +1,10 @@
+# Layer on docker-compose.production.yml with a distinct mainnet-paper project.
+services:
+  postgres:
+    ports: ["127.0.0.1:5433:5432"]
+  api:
+    environment:
+      PAPER_ONLY: "true"
+      BOT_AUTO_START: "false"
+      SETTINGS_FILE: runtime/mainnet-paper/operator-settings.json
+      ALLOW_PUBLIC_MEMPOOL_FALLBACK: "false"

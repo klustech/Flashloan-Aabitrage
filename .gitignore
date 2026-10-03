@@ -77,3 +77,6 @@ artifacts-solcjs/
 runtime/
 server/.settings.json
 server/circuit_breaker_state.json
+
+# Mainnet PAPER operator credentials
+.env.mainnet-paper

@@ -47,7 +47,6 @@ const setHeader = (config, key, value) => {
 };
 
 API.interceptors.request.use(async (config) => {
-
   if (authTokenProvider) {
     try {
       const token = await authTokenProvider();
@@ -123,7 +122,8 @@ export const getBotLogs = async ({
 // Get current settings
 export const getSettings = async () => {
   const response = await API.get("/api/settings");
-  return settingsResponseSchema.parse(response.data);
+  const { _persisted, _settingsFile, ...settings } = response.data;
+  return settingsResponseSchema.parse(settings);
 };
 
 // Update settings (including minBorrowAmount and simulationInputAmount)
@@ -346,4 +346,3 @@ export const getGraphStats = async () => {
   const response = await API.get("/api/tier1/graph-stats");
   return response.data;
 };
-

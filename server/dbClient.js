@@ -5,7 +5,7 @@ const {
   utils: { formatUnits },
 } = require("ethers");
 const { dbEnabled, dbInsertFailures } = require("./metricsRegistry");
-require("dotenv").config({ override: true });
+require("dotenv").config({ override: false });
 
 const TRADE_CACHE_LIMIT =
   parseInt(process.env.TRADE_CACHE_LIMIT, 10) > 0

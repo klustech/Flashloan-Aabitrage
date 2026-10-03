@@ -1,11 +1,12 @@
 const {utils}=require('ethers');
+const {assertLiveAllowed}=require('../config/paperPolicy');
 const {bn,serialize}=require('./units');
 const {executionGuard}=require('../risk/executionGuard');
 const {validateBundleSimulation}=require('../execution/flashbots');
 const {accountReceipt}=require('./receiptAccounting');
 const {abortable,abortError,checkSignal}=require('./asyncControl');
 class ExecutionEngine {
-  constructor(context){Object.assign(this,context);}
+  constructor(context){Object.assign(this,context);this.activity={signatures:0,submissions:0};}
   async settle(record,receipt){
     const result=await accountReceipt({provider:this.provider,contract:this.contract,receipt,record:{...record,borrowToNative:(amount,block)=>this.converter(record.borrowToken).toNative(amount,block)},nativeToBorrow:(amount,block)=>this.converter(record.borrowToken).toBorrow(amount,block)});
     const settled=await this.ledger.write({...record,...result});this.emit('trade_executed',settled);return settled;
@@ -21,8 +22,10 @@ class ExecutionEngine {
     return this.ledger.pending().length;
   }
   async execute(prepared,{signal,revision}){
+    assertLiveAllowed(this.profile);
     let record=prepared.record;
     const guard=async()=>{
+      assertLiveAllowed(this.profile);
       if(!this.state.canSign(revision))throw new Error('LIVE stopped/disarmed during validation');
       const head=await abortable(this.provider.getBlock('latest'),signal);
       if(head.hash!==prepared.block.hash)throw abortError('Chain state advanced/reorganized');
@@ -37,7 +40,9 @@ class ExecutionEngine {
     if(!this.wallet)throw new Error('Missing LIVE signer');
     const nonce=await abortable(this.provider.getTransactionCount(this.wallet.address,'pending'),signal);
     checkSignal(signal);if(!this.state.canSign(revision))throw abortError('Trading mode changed before signing');
+    assertLiveAllowed(this.profile);
     const signedTx=await abortable(this.wallet.signTransaction({...prepared.transaction,nonce,chainId:this.profile.chainId,type:2}),signal);
+    this.activity.signatures++;
     await guard();
     const simulations=await abortable(this.relays.simulate(signedTx,prepared.block.number+1,prepared.block.number),signal);
     const approved=[];
@@ -56,6 +61,7 @@ class ExecutionEngine {
     // reusing the same nonce or treating a potentially submitted tx as idle.
     record=await this.ledger.write({...record,status:'SUBMITTED'});
     const synchronousGuard=()=>{checkSignal(signal);if(!this.state.canSign(revision)||Date.now()-prepared.quote.quotedAt>this.profile.maxQuoteAgeMs)throw abortError('Submission disarmed/expired');};
+    assertLiveAllowed(this.profile);this.activity.submissions++;
     const submissions=await this.relays.submit(approved,signedTx,targetBlock,synchronousGuard);
     record=await this.ledger.write({...record,submissions});this.emit('trade_submitted',record);
     // The next block callback reconciles confirmations. Waiting here for a
