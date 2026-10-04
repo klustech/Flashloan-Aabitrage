@@ -34,7 +34,9 @@
     "test:fork:proof": "node scripts/run-fork-proof.js",
     "deploy:production": "hardhat run scripts/deploy-production.js --network mainnet",
     "paper:preflight": "node scripts/paper-preflight.js",
-    "paper:smoke": "node scripts/paper-smoke.js"
+    "paper:smoke": "node scripts/paper-smoke.js",
+    "backrun:preflight": "PAPER_ENV_FILE=.env.mainnet-backrun-paper node scripts/paper-preflight.js",
+    "test:backrun": "node --test test/unit/backrunCore.node.test.js"
   },
   "keywords": [],
   "author": "",
