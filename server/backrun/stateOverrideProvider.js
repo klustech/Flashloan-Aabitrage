@@ -21,6 +21,7 @@ function normalizeRpcTransaction(tx = {}) {
     ["type", "type"],
   ]) {
     if (out[dst] !== undefined) continue;
+    if (dst === "gasPrice" && tx.maxFeePerGas != null) continue;
     const value = tx[src];
     if (value !== undefined && value !== null) out[dst] = rpcQuantity(value);
   }
