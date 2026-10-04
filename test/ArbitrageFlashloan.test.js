@@ -185,5 +185,39 @@ describe("ArbitrageFlashloan", function () {
       "profit<minProfit"
     );
   });
-});
+  it("executes a treasury-funded cycle without allowing prefunded principal to subsidize losses", async () => {
+    const treasury = ethers.utils.parseEther("100");
+    const arbData = buildArbData({ borrowAmount: treasury });
 
+    await dai.mint(arbitrage.address, treasury);
+    const recipientBefore = await dai.balanceOf(deployer.address);
+
+    const firstOut = treasury;
+    const secondOut = firstOut.mul(11).div(10);
+    const expectedProfit = secondOut.sub(treasury);
+
+    await expect(arbitrage.executeFundedArbitrage(arbData))
+      .to.emit(arbitrage, "FundedArbitrageExecuted")
+      .withArgs(treasury, expectedProfit, routeString);
+
+    expect(await dai.balanceOf(arbitrage.address)).to.equal(treasury);
+    expect((await dai.balanceOf(deployer.address)).sub(recipientBefore)).to.equal(expectedProfit);
+
+    await routerB.setRate(weth.address, dai.address, 99, 100);
+    const losing = buildArbData({
+      borrowAmount: treasury,
+      minProfit: 1,
+    });
+    losing.steps[1].minAmountOut = 1;
+
+    await expect(arbitrage.executeFundedArbitrage(losing)).to.be.revertedWith(
+      "profit<minProfit"
+    );
+    expect(await dai.balanceOf(arbitrage.address)).to.equal(treasury);
+  });
+
+  it("reports executor version 3 for adaptive funding support", async () => {
+    expect(await arbitrage.executorVersion()).to.equal(3);
+  });
+
+});
