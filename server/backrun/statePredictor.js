@@ -64,9 +64,10 @@ class TriggerStatePredictor {
       };
     }
 
+    let timeoutHandle;
     const timeout = new Promise((_, reject) => {
-      const timer = setTimeout(() => reject(new Error("debug_traceCall timeout")), this.timeoutMs);
-      timer.unref?.();
+      timeoutHandle = setTimeout(() => reject(new Error("debug_traceCall timeout")), this.timeoutMs);
+      timeoutHandle.unref?.();
     });
 
     try {
@@ -108,6 +109,8 @@ class TriggerStatePredictor {
         stateOverrides: {},
         affectedPools: [...hintedPools],
       };
+    } finally {
+      clearTimeout(timeoutHandle);
     }
   }
 
