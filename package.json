@@ -40,7 +40,8 @@
     "backrun:benchmark": "node scripts/benchmark-backruns.js",
     "backrun:preflight": "node scripts/backrun-preflight.js",
     "backrun:smoke": "node scripts/backrun-smoke.js",
-    "backrun:commission": "node scripts/backrun-commissioning-report.js"
+    "backrun:commission": "node scripts/backrun-commissioning-report.js",
+    "backrun:install-anvil": "node scripts/install-backrun-anvil.js"
   },
   "keywords": [],
   "author": "",

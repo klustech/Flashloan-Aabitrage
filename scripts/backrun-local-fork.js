@@ -3,7 +3,7 @@ const path = require("path");
 const { spawn } = require("child_process");
 const { setTimeout: delay } = require("timers/promises");
 
-async function probeFork(url) {
+async function probeFork(url, engine = "hardhat") {
   const request = async method => {
     const response = await fetch(url, {
       method: "POST", headers: { "content-type": "application/json" },
@@ -17,28 +17,29 @@ async function probeFork(url) {
   };
   try {
     const [client, chain] = await Promise.all([request("web3_clientVersion"), request("eth_chainId")]);
-    return /^HardhatNetwork\//.test(client) && Number(chain) === 1;
+    return (engine === "anvil" ? /^anvil\//i : /^HardhatNetwork\//).test(client) && Number(chain) === 1;
   } catch (_) { return false; }
 }
 
-async function withLocalFork(profile, work, progress = () => {}) {
+async function withLocalFork(profile, work, progress = () => {}, { engine = "hardhat" } = {}) {
   const url = profile.backrun.forkRpcUrl, parsed = new URL(url);
-  if (parsed.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(parsed.hostname) || parsed.port !== "8547")
-    throw new Error("--local requires BACKRUN_FORK_RPC_URL=http://127.0.0.1:8547");
+  const port = engine === "anvil" ? "8548" : "8547";
+  if (parsed.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(parsed.hostname) || parsed.port !== port)
+    throw new Error("--local requires a dedicated loopback fork on port " + port);
   progress({ stage: "local_fork_probe" });
-  if (await probeFork(url)) {
+  if (await probeFork(url, engine)) {
     progress({ stage: "local_fork_reusing_existing" });
     return work();
   }
 
-  const log = path.resolve("runtime/backrun/fork.log");
+  const log = path.resolve("runtime/backrun/" + engine + "-fork.log");
   fs.mkdirSync(path.dirname(log), { recursive: true, mode: 0o700 });
   const fd = fs.openSync(log, "a", 0o600);
   fs.fchmodSync(fd, 0o600);
   const grouped = process.platform !== "win32";
   let child;
   try {
-    child = spawn(process.execPath, [path.join(__dirname, "backrun-fork-node.js")], {
+    child = spawn(process.execPath, [path.join(__dirname, "backrun-fork-node.js"), ...(engine === "anvil" ? ["--anvil"] : [])], {
       stdio: ["ignore", fd, fd], env: process.env, detached: grouped,
     });
   } finally { fs.closeSync(fd); }
@@ -58,8 +59,8 @@ async function withLocalFork(profile, work, progress = () => {}) {
     const deadline = Date.now() + 30000;
     while (Date.now() < deadline) {
       if (spawnError) throw spawnError;
-      if (stopped) throw new Error("Local fork exited during startup; inspect private runtime/backrun/fork.log");
-      if (await probeFork(url)) {
+      if (stopped) throw new Error("Local fork exited during startup; inspect the private fork log");
+      if (await probeFork(url, engine)) {
         progress({ stage: "local_fork_ready" });
         return await work();
       }

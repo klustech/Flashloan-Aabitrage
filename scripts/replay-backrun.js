@@ -13,7 +13,7 @@ async function main({ progress = () => {} } = {}) {
   const identity = await backend.verify();
   progress({ stage: "fork_identity_verified", ...identity });
   progress({ stage: "fixture" });
-  const fixturePath = process.argv.slice(2).find(arg => arg !== "--local");
+  const fixturePath = process.argv.slice(2).find(arg => !["--local", "--anvil"].includes(arg));
   const fixture = JSON.parse(fs.readFileSync(fixturePath || path.join(__dirname, "../test/fixtures/backrun-26115902.json"), "utf8"));
   const replay = new HistoricalReplay({ archive, backend, progress });
   const report = await replay.caseStudy(fixture, async ({ provider, block }) => {
@@ -43,8 +43,8 @@ async function cli() {
   };
   try {
     if (process.argv.includes("--local")) {
-      const { profile } = environment();
-      await require("./backrun-local-fork").withLocalFork(profile, () => main({ progress }), progress);
+      const { backend, forkEngine } = environment();
+      await require("./backrun-local-fork").withLocalFork({ backrun: { forkRpcUrl: backend.url } }, () => main({ progress }), progress, { engine: forkEngine });
     } else await main({ progress });
   } catch (error) {
     console.error(JSON.stringify(replayDiagnostic(error, context), null, 2));

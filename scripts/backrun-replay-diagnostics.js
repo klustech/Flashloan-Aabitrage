@@ -29,7 +29,7 @@ function replayDiagnostic(error, context = {}, env = process.env) {
   const status = httpStatus(error);
   if (status !== undefined) diagnostic.httpStatus = status;
   if (/^(?:eth|net|web3)_[A-Za-z0-9]+$/.test(error?.archiveRpcMethod || "")) diagnostic.rpcMethod = error.archiveRpcMethod;
-  if (/^(?:eth|net|web3|hardhat|evm)_[A-Za-z0-9]+$/.test(error?.forkRpcMethod || "")) {
+  if (/^(?:eth|net|web3|hardhat|anvil|evm)_[A-Za-z0-9]+$/.test(error?.forkRpcMethod || "")) {
     diagnostic.rpcMethod = error.forkRpcMethod;
     diagnostic.rpcSurface = "local_fork";
     if (Array.isArray(error.forkRpcParameterTypes))

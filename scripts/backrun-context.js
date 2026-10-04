@@ -12,6 +12,7 @@ const { installArchiveReads } = require("./backrun-archive-reads");
 function environment({ onArchiveRetry = () => {} } = {}) {
   loadEnvironment(process.env);
   if (process.env.PRIVATE_KEY) throw new Error("Historical/PAPER commands refuse PRIVATE_KEY");
+  const forkEngine = process.argv.includes("--anvil") ? "anvil" : "hardhat";
   const profile = productionProfile(process.env), url = process.env.MAINNET_RPC_URL;
   if (!url) throw new Error("MAINNET_RPC_URL archive endpoint required");
   const archive = installArchiveReads(new providers.StaticJsonRpcProvider({ url, timeout: 30000,
@@ -20,8 +21,11 @@ function environment({ onArchiveRetry = () => {} } = {}) {
     minIntervalMs: process.env.BACKRUN_ARCHIVE_MIN_INTERVAL_MS,
     onRetry: onArchiveRetry,
   });
-  const backend = new ForkBackend({ url: profile.backrun.forkRpcUrl, archiveUrl: url });
-  return { profile, archive, backend };
+  // CLI backend transport is separate from the deployed/economic profile:
+  // evidence must retain the same fingerprint as PAPER/LIVE commissioning.
+  const backend = new ForkBackend({ url: forkEngine === "anvil" ? "http://127.0.0.1:8548" : profile.backrun.forkRpcUrl,
+    archiveUrl: url, engine: forkEngine });
+  return { profile, archive, backend, forkEngine };
 }
 async function topologyContext(profile, provider, blockNumber, poolRefs) {
   const file = process.env.POOL_CACHE_PATH || process.env.POOL_TOPOLOGY_CACHE_PATH || "runtime/mainnet-paper/pool-topology.json";

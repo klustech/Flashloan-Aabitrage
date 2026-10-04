@@ -24,7 +24,7 @@ test("isolated fork backend mines trigger+unsigned executor in one block for CAP
       r1.setRate(a.address,b.address,1,1),r2.setRate(b.address,a.address,1,1)])await (await tx).wait();
     await provider.send("hardhat_stopImpersonatingAccount",[owner]);
     const parent=await latestBlock(provider);let snapshot=await provider.send("evm_snapshot",[]);
-    const backend=new ForkBackend({url,provider});
+    const backend=new ForkBackend({url,provider,engine:process.env.LOCAL_BACKRUN_TEST_ENGINE||"hardhat"});
     backend.reset=async block=>{
       assert.equal(block.hash,parent.hash);assert.equal(await provider.send("evm_revert",[snapshot]),true);
       snapshot=await provider.send("evm_snapshot",[]);await provider.send("evm_setAutomine",[false]);await backend.verify();
@@ -52,6 +52,51 @@ test("isolated fork backend mines trigger+unsigned executor in one block for CAP
       }
     }finally{await provider.send("evm_setAutomine",[true]);}
   });
+test("canonical type-3 execution retains BLOBHASH, fees and identity in an unsigned Anvil prefix",
+  {skip:!process.env.LOCAL_BACKRUN_TEST_RPC||process.env.LOCAL_BACKRUN_TEST_ENGINE!=="anvil",timeout:120000},async()=>{
+    const {signedBlob,versionedHash}=require("../helpers/blobTransaction");
+    const url=process.env.LOCAL_BACKRUN_TEST_RPC,provider=new providers.StaticJsonRpcProvider(url,1);
+    const operator=Wallet.createRandom().address,recipient=Wallet.createRandom().address,target=Wallet.createRandom().address;
+    const blob=signedBlob({to:target});
+    await provider.send("hardhat_reset",[]);
+    for(const account of [blob.wallet.address,operator])
+      await provider.send("hardhat_setBalance",[account,utils.hexValue(utils.parseEther("1"))]);
+    // Store BLOBHASH(0) in slot 0, proving the type-3 execution context survives.
+    await provider.send("hardhat_setCode",[target,"0x60004960005500"]);
+    await provider.send("evm_setAutomine",[false]);
+    const parent=await latestBlock(provider);let snapshot=await provider.send("evm_snapshot",[]);
+    const backend=new ForkBackend({url,provider,engine:"anvil"});
+    backend.reset=async()=>{
+      assert.equal(await provider.send("evm_revert",[snapshot]),true);
+      snapshot=await provider.send("evm_snapshot",[]);await provider.send("evm_setAutomine",[false]);
+    };
+    const header={...parent,number:parent.number+1,timestamp:parent.timestamp+12,
+      baseFeePerGas:require("../../server/backrun/forkBackend").nextBaseFee(parent),
+      miner:Wallet.createRandom().address,mixHash:utils.hexZeroPad("0x1234",32)};
+    try{
+      await assert.rejects(provider.send("eth_sendRawTransaction",[blob.raw]),/sidecar/);
+      const prefix=await backend.mine([blob.raw],header,{canonicalTransactions:[blob.canonical]});
+      assert.equal(prefix.receipts[0].transactionHash,blob.canonical.hash);
+      assert.equal(prefix.receipts[0].type,3);assert.equal(prefix.receipts[0].status,1);
+      assert.equal(await provider.getStorageAt(target,0),versionedHash);
+      const receipt=await provider.send("eth_getTransactionReceipt",[blob.canonical.hash]);
+      assert.equal(Number(receipt.blobGasUsed),131072);
+      const burned=prefix.receipts[0].gasUsed.mul(prefix.receipts[0].effectiveGasPrice)
+        .add(require("ethers").BigNumber.from(receipt.blobGasUsed).mul(receipt.blobGasPrice));
+      assert.equal((await provider.getBalance(blob.wallet.address)).toString(),utils.parseEther("1").sub(burned).toString());
+      assert.equal(backend.blobReplayAccounts.size,0);
+      await backend.reset(parent);
+      await assert.rejects(provider.send("eth_sendRawTransaction",[blob.raw]),/sidecar/);
+      await backend.mine([blob.raw],header,{canonicalTransactions:[blob.canonical]});
+      const result=await backend.simulateUnsignedPrefix({rawTransactions:[blob.raw],canonicalTransactions:[blob.canonical],parent,header,
+        transaction:{from:operator,to:recipient,data:"0x",gasLimit:21000,
+          maxFeePerGas:parent.baseFeePerGas.mul(2).add(10),maxPriorityFeePerGas:1}});
+      require("../../server/backrun/historicalReplay").verifyReceipts(result.prefixReceipts,prefix.receipts);
+      assert.equal(result.backrunReceipt.transactionIndex,1);
+      assert.equal(await provider.getStorageAt(target,0),versionedHash);
+      assert.equal(result.signed,false);assert.equal(result.submitted,false);assert.equal(result.directCoinbasePayment,"0");
+    }finally{await provider.send("evm_setAutomine",[true]);}
+  });
 test("canonical unprotected legacy prefix is mined and revalidated before an unsigned same-block call",
   {skip:!process.env.LOCAL_BACKRUN_TEST_RPC,timeout:120000},async()=>{
     const url=process.env.LOCAL_BACKRUN_TEST_RPC,provider=new providers.StaticJsonRpcProvider(url,1);
@@ -62,7 +107,7 @@ test("canonical unprotected legacy prefix is mined and revalidated before an uns
     await provider.send("evm_setAutomine",[false]);
     const parent=await latestBlock(provider);
     let snapshot=await provider.send("evm_snapshot",[]);
-    const backend=new ForkBackend({url,provider});
+    const backend=new ForkBackend({url,provider,engine:process.env.LOCAL_BACKRUN_TEST_ENGINE||"hardhat"});
     backend.reset=async()=>{
       assert.equal(await provider.send("evm_revert",[snapshot]),true);
       snapshot=await provider.send("evm_snapshot",[]);await provider.send("evm_setAutomine",[false]);

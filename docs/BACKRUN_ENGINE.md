@@ -332,7 +332,56 @@ repeated by this archive-read policy. Production order-flow scanning is unchange
 Fork errors also report the specific `rpcMethod`, parameter type names and,
 for raw-prefix submission failures, the canonical transaction index/type.
 Parameter values, signed bytes and authenticated URLs are not emitted. The
-CLI prints the verified Hardhat client version before replay. A `mine_prefix`
+CLI prints the verified fork client version before replay. A `mine_prefix`
 failure is a broad stage; use `rpcMethod` to distinguish header configuration,
 transaction submission, mining and receipt retrieval. Full header tests include
 timestamp, base fee, gas limit, coinbase and PREVRANDAO.
+
+### Canonical prefixes containing type-3 blob transactions
+
+Hardhat 2.24.3 rejects a bare signed blob body with `unexpected string`. Supplying
+the correct pooled sidecar envelope does not solve ordered replay: that version
+also rejects blob transactions while automining is disabled or the pool is not
+empty. Enabling automining or omitting the blob transaction would change the
+historical execution and must not be used to issue this proof.
+
+Use the dedicated Anvil backend for the canonical case study:
+
+```bash
+npm run backrun:install-anvil
+PAPER_ENV_FILE=.env.backrun-paper npm run backrun:replay -- --local --anvil
+```
+
+The installer downloads the official Foundry v1.8.4 release, checks its pinned
+SHA-256 digest, extracts only Anvil and installs it below ignored
+`runtime/backrun/tools`. It requires `curl` and `tar` on Linux/WSL or macOS.
+No global Foundry installation or npm dependency changes are needed. This
+version supports `anvil_setNextBlockPrevRandao`; older Anvil releases are not
+equivalent substitutes. `BACKRUN_ANVIL_BIN` may point to a compatible executable.
+
+`--anvil` explicitly selects a separate chain-1 node at `127.0.0.1:8548`, with
+no generated accounts, FIFO ordering, manual mining and no automatic create2
+deployer. It infers the historical hardfork from the source chain and timestamp.
+The existing Hardhat node on 8547 is not used or stopped. `--local` owns and
+cleans up only a node it starts; an existing matching Anvil node is left running.
+Its private diagnostic log is `runtime/backrun/anvil-fork.log`.
+The CLI transport selection does not alter the deployment/economics profile
+fingerprint used by PAPER/LIVE commissioning; the proof names its replay backend
+separately.
+
+For an already canonical blob transaction, the recovered sender and original
+signed body must match the canonical hash and sender before scoped local
+impersonation admits the body without a sidecar. The account exception remains
+only through prefix mining and is cleared on success or failure. The raw signed
+body is sent unchanged: its signature, type, blob hashes, fee fields, hash,
+execution order and receipt remain verifiable. All prefix receipt/status/gas/log
+checks remain mandatory. Pending/LIVE transactions do not receive this exception.
+
+This is execution-only replay of a canonical block, not a fresh blob data
+availability or KZG proof. The report records `executionOnly: true`,
+`blobDataAvailabilityVerified: false` and the replay backend. The controlled
+Anvil test verifies BLOBHASH, actual blob gas fees, the original hash, canonical
+receipt equality and an unsigned executor appended in the same block.
+
+References: [EIP-4844 body and pooled representations](https://eips.ethereum.org/EIPS/eip-4844),
+[official Foundry v1.8.4 release](https://github.com/foundry-rs/foundry/releases/tag/v1.8.4).

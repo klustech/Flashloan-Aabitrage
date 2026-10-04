@@ -39,9 +39,11 @@ async function latestBlock(provider) {
   return provider.formatter.block(raw);
 }
 class ForkBackend {
-  constructor({ url, archiveUrl, provider, clock = Date.now }) {
+  constructor({ url, archiveUrl, provider, clock = Date.now, engine = "hardhat" }) {
     assertLocalForkUrl(url);
-    Object.assign(this, { url, archiveUrl, clock });
+    if (!["hardhat", "anvil"].includes(engine)) throw new Error("Unsupported dedicated fork engine");
+    Object.assign(this, { url, archiveUrl, clock, engine });
+    this.blobReplayAccounts = new Set();
     this.provider = instrumentForkRpc(provider || new providers.StaticJsonRpcProvider({ url, timeout: 30000 }, 1));
     this.tail = Promise.resolve();
     this.lockFile=path.resolve(process.env.BACKRUN_LOCK_DIR||"runtime/backrun","fork-"+new URL(url).port+".lock");
@@ -73,9 +75,17 @@ class ForkBackend {
   }
   async verify() {
     const [client, chain] = await Promise.all([this.provider.send("web3_clientVersion", []), this.provider.send("eth_chainId", [])]);
-    if (!/^HardhatNetwork\//.test(client) || Number(chain) !== 1)
-      throw new Error("Dedicated Hardhat fork with chainId 1 required");
-    return { clientVersion: client.match(/^HardhatNetwork\/\d+\.\d+\.\d+/)?.[0] || "HardhatNetwork", chainId: Number(chain) };
+    const expected = this.engine === "anvil" ? /^anvil\//i : /^HardhatNetwork\//;
+    if (!expected.test(client) || Number(chain) !== 1)
+      throw new Error("Dedicated " + (this.engine === "anvil" ? "Anvil" : "Hardhat") + " fork with chainId 1 required");
+    if (this.engine === "anvil") {
+      const version = client.match(/^anvil\/v?(\d+)\.(\d+)\.(\d+)/i), minimum = [1, 8, 4];
+      const parts = version?.slice(1).map(Number);
+      const difference = parts?.map((part, i) => part - minimum[i]).find(part => part !== 0);
+      if (!parts || (difference !== undefined && difference < 0))
+        throw new Error("Anvil 1.8.4 or newer required for canonical PREVRANDAO replay; run backrun:install-anvil");
+    }
+    return { clientVersion: client.match(/^(?:HardhatNetwork|anvil)\/v?\d+\.\d+\.\d+/i)?.[0] || this.engine, chainId: Number(chain) };
   }
   async reset(block, signal) {
     checkSignal(signal); await this.verify();
@@ -91,34 +101,57 @@ class ForkBackend {
     await this.provider.send("hardhat_setNextBlockBaseFeePerGas", [utils.hexValue(block.baseFeePerGas)]);
     await this.provider.send("evm_setBlockGasLimit", [utils.hexValue(block.gasLimit)]);
     if (block.miner) await this.provider.send("hardhat_setCoinbase", [block.miner]);
-    if (block.mixHash) await this.provider.send("hardhat_setPrevRandao", [block.mixHash]);
+    if (block.mixHash) await this.provider.send(this.engine === "anvil" ? "anvil_setNextBlockPrevRandao" : "hardhat_setPrevRandao", [block.mixHash]);
+  }
+  async submitRaw(raw, block, index, canonicalTransaction) {
+    const hash = utils.keccak256(raw);
+    const parsed = canonicalTransaction ? validateCanonicalRaw(raw, canonicalTransaction) : validateRaw(raw, hash);
+    try {
+      if (canonicalTransaction && parsed.type === 3) {
+        if (this.engine !== "anvil") {
+          const error = new Error("Hardhat cannot mine an ordered blob prefix; run backrun:replay with --local --anvil");
+          error.code = "BACKRUN_BLOB_REPLAY_REQUIRES_ANVIL"; throw error;
+        }
+        // This is execution-only replay of an already canonical, authenticated
+        // signed body. Scoped impersonation bypasses sidecar availability/KZG
+        // checks on the local node, while the ORIGINAL signature, transaction
+        // hash, type, blob hashes, gas fees and execution are retained.
+        await this.provider.send("anvil_impersonateAccount", [parsed.from]);
+        this.blobReplayAccounts.add(parsed.from);
+      }
+      const accepted = await this.provider.send("eth_sendRawTransaction", [raw]);
+      if (accepted.toLowerCase() !== hash.toLowerCase()) throw new Error("Fork accepted a different transaction");
+      return hash;
+    } catch (error) {
+      try { error.replayTransactionIndex = index; error.replayTransactionType = Number(parsed.type ?? 0); } catch (_) {}
+      throw error;
+    }
+  }
+  async clearBlobReplayAccounts() {
+    const accounts = [...this.blobReplayAccounts]; this.blobReplayAccounts.clear();
+    const results = await Promise.allSettled(accounts.map(account => this.provider.send("anvil_stopImpersonatingAccount", [account])));
+    const failed = results.find(result => result.status === "rejected");
+    if (failed) throw failed.reason;
   }
   async mine(rawTransactions, block, { signal, canonicalTransactions } = {}) {
     if (canonicalTransactions !== undefined && (!Array.isArray(canonicalTransactions) || canonicalTransactions.length !== rawTransactions.length))
       throw new Error("Canonical prefix transaction count mismatch");
     checkSignal(signal); await this.configureBlock(block);
     const expected = [];
-    for (const raw of rawTransactions) {
-      checkSignal(signal);
-      const hash = utils.keccak256(raw);
-      const parsed = canonicalTransactions ? validateCanonicalRaw(raw, canonicalTransactions[expected.length]) : validateRaw(raw, hash);
-      let accepted;
-      try { accepted = await this.provider.send("eth_sendRawTransaction", [raw]); }
-      catch (error) {
-        try { error.replayTransactionIndex = expected.length; error.replayTransactionType = Number(parsed.type ?? 0); } catch (_) {}
-        throw error;
+    try {
+      for (const raw of rawTransactions) {
+        checkSignal(signal);
+        expected.push(await this.submitRaw(raw, block, expected.length, canonicalTransactions?.[expected.length]));
       }
-      if (accepted.toLowerCase() !== hash.toLowerCase()) throw new Error("Fork accepted a different transaction");
-      expected.push(hash);
-    }
-    checkSignal(signal); await this.provider.send("evm_mine", []);
-    const mined = await latestBlock(this.provider);
-    if (mined.number !== block.number || mined.transactions.length !== expected.length ||
-        expected.some((h, i) => h.toLowerCase() !== mined.transactions[i].toLowerCase()))
-      throw new Error("Fork transaction order/inclusion mismatch");
-    const receipts = [];
-    for (const hash of expected) receipts.push(await this.provider.getTransactionReceipt(hash));
-    return { block: mined, receipts };
+      checkSignal(signal); await this.provider.send("evm_mine", []);
+      const mined = await latestBlock(this.provider);
+      if (mined.number !== block.number || mined.transactions.length !== expected.length ||
+          expected.some((h, i) => h.toLowerCase() !== mined.transactions[i].toLowerCase()))
+        throw new Error("Fork transaction order/inclusion mismatch");
+      const receipts = [];
+      for (const hash of expected) receipts.push(await this.provider.getTransactionReceipt(hash));
+      return { block: mined, receipts };
+    } finally { await this.clearBlobReplayAccounts(); }
   }
   async applyTrigger(trigger, parent, signal) {
     validateRaw(trigger.rawTx, trigger.hash);
@@ -144,47 +177,41 @@ class ForkBackend {
     // eth_sign or signTransaction is involved, and no mainnet RPC is mutated.
     await this.reset(parent, signal); await this.configureBlock(header);
     const expected=[];
-    for(const raw of rawTransactions){
-      checkSignal(signal);const hash=utils.keccak256(raw);
-      const parsed = canonicalTransactions ? validateCanonicalRaw(raw, canonicalTransactions[expected.length]) : validateRaw(raw,hash);
-      let accepted;
-      try { accepted=await this.provider.send("eth_sendRawTransaction",[raw]); }
-      catch (error) {
-        try { error.replayTransactionIndex = expected.length; error.replayTransactionType = Number(parsed.type ?? 0); } catch (_) {}
-        throw error;
-      }
-      if(accepted.toLowerCase()!==hash.toLowerCase())throw new Error("Prefix accepted transaction mismatch");
-      expected.push(hash);
-    }
-    const triggerHash=expected.at(-1);
-    const from = address(transaction.from);
-    await this.provider.send("hardhat_impersonateAccount", [from]);
     try {
-      const tx = { from, to: transaction.to, data: transaction.data, value: "0x0",
-        gas: utils.hexValue(transaction.gasLimit), maxFeePerGas: utils.hexValue(transaction.maxFeePerGas),
-        maxPriorityFeePerGas: utils.hexValue(transaction.maxPriorityFeePerGas), type: "0x2" };
-      const backrunHash = await this.provider.send("eth_sendTransaction", [tx]);
-      checkSignal(signal); await this.provider.send("evm_mine", []);
-      const block = await latestBlock(this.provider);
-      if (block.number !== header.number || block.transactions.length !== expected.length+1 ||
-          expected.some((h,i)=>block.transactions[i].toLowerCase()!==h.toLowerCase()) ||
-          block.transactions.at(-1).toLowerCase() !== backrunHash.toLowerCase())
-        throw new Error("Unsigned fork bundle order mismatch");
-      const [triggerReceipt, backrunReceipt] = await Promise.all([
-        this.provider.getTransactionReceipt(triggerHash), this.provider.getTransactionReceipt(backrunHash)]);
-      if (triggerReceipt.status !== 1 || backrunReceipt.status !== 1) throw new Error("Ordered fork bundle reverted");
-      const coinbaseAfter=await this.provider.getBalance(header.miner,block.number);
-      const priority=bn(backrunReceipt.effectiveGasPrice).sub(block.baseFeePerGas).mul(backrunReceipt.gasUsed);
-      const directCoinbaseDelta=coinbaseAfter.sub(coinbaseBeforeBackrun).sub(priority);
-      if(!directCoinbaseDelta.isZero())throw new Error("Unexpected net direct coinbase payment");
-      const prefixReceipts=[];
-      for(const hash of expected)prefixReceipts.push(await this.provider.getTransactionReceipt(hash));
-      return { kind: "UNSIGNED_FORK_BUNDLE", signed: false, submitted: false, parentBlock: parent.number,
-        parentHash: parent.hash, targetBlock: header.number, triggerHash, backrunHash,
-        gasUsed: backrunReceipt.gasUsed, triggerGasUsed: triggerReceipt.gasUsed, backrunReceipt,prefixReceipts,
-        simulatedAt: this.clock(), directCoinbasePayment:directCoinbaseDelta.toString(),
-        directCoinbaseAccounting:"same-header prefix/bundle native balance delta minus backrun priority fee" };
-    } finally { await this.provider.send("hardhat_stopImpersonatingAccount", [from]); }
+      for(const raw of rawTransactions){
+        checkSignal(signal);
+        expected.push(await this.submitRaw(raw, header, expected.length, canonicalTransactions?.[expected.length]));
+      }
+      const triggerHash=expected.at(-1);
+      const from = address(transaction.from);
+      await this.provider.send("hardhat_impersonateAccount", [from]);
+      try {
+        const tx = { from, to: transaction.to, data: transaction.data, value: "0x0",
+          gas: utils.hexValue(transaction.gasLimit), maxFeePerGas: utils.hexValue(transaction.maxFeePerGas),
+          maxPriorityFeePerGas: utils.hexValue(transaction.maxPriorityFeePerGas), type: "0x2" };
+        const backrunHash = await this.provider.send("eth_sendTransaction", [tx]);
+        checkSignal(signal); await this.provider.send("evm_mine", []);
+        const block = await latestBlock(this.provider);
+        if (block.number !== header.number || block.transactions.length !== expected.length+1 ||
+            expected.some((h,i)=>block.transactions[i].toLowerCase()!==h.toLowerCase()) ||
+            block.transactions.at(-1).toLowerCase() !== backrunHash.toLowerCase())
+          throw new Error("Unsigned fork bundle order mismatch");
+        const [triggerReceipt, backrunReceipt] = await Promise.all([
+          this.provider.getTransactionReceipt(triggerHash), this.provider.getTransactionReceipt(backrunHash)]);
+        if (triggerReceipt.status !== 1 || backrunReceipt.status !== 1) throw new Error("Ordered fork bundle reverted");
+        const coinbaseAfter=await this.provider.getBalance(header.miner,block.number);
+        const priority=bn(backrunReceipt.effectiveGasPrice).sub(block.baseFeePerGas).mul(backrunReceipt.gasUsed);
+        const directCoinbaseDelta=coinbaseAfter.sub(coinbaseBeforeBackrun).sub(priority);
+        if(!directCoinbaseDelta.isZero())throw new Error("Unexpected net direct coinbase payment");
+        const prefixReceipts=[];
+        for(const hash of expected)prefixReceipts.push(await this.provider.getTransactionReceipt(hash));
+        return { kind: "UNSIGNED_FORK_BUNDLE", signed: false, submitted: false, parentBlock: parent.number,
+          parentHash: parent.hash, targetBlock: header.number, triggerHash, backrunHash,
+          gasUsed: backrunReceipt.gasUsed, triggerGasUsed: triggerReceipt.gasUsed, backrunReceipt,prefixReceipts,
+          simulatedAt: this.clock(), directCoinbasePayment:directCoinbaseDelta.toString(),
+          directCoinbaseAccounting:"same-header prefix/bundle native balance delta minus backrun priority fee" };
+      } finally { await this.provider.send("hardhat_stopImpersonatingAccount", [from]); }
+    } finally { await this.clearBlobReplayAccounts(); }
   }
 }
 module.exports = { ForkBackend, assertLocalForkUrl, nextBaseFee, latestBlock };

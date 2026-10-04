@@ -77,6 +77,7 @@ class HistoricalReplay {
       blockNumber: data.block.number, blockHash: data.block.hash, parentHash: data.parent.hash,
       triggerHash: fixture.triggerTransaction, arbitrageHash: fixture.arbitrageTransaction,
       intraBlock: true, canonicalReceiptsVerified: true, prefixTransactions: a + 1,
+      replayBackend: this.backend?.engine || "hardhat", executionOnly: true, blobDataAvailabilityVerified: false,
       quoteToleranceBps: toleranceBps, inputAmount: input,
       stages: { preBlock: { finalAmount: preBlock, gross: bn(preBlock).sub(input) },
         beforeTrigger: { transactionIndex: t - 1, finalAmount: before, gross: grossBefore },

@@ -72,7 +72,16 @@ async function rawTransaction(provider, tx, { canonicalReplay = false } = {}) {
     raw = utils.serializeTransaction(unsigned, { r: tx.r, s: tx.s, v: tx.v });
     }
   }
-  if (canonicalReplay) validateCanonicalRaw(raw, tx);
+  if (canonicalReplay) {
+    // Archive RPCs may return the pooled blob wrapper. Canonical hashes and
+    // signatures commit only to its signed transaction body, never the sidecar.
+    if (/^0x03/i.test(raw)) {
+      const fields = utils.RLP.decode("0x" + raw.slice(4));
+      if (Array.isArray(fields) && fields.length === 4 && Array.isArray(fields[0]))
+        raw = utils.hexConcat(["0x03", utils.RLP.encode(fields[0])]);
+    }
+    validateCanonicalRaw(raw, tx);
+  }
   else validateRaw(raw, tx.hash);
   return raw;
 }
