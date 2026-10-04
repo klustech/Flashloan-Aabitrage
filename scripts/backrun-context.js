@@ -9,7 +9,7 @@ const { ForkBackend } = require("../server/backrun/forkBackend");
 const { address } = require("../server/bot/units");
 const { loadEnvironment } = require("./paper-preflight");
 const { installArchiveReads } = require("./backrun-archive-reads");
-function environment({ onArchiveRetry = () => {} } = {}) {
+function environment({ onArchiveRetry = () => {}, onMiningProgress = () => {} } = {}) {
   loadEnvironment(process.env);
   if (process.env.PRIVATE_KEY) throw new Error("Historical/PAPER commands refuse PRIVATE_KEY");
   const forkEngine = process.argv.includes("--anvil") ? "anvil" : "hardhat";
@@ -24,7 +24,9 @@ function environment({ onArchiveRetry = () => {} } = {}) {
   // CLI backend transport is separate from the deployed/economic profile:
   // evidence must retain the same fingerprint as PAPER/LIVE commissioning.
   const backend = new ForkBackend({ url: forkEngine === "anvil" ? "http://127.0.0.1:8548" : profile.backrun.forkRpcUrl,
-    archiveUrl: url, engine: forkEngine });
+    archiveUrl: url, engine: forkEngine,
+    miningTimeoutMs: process.env.BACKRUN_REPLAY_MINING_TIMEOUT_MS || 600000,
+    miningProgress: onMiningProgress });
   return { profile, archive, backend, forkEngine };
 }
 async function topologyContext(profile, provider, blockNumber, poolRefs) {

@@ -38,6 +38,9 @@ function replayDiagnostic(error, context = {}, env = process.env) {
   }
   if (Number.isInteger(error?.replayTransactionIndex)) diagnostic.transactionIndex = error.replayTransactionIndex;
   if (Number.isInteger(error?.replayTransactionType)) diagnostic.transactionType = error.replayTransactionType;
+  if (Number.isInteger(error?.forkMiningTimeoutMs)) diagnostic.timeoutMs = error.forkMiningTimeoutMs;
+  if (Number.isInteger(error?.forkMiningElapsedMs)) diagnostic.elapsedMs = error.forkMiningElapsedMs;
+  if (typeof error?.forkMiningOutcomeUnknown === "boolean") diagnostic.miningOutcomeUnknown = error.forkMiningOutcomeUnknown;
   if (Number.isInteger(error?.archiveRpcAttempts)) diagnostic.attempts = error.archiveRpcAttempts;
   if (typeof error?.archiveRpcRetryable === "boolean") diagnostic.retryable = error.archiveRpcRetryable;
   const nested = error?.error?.reason || error?.error?.message || error?.cause?.message;

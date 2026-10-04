@@ -337,6 +337,24 @@ failure is a broad stage; use `rpcMethod` to distinguish header configuration,
 transaction submission, mining and receipt retrieval. Full header tests include
 timestamp, base fee, gas limit, coinbase and PREVRANDAO.
 
+Historical `evm_mine` uses a separate ten-minute HTTP deadline. Executing a
+canonical prefix can require many lazy archive state reads inside the fork node;
+the ordinary 30-second RPC deadline is insufficient for some prefixes. Set
+`BACKRUN_REPLAY_MINING_TIMEOUT_MS` (1000..1800000) in the private PAPER environment
+to change this bounded deadline. Ordinary RPC calls and production simulation
+deadlines are unchanged. `BACKRUN_REPLAY_MINING` reports start, a heartbeat every
+15 seconds and completion, with elapsed time and the configured deadline. A
+heartbeat means the client is waiting; it does not prove execution is advancing.
+
+Mining is sent exactly once, with transport retries disabled. A timeout or lost
+response does not cancel execution inside the node. The failure diagnostic
+includes `timeoutMs`, `elapsedMs` and `miningOutcomeUnknown`; when the outcome is
+unknown, the backend refuses further mutations and skips impersonation cleanup
+that could interfere with in-flight mining. `--local` stops a node it started
+when replay exits. If an existing node was reused, stop and restart that
+dedicated node before another replay. No proof is issued on a mining failure;
+raising the deadline alone does not establish successful canonical execution.
+
 ### Canonical prefixes containing type-3 blob transactions
 
 Hardhat 2.24.3 rejects a bare signed blob body with `unexpected string`. Supplying
@@ -372,7 +390,8 @@ separately.
 For an already canonical blob transaction, the recovered sender and original
 signed body must match the canonical hash and sender before scoped local
 impersonation admits the body without a sidecar. The account exception remains
-only through prefix mining and is cleared on success or failure. The raw signed
+only through prefix mining and is cleared after a definite success or failure.
+If the mining response is lost, restart the node as described above. The raw signed
 body is sent unchanged: its signature, type, blob hashes, fee fields, hash,
 execution order and receipt remain verifiable. All prefix receipt/status/gas/log
 checks remain mandatory. Pending/LIVE transactions do not receive this exception.

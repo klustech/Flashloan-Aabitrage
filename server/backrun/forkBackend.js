@@ -39,12 +39,22 @@ async function latestBlock(provider) {
   return provider.formatter.block(raw);
 }
 class ForkBackend {
-  constructor({ url, archiveUrl, provider, clock = Date.now, engine = "hardhat" }) {
+  constructor({ url, archiveUrl, provider, clock = Date.now, engine = "hardhat", miningTimeoutMs,
+    miningProvider, miningProgress = () => {} }) {
     assertLocalForkUrl(url);
     if (!["hardhat", "anvil"].includes(engine)) throw new Error("Unsupported dedicated fork engine");
     Object.assign(this, { url, archiveUrl, clock, engine });
+    this.miningTimeoutMs = miningTimeoutMs === undefined ? 30000 : Number(miningTimeoutMs);
+    if (!Number.isSafeInteger(this.miningTimeoutMs) || this.miningTimeoutMs < 1000 || this.miningTimeoutMs > 1800000)
+      throw new Error("Fork mining timeout must be an integer from 1000 to 1800000 ms");
+    this.miningProgress = miningProgress;
+    this.miningOutcomeUnknown = false;
     this.blobReplayAccounts = new Set();
-    this.provider = instrumentForkRpc(provider || new providers.StaticJsonRpcProvider({ url, timeout: 30000 }, 1));
+    const connection = timeout => ({ url, timeout, throttleLimit: 1, throttleCallback: async () => false });
+    this.provider = instrumentForkRpc(provider || new providers.StaticJsonRpcProvider(connection(30000), 1));
+    // Historical mining alone gets a longer deadline; mutations are never retried.
+    this.miningProvider = instrumentForkRpc(miningProvider || (miningTimeoutMs === undefined ? this.provider :
+      new providers.StaticJsonRpcProvider(connection(this.miningTimeoutMs), 1)));
     this.tail = Promise.resolve();
     this.lockFile=path.resolve(process.env.BACKRUN_LOCK_DIR||"runtime/backrun","fork-"+new URL(url).port+".lock");
   }
@@ -88,6 +98,7 @@ class ForkBackend {
     return { clientVersion: client.match(/^(?:HardhatNetwork|anvil)\/v?\d+\.\d+\.\d+/i)?.[0] || this.engine, chainId: Number(chain) };
   }
   async reset(block, signal) {
+    this.assertMiningSettled();
     checkSignal(signal); await this.verify();
     if (!this.archiveUrl) throw new Error("Archive RPC required for trigger simulation");
     await this.provider.send("hardhat_reset", [{ forking: { jsonRpcUrl: this.archiveUrl, blockNumber: block.number } }]);
@@ -97,6 +108,7 @@ class ForkBackend {
     checkSignal(signal);
   }
   async configureBlock(block) {
+    this.assertMiningSettled();
     await this.provider.send("evm_setNextBlockTimestamp", [block.timestamp]);
     await this.provider.send("hardhat_setNextBlockBaseFeePerGas", [utils.hexValue(block.baseFeePerGas)]);
     await this.provider.send("evm_setBlockGasLimit", [utils.hexValue(block.gasLimit)]);
@@ -104,6 +116,7 @@ class ForkBackend {
     if (block.mixHash) await this.provider.send(this.engine === "anvil" ? "anvil_setNextBlockPrevRandao" : "hardhat_setPrevRandao", [block.mixHash]);
   }
   async submitRaw(raw, block, index, canonicalTransaction) {
+    this.assertMiningSettled();
     const hash = utils.keccak256(raw);
     const parsed = canonicalTransaction ? validateCanonicalRaw(raw, canonicalTransaction) : validateRaw(raw, hash);
     try {
@@ -128,10 +141,43 @@ class ForkBackend {
     }
   }
   async clearBlobReplayAccounts() {
+    // Losing the response does not cancel node execution. Restart before mutations.
+    if (this.miningOutcomeUnknown) return;
     const accounts = [...this.blobReplayAccounts]; this.blobReplayAccounts.clear();
     const results = await Promise.allSettled(accounts.map(account => this.provider.send("anvil_stopImpersonatingAccount", [account])));
     const failed = results.find(result => result.status === "rejected");
     if (failed) throw failed.reason;
+  }
+  assertMiningSettled() {
+    if (this.miningOutcomeUnknown) {
+      const error = new Error("Previous mining outcome is unknown; restart the dedicated fork before further mutations");
+      error.code = "BACKRUN_FORK_RESTART_REQUIRED";
+      error.forkMiningOutcomeUnknown = true;
+      throw error;
+    }
+  }
+  async mineBlock(block, transactionCount, signal) {
+    this.assertMiningSettled(); checkSignal(signal);
+    const started = this.clock();
+    const report = stage => {
+      try { this.miningProgress({ stage, blockNumber: block.number, transactionCount,
+        elapsedMs: Math.max(0, this.clock() - started), timeoutMs: this.miningTimeoutMs }); } catch (_) {}
+    };
+    report("mining_started");
+    const heartbeat = setInterval(() => report("mining_wait"), 15000);
+    heartbeat.unref?.();
+    try {
+      // Exactly one request: a lost response must never cause resubmission.
+      await this.miningProvider.send("evm_mine", []);
+      report("mining_complete"); checkSignal(signal);
+    } catch (error) {
+      const uncertain = ["TIMEOUT", "NETWORK_ERROR"].includes(error.code) ||
+        (error.code === "SERVER_ERROR" && !error.error?.code);
+      if (uncertain) this.miningOutcomeUnknown = true;
+      try { Object.assign(error, { forkMiningTimeoutMs: this.miningTimeoutMs,
+        forkMiningElapsedMs: Math.max(0, this.clock() - started), forkMiningOutcomeUnknown: uncertain }); } catch (_) {}
+      throw error;
+    } finally { clearInterval(heartbeat); }
   }
   async mine(rawTransactions, block, { signal, canonicalTransactions } = {}) {
     if (canonicalTransactions !== undefined && (!Array.isArray(canonicalTransactions) || canonicalTransactions.length !== rawTransactions.length))
@@ -143,7 +189,7 @@ class ForkBackend {
         checkSignal(signal);
         expected.push(await this.submitRaw(raw, block, expected.length, canonicalTransactions?.[expected.length]));
       }
-      checkSignal(signal); await this.provider.send("evm_mine", []);
+      checkSignal(signal); await this.mineBlock(block, expected.length, signal);
       const mined = await latestBlock(this.provider);
       if (mined.number !== block.number || mined.transactions.length !== expected.length ||
           expected.some((h, i) => h.toLowerCase() !== mined.transactions[i].toLowerCase()))
@@ -190,7 +236,7 @@ class ForkBackend {
           gas: utils.hexValue(transaction.gasLimit), maxFeePerGas: utils.hexValue(transaction.maxFeePerGas),
           maxPriorityFeePerGas: utils.hexValue(transaction.maxPriorityFeePerGas), type: "0x2" };
         const backrunHash = await this.provider.send("eth_sendTransaction", [tx]);
-        checkSignal(signal); await this.provider.send("evm_mine", []);
+        checkSignal(signal); await this.mineBlock(header, expected.length + 1, signal);
         const block = await latestBlock(this.provider);
         if (block.number !== header.number || block.transactions.length !== expected.length+1 ||
             expected.some((h,i)=>block.transactions[i].toLowerCase()!==h.toLowerCase()) ||
@@ -210,7 +256,9 @@ class ForkBackend {
           gasUsed: backrunReceipt.gasUsed, triggerGasUsed: triggerReceipt.gasUsed, backrunReceipt,prefixReceipts,
           simulatedAt: this.clock(), directCoinbasePayment:directCoinbaseDelta.toString(),
           directCoinbaseAccounting:"same-header prefix/bundle native balance delta minus backrun priority fee" };
-      } finally { await this.provider.send("hardhat_stopImpersonatingAccount", [from]); }
+      } finally {
+        if (!this.miningOutcomeUnknown) await this.provider.send("hardhat_stopImpersonatingAccount", [from]);
+      }
     } finally { await this.clearBlobReplayAccounts(); }
   }
 }
