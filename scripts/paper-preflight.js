@@ -123,6 +123,8 @@ async function preflight({
     return {
       tokens: profile.tokenSymbols,
       borrow: profile.borrowSymbols,
+      backrunBorrow: profile.backrunBorrowSymbols,
+      opportunityMode: profile.opportunityMode,
       fingerprint: profile.fingerprint,
     };
   });
@@ -141,6 +143,34 @@ async function preflight({
     requireValue(env.MAINNET_WEBSOCKET, "MAINNET_WEBSOCKET");
     return { block: await checkWs(env.MAINNET_WEBSOCKET) };
   });
+  if (profile?.backrun?.enabled) {
+    await check("backrun trace RPC / state overrides", async () => {
+      const traceProvider = new providers.JsonRpcProvider({
+        url: env.BACKRUN_TRACE_RPC_URL || env.MAINNET_RPC_URL,
+        timeout: Math.max(5000, profile.backrun.traceTimeoutMs + 1000),
+      });
+      requireValue((await traceProvider.getNetwork()).chainId === 1, "trace chainId");
+      const decimalsCall = new (require("ethers").utils.Interface)([
+        "function decimals() view returns(uint8)",
+      ]).encodeFunctionData("decimals");
+      await traceProvider.send("eth_call", [
+        { to: profile.tokens.WETH, data: decimalsCall },
+        "latest",
+        {},
+      ]);
+      const trace = await traceProvider.send("debug_traceCall", [
+        { to: profile.tokens.WETH, data: decimalsCall },
+        "latest",
+        {
+          tracer: "prestateTracer",
+          tracerConfig: { diffMode: true },
+          timeout: Math.max(1, Math.ceil(profile.backrun.traceTimeoutMs / 1000)) + "s",
+        },
+      ]);
+      requireValue(trace && typeof trace === "object", "debug_traceCall");
+      return { stateOverrides: true, debugTraceCall: true };
+    });
+  }
   await check("executor / Aave / routers", async () => {
     requireValue(
       profile && provider && profile.contractAddress && profile.operatorAddress,
