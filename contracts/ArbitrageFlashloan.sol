@@ -73,7 +73,7 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
 
     ILendingPoolAddressesProvider public immutable provider;
     ILendingPool public immutable lendingPool;
-    uint256 public constant executorVersion = 2;
+    uint256 public constant executorVersion = 3;
     bool private loanActive;
     bool private callbackCompleted;
     bytes32 private activeDataHash;
@@ -84,7 +84,7 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
     uint256 public constant TIMELOCK_DELAY = 24 hours;
 
     // ─── Events ─────────────────────────────────────────────────────────────────
-    event ArbitrageExecuted(uint256 borrowed, int256 pnl, string route);
+    event ArbitrageExecuted(uint256 borrowed, int256 pnl, string route);\n    event FundedArbitrageExecuted(uint256 capital, int256 pnl, string route);
     event SwapExecuted(
         DexType indexed dexType,
         address indexed tokenIn,
@@ -240,6 +240,42 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
         require(callbackCompleted, "callback missing");
         loanActive = false;
         activeDataHash = bytes32(0);
+    }
+
+    /// @notice Execute an arbitrage cycle with capital already held by this contract.
+    /// @dev The configured capital is preserved. Pre-existing treasury funds can never
+    ///      subsidize a losing route: the final balance must exceed the exact balance
+    ///      observed immediately before execution by at least minProfit.
+    function executeFundedArbitrage(ArbitrageData calldata data)
+        external
+        onlyOwner
+        nonReentrant
+        whenNotPaused
+    {
+        require(!loanActive, "loan active");
+        _validateArbitrageData(data);
+
+        IERC20 token = IERC20(data.borrowToken);
+        uint256 startingBalance = token.balanceOf(address(this));
+        require(startingBalance >= data.borrowAmount, "insufficient treasury");
+
+        uint256 currentAmount = data.borrowAmount;
+        for (uint256 i = 0; i < data.steps.length; i++) {
+            currentAmount = _executeSwap(data.steps[i], currentAmount);
+        }
+
+        uint256 finalBalance = token.balanceOf(address(this));
+        require(finalBalance >= startingBalance + data.minProfit, "profit<minProfit");
+
+        uint256 profit = finalBalance - startingBalance;
+        if (profit > 0) {
+            token.safeTransfer(profitRecipient, profit);
+            emit ProfitWithdrawn(data.borrowToken, profitRecipient, profit);
+        }
+
+        // Exactly the starting treasury balance remains after profit settlement.
+        require(token.balanceOf(address(this)) >= startingBalance, "treasury principal lost");
+        emit FundedArbitrageExecuted(data.borrowAmount, int256(profit), data.route);
     }
 
     /// @inheritdoc IFlashLoanReceiver
