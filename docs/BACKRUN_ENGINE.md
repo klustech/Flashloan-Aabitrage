@@ -404,3 +404,55 @@ receipt equality and an unsigned executor appended in the same block.
 
 References: [EIP-4844 body and pooled representations](https://eips.ethereum.org/EIPS/eip-4844),
 [official Foundry v1.8.4 release](https://github.com/foundry-rs/foundry/releases/tag/v1.8.4).
+
+### Test the current executor without deploying it to mainnet
+
+After the canonical replay passes, run this from the backrun checkout using the
+same private archive environment. No running terminal/node is required:
+
+```bash
+PAPER_ENV_FILE=.env.backrun-paper npm run backrun:executor-fork
+```
+
+This command compiles the current `ArbitrageFlashloan`, starts the dedicated
+Anvil node if needed, and deploys the executor **only locally** against the real
+historical Aave V2 provider. It tests the fixed fixture's WETH amount and exact
+Uniswap V3/Pancake V3 route in both CAPITAL and FLASH_LOAN modes. No deployed
+mainnet executor, database, execution key or real funds are required. It refuses
+`PRIVATE_KEY`, uses unsigned impersonated local calls and never submits a relay
+bundle or broadcasts to mainnet. It stops only a node it starts.
+
+The test deliberately supplies synthetic native gas funds and hypothetical
+capital. A real WETH deposit backs the hypothetical capital on the local fork.
+FLASH_LOAN starts with zero executor WETH; CAPITAL starts with the fixture amount.
+The deployed constructor state and that one new WETH balance slot are retained
+across resets; historical pool/router/Aave setup state is not fabricated. The
+canonical prefix through transaction 143 is rebuilt, all original receipt
+status/gas/logs are verified, and our executor replaces the historical arb at
+index 144 in the same block with its original header. Prefix receipt checks are
+repeated after appending the executor. Aave's actual flash-loan event, recipient
+balance increase, preserved executor principal, cleared allowances and operator
+native gas delta must agree with the execution receipt.
+
+`runtime/backrun/local-executor-diagnostic.json` reports:
+
+- `technicalPassed`: both funding methods executed and passed accounting checks.
+- `economicallyPositiveModes`: which had positive WETH profit after measured gas.
+- Per method: actual gross, actual flash fee, withdrawn profit, gas used, effective
+  gas price, net after gas and whether the configured minimum net was met.
+
+The gas price uses the historical arbitrage's priority fee. It includes that
+priority payment exactly once; no additional direct builder payment is modelled.
+This is not a competitive live bid. Deployment and infrastructure costs are
+reported as excluded. The contract profit floor is one wei so an executable
+but uneconomic trade can still be measured; the configured net floor is reported
+separately and production settings are unchanged. A technically successful test
+can honestly report no economically positive methods.
+
+This isolated diagnostic is **not commissioning evidence**: it explicitly labels
+synthetic capital/gas, local deployment, unsigned execution and untested builder
+inclusion. It cannot satisfy the production funding/deployment/readiness gates
+and never writes the production capital/flash-loan proof paths or overwrites the
+canonical replay proof. Do not treat it as proof of realized profit or live
+capture. If it fails, share its sanitized CLI diagnostic rather than private
+node logs or environment contents.

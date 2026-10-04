@@ -19,9 +19,9 @@ test("isolated fork backend mines trigger+unsigned executor in one block for CAP
     const r1=await deploy("MockUniswapV2Router"),r2=await deploy("MockUniswapV2Router"),pool=await deploy("MockLendingPool",[9]);
     const ap=await deploy("MockProvider",[pool.address]),executor=await deploy("ArbitrageFlashloan",[ap.address,owner,utils.getAddress("0x"+"01".repeat(20))]);
     const amount=utils.parseEther("100");
-    for(const tx of [a.mint(executor.address,amount.mul(2)),a.mint(pool.address,amount.mul(10)),
-      a.mint(r2.address,amount.mul(10)),b.mint(r1.address,amount.mul(10)),
-      r1.setRate(a.address,b.address,1,1),r2.setRate(b.address,a.address,1,1)])await (await tx).wait();
+    for(const submit of [()=>a.mint(executor.address,amount.mul(2)),()=>a.mint(pool.address,amount.mul(10)),
+      ()=>a.mint(r2.address,amount.mul(10)),()=>b.mint(r1.address,amount.mul(10)),
+      ()=>r1.setRate(a.address,b.address,1,1),()=>r2.setRate(b.address,a.address,1,1)])await (await submit()).wait();
     await provider.send("hardhat_stopImpersonatingAccount",[owner]);
     const parent=await latestBlock(provider);let snapshot=await provider.send("evm_snapshot",[]);
     const backend=new ForkBackend({url,provider,engine:process.env.LOCAL_BACKRUN_TEST_ENGINE||"hardhat"});
@@ -137,4 +137,71 @@ test("canonical unprotected legacy prefix is mined and revalidated before an uns
       assert.equal(result.signed,false);assert.equal(result.submitted,false);
       assert.equal(result.directCoinbasePayment,"0");
     }finally{await provider.send("evm_setAutomine",[true]);}
+  });
+
+test("local executor diagnostic preserves historical prefix and settles both funding modes after gas",
+  {skip:!process.env.LOCAL_BACKRUN_TEST_RPC||process.env.LOCAL_BACKRUN_TEST_ENGINE!=="anvil",timeout:180000},async()=>{
+    const {prepareLocalExecutor,executeLocalMode}=require("../../server/backrun/localExecutorDiagnostic");
+    const url=process.env.LOCAL_BACKRUN_TEST_RPC,provider=new providers.StaticJsonRpcProvider(url,1);
+    const creator=Wallet.createRandom().address,triggerSigner=Wallet.createRandom();
+    await provider.send("hardhat_reset",[]);await provider.send("evm_setAutomine",[false]);
+    await provider.send("hardhat_setBalance",[creator,utils.hexValue(utils.parseEther("5000"))]);
+    await provider.send("hardhat_setBalance",[triggerSigner.address,utils.hexValue(utils.parseEther("1"))]);
+    await provider.send("hardhat_impersonateAccount",[creator]);
+    const artifact=name=>require(path.join("../../artifacts/contracts",
+      name==="ArbitrageFlashloan"?"ArbitrageFlashloan.sol/"+name+".json":"mocks/"+name+".sol/"+name+".json"));
+    async function send(data,to,value=0){
+      const request={from:creator,data,gas:utils.hexValue(6000000),value:utils.hexValue(value)};if(to)request.to=to;
+      const hash=await provider.send("eth_sendTransaction",[request]);await provider.send("evm_mine",[]);
+      const receipt=provider.formatter.receipt(await provider.send("eth_getTransactionReceipt",[hash]));assert.equal(receipt.status,1);return receipt;
+    }
+    async function deploy(name,args=[]){const a=artifact(name),tx=new ContractFactory(a.abi,a.bytecode).getDeployTransaction(...args);
+      const receipt=await send(tx.data);return new(require("ethers").Contract)(receipt.contractAddress,a.abi,provider);}
+    async function call(c,name,args=[],value=0){return send(c.interface.encodeFunctionData(name,args),c.address,value);}
+    const weth=await deploy("MockWrappedNative"),other=await deploy("MockERC20",["B","B",18]);
+    const r1=await deploy("MockUniswapV2Router"),r2=await deploy("MockUniswapV2Router");
+    const pool=await deploy("MockLendingPool",[9]),ap=await deploy("MockProvider",[pool.address]);
+    const amount=utils.parseEther("100");
+    await call(weth,"deposit",[],amount.mul(20));
+    await call(weth,"transfer",[pool.address,amount.mul(10)]);await call(weth,"transfer",[r2.address,amount.mul(10)]);
+    await call(other,"mint",[r1.address,amount.mul(10)]);
+    await call(r1,"setRate",[weth.address,other.address,1,1]);await call(r2,"setRate",[other.address,weth.address,1,1]);
+    await provider.send("hardhat_stopImpersonatingAccount",[creator]);
+    const parent=await latestBlock(provider);let snapshot=await provider.send("evm_snapshot",[]);
+    const backend=new ForkBackend({url,provider,engine:"anvil"});
+    backend.reset=async block=>{backend.assertMiningSettled();assert.equal(block.hash,parent.hash);
+      assert.equal(await provider.send("evm_revert",[snapshot]),true);snapshot=await provider.send("evm_snapshot",[]);
+      await provider.send("evm_setAutomine",[false]);};
+    const raw=await triggerSigner.signTransaction({to:r2.address,data:r2.interface.encodeFunctionData("setRate",[other.address,weth.address,11,10]),
+      chainId:1,nonce:0,type:2,gasLimit:150000,maxFeePerGas:parent.baseFeePerGas.mul(2).add(1),maxPriorityFeePerGas:1});
+    const canonical=utils.parseTransaction(raw),header={...parent,number:parent.number+1,timestamp:parent.timestamp+12,
+      baseFeePerGas:require("../../server/backrun/forkBackend").nextBaseFee(parent)};
+    await backend.reset(parent);const prefix=await backend.mine([raw],header,{canonicalTransactions:[canonical]});
+    const data={parent,block:{...header,transactions:[canonical]},raw:[raw],receipts:[prefix.receipts[0],{effectiveGasPrice:header.baseFeePerGas.add(1)}]};
+    const local=await prepareLocalExecutor({backend,parent,artifact:artifact("ArbitrageFlashloan"),addressesProvider:ap.address,
+      lendingPool:pool.address,wrappedNative:weth.address,amount});
+    const step={dexType:0,router:r1.address,tokenIn:weth.address,tokenOut:other.address,minAmountOut:1,v3Fee:0,
+      balancerPoolId:utils.hexZeroPad("0x",32),curveIndexIn:0,curveIndexOut:0,curveUnderlying:false,v2Path:[]};
+    const quoteData={borrowToken:weth.address,borrowAmount:amount,steps:[step,{...step,router:r2.address,tokenIn:other.address,tokenOut:weth.address}],
+      minProfit:1,route:"controlled diagnostic integration"};
+    try{
+      const results=[];
+      for(const fundingMode of ["CAPITAL","FLASH_LOAN"]){
+        const result=await executeLocalMode({backend,data,endIndex:0,local,quoteData,fundingMode,minimumProfit:utils.parseEther("1")});
+        assert.equal(result.executionSucceeded,true);assert.equal(result.canonicalReceiptsVerified,true);
+        assert.equal(result.sameBlock,true);assert.equal(result.transactionIndex,1);assert.equal(result.unsigned,true);
+        assert.equal(result.principalPreserved,true);assert.equal(result.routerAllowancesCleared,true);
+        assert.equal(result.startingExecutorWeth,fundingMode==="CAPITAL"?amount.toString():"0");
+        assert.equal(result.syntheticCapital,fundingMode==="CAPITAL");
+        assert.equal(result.aaveAllowanceCleared,true);assert.equal(result.netPositive,true);
+        assert.equal(result.grossBeforeFundingFee,amount.div(10).toString());
+        assert.equal(result.flashloanFee,fundingMode==="CAPITAL"?"0":amount.mul(9).div(10000).toString());
+        assert.equal(require("ethers").BigNumber.from(result.profitWithdrawn).sub(result.gasCostNative).toString(),result.netAfterGasNative);
+        results.push(result);
+      }
+      assert.equal(await local.executor.owner(),local.owner);
+      assert.equal((await weth.balanceOf(local.executor.address)).toString(),"0");
+      assert.equal((await weth.balanceOf(pool.address)).toString(),amount.mul(10).add(amount.mul(9).div(10000)).toString());
+      await assert.rejects(backend.reset({...parent,hash:utils.hexZeroPad("0x1234",32)}),/pinned/);
+    }finally{local.restoreReset();await provider.send("evm_setAutomine",[true]);}
   });
