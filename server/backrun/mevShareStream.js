@@ -36,7 +36,7 @@ class MevShareStream extends EventEmitter {
         res.setEncoding("utf8");
         let buffer = "";
         res.on("data", chunk => {
-          buffer += chunk;
+          buffer += chunk.replace(/\\r\\n/g, "\\n");
           let boundary;
           while ((boundary = buffer.indexOf("\n\n")) >= 0) {
             const frame = buffer.slice(0, boundary);
@@ -77,7 +77,7 @@ class MevShareStream extends EventEmitter {
       });
     } catch (err) {
       this.stats.errors++;
-      this.emit("error", err);
+      this.emit("stream_error", err);
     }
   }
 
