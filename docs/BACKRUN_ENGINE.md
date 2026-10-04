@@ -39,6 +39,41 @@ gas ceiling and zero direct backrun coinbase transfer. Submission checks parent
 identity, trigger nonce/availability, age, trading revision, wallet gas, pause,
 loss and pending-submission limits again. No public broadcast fallback exists.
 
+Each bundle targets only the block after its simulated parent. A bundle that
+misses that block is never resubmitted to later blocks: the trigger, pool state,
+nonce and gas economics it was priced against are stale by then. The next head
+refreshes canonical state, and any new opportunity is quoted, signed and
+simulated from scratch. The builder payment is always the measured priority fee
+from the economics, never a fixed tip.
+
+### Relay identity
+
+Two keys with different roles:
+
+- `PRIVATE_KEY` signs the funded backrun transaction (the execution identity).
+- `RELAY_AUTH_PRIVATE_KEY` only signs relay request headers. Relays and builders
+  key searcher reputation to its address. It must hold no funds and must never
+  equal `PRIVATE_KEY`; the process refuses to start if the two match.
+  `FLASHBOTS_AUTH_KEY` is accepted as a legacy alias.
+
+Without `RELAY_AUTH_PRIVATE_KEY` a random identity is generated per process, which
+throws away relay reputation on every restart. That is acceptable for PAPER but
+readiness fails, so LIVE cannot be armed. Readiness also fails if the auth
+address has a nonzero ETH balance. Generate it once, store it like any other
+secret, and never fund it:
+
+```bash
+node -e "const w=require('ethers').Wallet.createRandom();console.log(w.address);console.log(w.privateKey)"
+```
+
+`status().relays` reports the auth address (never the key) and per-relay counts:
+simulations, transport/simulation errors, bundles that passed or failed our ordered
+validation, accepted submissions, latency (EMA), and settled outcomes
+(included/reverted/dropped). Relays do not reveal which builder won, so an
+outcome is credited to every relay that accepted the bundle. These counters are
+in memory and reset on restart; the ledger rows keep each submission's relay
+URLs for durable analysis.
+
 The shared confirmed-block scheduler maintains topology/cache and reconciles
 receipts. While backrunning is enabled it performs canonical refresh rather than
 competing with the trigger engine for a second full sizing pass. Disabling

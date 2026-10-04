@@ -48,8 +48,8 @@ class BackrunExecutionEngine {
           maxGasUnits: prepared.transaction.gasLimit });
         // Economics budget the entire signed gas limit at its maxFee. A
         // successful executor simulation enforces that profit floor on-chain.
-        approved.push({ ...item, validation });
-      } catch (e) { this.emit("backrun_bundle_rejected", { triggerHash: prepared.trigger.hash, reason: safeReason(e) }); }
+        approved.push({ ...item, validation }); this.relays.recordValidation?.(item.url, true);
+      } catch (e) { this.relays.recordValidation?.(item.url, false); this.emit("backrun_bundle_rejected", { triggerHash: prepared.trigger.hash, relay: item.url, reason: safeReason(e) }); }
     }
     if (!approved.length) throw new Error("No successful ordered private bundle simulation");
     const simulatedAt = Date.now(); await guard();
