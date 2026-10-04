@@ -10,7 +10,8 @@ async function main({ progress = () => {} } = {}) {
   progress({ stage: "archive_chain_id" });
   if (Number(await archive.send("eth_chainId", [])) !== 1) throw new Error("Mainnet archive required");
   progress({ stage: "fork_identity" });
-  await backend.verify();
+  const identity = await backend.verify();
+  progress({ stage: "fork_identity_verified", ...identity });
   progress({ stage: "fixture" });
   const fixturePath = process.argv.slice(2).find(arg => arg !== "--local");
   const fixture = JSON.parse(fs.readFileSync(fixturePath || path.join(__dirname, "../test/fixtures/backrun-26115902.json"), "utf8"));

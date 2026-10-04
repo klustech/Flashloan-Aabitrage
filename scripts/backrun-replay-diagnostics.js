@@ -29,6 +29,15 @@ function replayDiagnostic(error, context = {}, env = process.env) {
   const status = httpStatus(error);
   if (status !== undefined) diagnostic.httpStatus = status;
   if (/^(?:eth|net|web3)_[A-Za-z0-9]+$/.test(error?.archiveRpcMethod || "")) diagnostic.rpcMethod = error.archiveRpcMethod;
+  if (/^(?:eth|net|web3|hardhat|evm)_[A-Za-z0-9]+$/.test(error?.forkRpcMethod || "")) {
+    diagnostic.rpcMethod = error.forkRpcMethod;
+    diagnostic.rpcSurface = "local_fork";
+    if (Array.isArray(error.forkRpcParameterTypes))
+      diagnostic.parameterTypes = error.forkRpcParameterTypes.filter(type =>
+        ["string", "number", "boolean", "object", "array", "null", "undefined"].includes(type)).slice(0, 8);
+  }
+  if (Number.isInteger(error?.replayTransactionIndex)) diagnostic.transactionIndex = error.replayTransactionIndex;
+  if (Number.isInteger(error?.replayTransactionType)) diagnostic.transactionType = error.replayTransactionType;
   if (Number.isInteger(error?.archiveRpcAttempts)) diagnostic.attempts = error.archiveRpcAttempts;
   if (typeof error?.archiveRpcRetryable === "boolean") diagnostic.retryable = error.archiveRpcRetryable;
   const nested = error?.error?.reason || error?.error?.message || error?.cause?.message;

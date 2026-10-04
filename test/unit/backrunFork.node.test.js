@@ -71,12 +71,19 @@ test("canonical unprotected legacy prefix is mined and revalidated before an uns
       gasPrice:parent.baseFeePerGas.mul(2).add(10)});
     const canonicalTransactions=[utils.parseTransaction(raw)];
     const header={...parent,number:parent.number+1,timestamp:parent.timestamp+12,
-      baseFeePerGas:require("../../server/backrun/forkBackend").nextBaseFee(parent)};
+      baseFeePerGas:require("../../server/backrun/forkBackend").nextBaseFee(parent),
+      miner:Wallet.createRandom().address,mixHash:utils.hexZeroPad("0x1234",32)};
     try{
       await assert.rejects(backend.mine([raw],header),/Signed mainnet/);
       await backend.reset(parent);
       const prefix=await backend.mine([raw],header,{canonicalTransactions});
       assert.equal(prefix.receipts[0].status,1);
+      const minedHeader=await provider.send("eth_getBlockByNumber",["latest",false]);
+      assert.equal(minedHeader.mixHash.toLowerCase(),header.mixHash.toLowerCase());
+      assert.equal(minedHeader.miner.toLowerCase(),header.miner.toLowerCase());
+      assert.equal(Number(minedHeader.timestamp),header.timestamp);
+      assert.equal(Number(minedHeader.baseFeePerGas),Number(header.baseFeePerGas));
+      assert.equal(Number(minedHeader.gasLimit),Number(header.gasLimit));
       const result=await backend.simulateUnsignedPrefix({rawTransactions:[raw],canonicalTransactions,parent,header,
         transaction:{from:operator,to:recipient,data:"0x",gasLimit:21000,
           maxFeePerGas:parent.baseFeePerGas.mul(2).add(10),maxPriorityFeePerGas:1}});

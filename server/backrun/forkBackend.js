@@ -3,6 +3,26 @@ const { bn, address } = require("../bot/units");
 const { checkSignal } = require("../bot/asyncControl");
 const { validateRaw, validateCanonicalRaw } = require("./rawTransaction");
 const fs=require("fs"),path=require("path"),{randomUUID}=require("crypto");
+const instrumentedProviders = new WeakSet();
+function instrumentForkRpc(provider) {
+  if (typeof provider.send !== "function" || instrumentedProviders.has(provider)) return provider;
+  const send = provider.send.bind(provider);
+  provider.send = async (method, params) => {
+    try { return await send(method, params); }
+    catch (error) {
+      // Record method/schema metadata only; fork requests can contain archive
+      // credentials, raw signed transactions or executor calldata.
+      try {
+        error.forkRpcMethod = method;
+        error.forkRpcParameterTypes = Array.isArray(params) ? params.slice(0, 8).map(value =>
+          Array.isArray(value) ? "array" : value === null ? "null" : typeof value) : [];
+      } catch (_) {}
+      throw error;
+    }
+  };
+  instrumentedProviders.add(provider);
+  return provider;
+}
 function assertLocalForkUrl(url) {
   const u = new URL(url);
   if (!["http:", "https:"].includes(u.protocol) || !["localhost", "127.0.0.1", "[::1]"].includes(u.hostname))
@@ -22,7 +42,7 @@ class ForkBackend {
   constructor({ url, archiveUrl, provider, clock = Date.now }) {
     assertLocalForkUrl(url);
     Object.assign(this, { url, archiveUrl, clock });
-    this.provider = provider || new providers.StaticJsonRpcProvider({ url, timeout: 30000 }, 1);
+    this.provider = instrumentForkRpc(provider || new providers.StaticJsonRpcProvider({ url, timeout: 30000 }, 1));
     this.tail = Promise.resolve();
     this.lockFile=path.resolve(process.env.BACKRUN_LOCK_DIR||"runtime/backrun","fork-"+new URL(url).port+".lock");
   }
@@ -55,6 +75,7 @@ class ForkBackend {
     const [client, chain] = await Promise.all([this.provider.send("web3_clientVersion", []), this.provider.send("eth_chainId", [])]);
     if (!/^HardhatNetwork\//.test(client) || Number(chain) !== 1)
       throw new Error("Dedicated Hardhat fork with chainId 1 required");
+    return { clientVersion: client.match(/^HardhatNetwork\/\d+\.\d+\.\d+/)?.[0] || "HardhatNetwork", chainId: Number(chain) };
   }
   async reset(block, signal) {
     checkSignal(signal); await this.verify();
@@ -80,9 +101,13 @@ class ForkBackend {
     for (const raw of rawTransactions) {
       checkSignal(signal);
       const hash = utils.keccak256(raw);
-      if (canonicalTransactions) validateCanonicalRaw(raw, canonicalTransactions[expected.length]);
-      else validateRaw(raw, hash);
-      const accepted = await this.provider.send("eth_sendRawTransaction", [raw]);
+      const parsed = canonicalTransactions ? validateCanonicalRaw(raw, canonicalTransactions[expected.length]) : validateRaw(raw, hash);
+      let accepted;
+      try { accepted = await this.provider.send("eth_sendRawTransaction", [raw]); }
+      catch (error) {
+        try { error.replayTransactionIndex = expected.length; error.replayTransactionType = Number(parsed.type ?? 0); } catch (_) {}
+        throw error;
+      }
       if (accepted.toLowerCase() !== hash.toLowerCase()) throw new Error("Fork accepted a different transaction");
       expected.push(hash);
     }
@@ -121,9 +146,13 @@ class ForkBackend {
     const expected=[];
     for(const raw of rawTransactions){
       checkSignal(signal);const hash=utils.keccak256(raw);
-      if (canonicalTransactions) validateCanonicalRaw(raw, canonicalTransactions[expected.length]);
-      else validateRaw(raw,hash);
-      const accepted=await this.provider.send("eth_sendRawTransaction",[raw]);
+      const parsed = canonicalTransactions ? validateCanonicalRaw(raw, canonicalTransactions[expected.length]) : validateRaw(raw,hash);
+      let accepted;
+      try { accepted=await this.provider.send("eth_sendRawTransaction",[raw]); }
+      catch (error) {
+        try { error.replayTransactionIndex = expected.length; error.replayTransactionType = Number(parsed.type ?? 0); } catch (_) {}
+        throw error;
+      }
       if(accepted.toLowerCase()!==hash.toLowerCase())throw new Error("Prefix accepted transaction mismatch");
       expected.push(hash);
     }

@@ -328,3 +328,11 @@ execution reverts, missing evidence and canonical mismatches fail immediately.
 The final diagnostic includes HTTP status, RPC method and attempts when known.
 Transaction submissions and local fork mutations are never automatically
 repeated by this archive-read policy. Production order-flow scanning is unchanged.
+
+Fork errors also report the specific `rpcMethod`, parameter type names and,
+for raw-prefix submission failures, the canonical transaction index/type.
+Parameter values, signed bytes and authenticated URLs are not emitted. The
+CLI prints the verified Hardhat client version before replay. A `mine_prefix`
+failure is a broad stage; use `rpcMethod` to distinguish header configuration,
+transaction submission, mining and receipt retrieval. Full header tests include
+timestamp, base fee, gas limit, coinbase and PREVRANDAO.
