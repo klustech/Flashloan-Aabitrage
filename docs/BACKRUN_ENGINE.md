@@ -316,3 +316,15 @@ Pending order-flow and LIVE trigger validation still require chain-ID protection
 Other-chain protected signatures, typed chain-zero transactions, unsigned
 envelopes, mismatched hashes and mismatched senders remain rejected.
 See [EIP-155](https://eips.ethereum.org/EIPS/eip-155).
+
+Historical CLI archive reads are paced at a minimum 150 ms between request
+starts and use at most three attempts for transient HTTP 408/429/500/502/503/504,
+timeouts, temporary connection failures or RPC rate-limit errors. Exponential
+backoff and `BACKRUN_ARCHIVE_RETRY` progress remain bounded. Set
+`BACKRUN_ARCHIVE_MIN_INTERVAL_MS` (0..5000) and
+`BACKRUN_ARCHIVE_MAX_ATTEMPTS` (1..5) in the private PAPER environment to adjust
+these defaults. Authentication/permission failures, HTTP 402 quota exhaustion,
+execution reverts, missing evidence and canonical mismatches fail immediately.
+The final diagnostic includes HTTP status, RPC method and attempts when known.
+Transaction submissions and local fork mutations are never automatically
+repeated by this archive-read policy. Production order-flow scanning is unchanged.

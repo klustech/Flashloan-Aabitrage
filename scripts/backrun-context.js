@@ -8,12 +8,18 @@ const { QuoteEngine } = require("../server/bot/quoteEngine");
 const { ForkBackend } = require("../server/backrun/forkBackend");
 const { address } = require("../server/bot/units");
 const { loadEnvironment } = require("./paper-preflight");
-function environment() {
+const { installArchiveReads } = require("./backrun-archive-reads");
+function environment({ onArchiveRetry = () => {} } = {}) {
   loadEnvironment(process.env);
   if (process.env.PRIVATE_KEY) throw new Error("Historical/PAPER commands refuse PRIVATE_KEY");
   const profile = productionProfile(process.env), url = process.env.MAINNET_RPC_URL;
   if (!url) throw new Error("MAINNET_RPC_URL archive endpoint required");
-  const archive = new providers.StaticJsonRpcProvider({ url, timeout: 30000 }, 1);
+  const archive = installArchiveReads(new providers.StaticJsonRpcProvider({ url, timeout: 30000,
+    throttleLimit: 1, throttleCallback: async () => false }, 1), {
+    maxAttempts: process.env.BACKRUN_ARCHIVE_MAX_ATTEMPTS,
+    minIntervalMs: process.env.BACKRUN_ARCHIVE_MIN_INTERVAL_MS,
+    onRetry: onArchiveRetry,
+  });
   const backend = new ForkBackend({ url: profile.backrun.forkRpcUrl, archiveUrl: url });
   return { profile, archive, backend };
 }

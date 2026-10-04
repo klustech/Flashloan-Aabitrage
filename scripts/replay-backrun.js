@@ -6,7 +6,7 @@ const { environment, topologyContext, routeFromFixture, save, QuoteEngine } = re
 const { replayDiagnostic } = require("./backrun-replay-diagnostics");
 async function main({ progress = () => {} } = {}) {
   progress({ stage: "configuration" });
-  const { profile, archive, backend } = environment();
+  const { profile, archive, backend } = environment({ onArchiveRetry: event => progress({ stage: "archive_retry", ...event }) });
   progress({ stage: "archive_chain_id" });
   if (Number(await archive.send("eth_chainId", [])) !== 1) throw new Error("Mainnet archive required");
   progress({ stage: "fork_identity" });
@@ -30,6 +30,10 @@ async function main({ progress = () => {} } = {}) {
 async function cli() {
   let context = { stage: "configuration" };
   const progress = event => {
+    if (event.stage === "archive_retry") {
+      console.log(JSON.stringify({ kind: "BACKRUN_ARCHIVE_RETRY", ...event }));
+      return;
+    }
     context = event;
     if (["signed_transaction", "canonical_receipt"].includes(event.stage)) {
       if (event.stage !== "signed_transaction" || event.transactionIndex % 50 !== 0) return;

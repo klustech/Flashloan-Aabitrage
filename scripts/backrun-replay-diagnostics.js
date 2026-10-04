@@ -1,3 +1,4 @@
+const { httpStatus } = require("./backrun-archive-reads");
 function redact(value, env = process.env) {
   let text = String(value ?? "");
   for (const [name, secret] of Object.entries(env)) {
@@ -25,11 +26,16 @@ function replayDiagnostic(error, context = {}, env = process.env) {
     diagnostic.code = redact(error.code, env);
   for (const key of ["transactionChainId", "signatureV"])
     if (Number.isInteger(error?.[key])) diagnostic[key] = error[key];
+  const status = httpStatus(error);
+  if (status !== undefined) diagnostic.httpStatus = status;
+  if (/^(?:eth|net|web3)_[A-Za-z0-9]+$/.test(error?.archiveRpcMethod || "")) diagnostic.rpcMethod = error.archiveRpcMethod;
+  if (Number.isInteger(error?.archiveRpcAttempts)) diagnostic.attempts = error.archiveRpcAttempts;
+  if (typeof error?.archiveRpcRetryable === "boolean") diagnostic.retryable = error.archiveRpcRetryable;
   const nested = error?.error?.reason || error?.error?.message || error?.cause?.message;
   if (nested) diagnostic.rpcMessage = redact(nested, env);
   const causes = [];
-  let cause = error?.error || error?.cause;
-  for (let depth = 0; cause && depth < 4; depth++, cause = cause.error || cause.cause) {
+  let cause = error?.error || error?.cause || error?.serverError;
+  for (let depth = 0; cause && depth < 4; depth++, cause = cause.error || cause.cause || cause.serverError) {
     const detail = {};
     if (typeof cause.code === "string" || typeof cause.code === "number") detail.code = redact(cause.code, env);
     if (cause.reason || cause.message) detail.message = redact(cause.reason || cause.message, env);
