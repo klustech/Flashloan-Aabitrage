@@ -24,4 +24,3 @@ function signedBlob({ wallet = Wallet.createRandom(), to = Wallet.createRandom()
   return { raw, pooled, wallet, canonical: { hash: utils.keccak256(raw), from: wallet.address, type: 3 } };
 }
 module.exports = { signedBlob, sidecar, versionedHash };
-
