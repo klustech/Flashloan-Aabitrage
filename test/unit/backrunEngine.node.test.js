@@ -70,6 +70,48 @@ test('adaptive funding prefers owned capital and falls back to flash liquidity',
   void old;
 });
 
+test('adaptive funding keeps a viable capital path when flash costs exceed the edge',async()=>{
+  const tokens={parse:(_token,value)=>bn(value),get:()=>({symbol:'WETH'})};
+  const flashloan={fee:(amount,bps)=>bn(amount).mul(bps).div(10000)};
+  const profile={backrun:{fundingMode:'adaptive',capitalReserveBps:0,minimumProfitBySymbol:{WETH:'5'},maxAmountBySymbol:{WETH:'500'}}};
+  const engine=new FundingEngine({provider:{},contract:{address:a(99)},tokens,flashloan,profile});
+  engine.capitalAvailable=async()=>bn(1000);
+  const decision=await engine.decide({
+    token:WETH,
+    amount:bn(100),
+    grossProfit:bn(10),
+    gasCostBorrowToken:bn(4),
+    builderPaymentBorrowToken:bn(0),
+    terms:{premiumBps:9000,availableLiquidity:bn(1000)},
+    blockTag:1
+  });
+  assert.equal(decision.mode,'CAPITAL');
+  assert.equal(decision.capitalNet.toString(),'6');
+  assert.equal(decision.flashCostCovered,false);
+  assert.equal(decision.flashNet.toString(),'0');
+});
+
+test('funding rejects costs above gross profit without BigNumber underflow',async()=>{
+  const tokens={parse:(_token,value)=>bn(value),get:()=>({symbol:'WETH'})};
+  const flashloan={fee:(amount,bps)=>bn(amount).mul(bps).div(10000)};
+  const profile={backrun:{fundingMode:'adaptive',capitalReserveBps:0,minimumProfitBySymbol:{WETH:'1'},maxAmountBySymbol:{WETH:'500'}}};
+  const engine=new FundingEngine({provider:{},contract:{address:a(99)},tokens,flashloan,profile});
+  engine.capitalAvailable=async()=>bn(1000);
+  const decision=await engine.decide({
+    token:WETH,
+    amount:bn(100),
+    grossProfit:bn(3),
+    gasCostBorrowToken:bn(5),
+    builderPaymentBorrowToken:bn(0),
+    terms:{premiumBps:9,availableLiquidity:bn(1000)},
+    blockTag:1
+  });
+  assert.equal(decision.mode,'REJECT');
+  assert.equal(decision.capitalCostCovered,false);
+  assert.equal(decision.capitalNet.toString(),'0');
+  assert.equal(decision.flashNet.toString(),'0');
+});
+
 test('bundle plan is unsigned in PAPER and requires trigger+backrun raw transactions in LIVE',()=>{
   const paper=buildBackrunBundlePlan({trigger:{hash:'0xabc'},backrunTransaction:{to:a(9)},stateBlock:1,targetBlock:2,funding:{mode:'CAPITAL'},paperOnly:true});
   assert.equal(paper.signedBundle,null);
