@@ -436,10 +436,32 @@ class BackrunEngine {
       const snapshot=await this.coordinator.marketCache.sync(block,{signal});
       this.coordinator.poolRegistry=snapshot.registry;
       const tracked=snapshot.registry.values().map(p=>p.poolAddress);
+      const trackedSet=new Set(tracked.map(address));
+
+      // MEV-Share hints often reveal logs but not the complete transaction. Avoid
+      // spending trace budget on hints that provably do not touch our topology.
+      const hintedPools=(trigger.logs||[]).map(log=>{
+        try{return address(log.address);}catch(_){return null;}
+      }).filter(pool=>pool&&trackedSet.has(pool));
+      if(trigger.source==="mev_share"&&trigger.logs?.length&&!hintedPools.length){
+        return {executed:false,reason:"hint_does_not_touch_tracked_pool"};
+      }
+
+      // Public transactions can appear in both feeds. If the normal RPC knows
+      // the transaction, enrich the hint so debug_traceCall can derive exact
+      // post-trigger storage without relying on a heuristic decoder.
+      if(!trigger.tx){
+        try{
+          const tx=await abortable(this.provider.getTransaction(trigger.hash),signal);
+          if(tx)trigger={...trigger,tx,to:tx.to,callData:tx.data};
+        }catch(_){/* private hints legitimately have no public transaction */}
+      }
+
       const prediction=await abortable(this.predictor.predict(trigger,block.number,tracked),signal);
       if(!prediction.supported){
-        if(this.profile.backrun.requireStatePrediction)throw new Error("Post-trigger state unavailable: "+prediction.reason);
-        return {executed:false,reason:"post_trigger_state_unavailable"};
+        // Never exact-quote against pre-trigger state and label it post-trigger.
+        // Hints without a reproducible state transition are observation-only.
+        throw new Error("Post-trigger state unavailable: "+prediction.reason);
       }
       this.stats.statePredicted++;
       const affected=new Set(prediction.affectedPools.map(address));
