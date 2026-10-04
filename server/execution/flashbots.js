@@ -22,6 +22,7 @@ function validateBackrunBundleSimulation(simulation,{triggerRawTx,backrunSignedT
   if(trigger.error||trigger.revert||trigger.txHash?.toLowerCase()!==triggerHash)throw new Error('Trigger transaction failed/mismatched');
   if(backrun.error||backrun.revert||backrun.txHash?.toLowerCase()!==backrunHash)throw new Error('Backrun transaction failed/mismatched');
   const gasUsed=bn(backrun.gasUsed),triggerGasUsed=bn(trigger.gasUsed||0);
+  if(triggerGasUsed.lte(0))throw new Error('Trigger gas outside limits');
   if(gasUsed.lte(0)||gasUsed.gt(maxGasUnits))throw new Error('Backrun gas outside limits');
   if(!bn(simulation.totalGasUsed).eq(triggerGasUsed.add(gasUsed)))throw new Error('Backrun bundle gas accounting mismatch');
   if(backrun.ethSentToCoinbase===undefined||!bn(backrun.ethSentToCoinbase).isZero())throw new Error('Unexpected direct coinbase payment');

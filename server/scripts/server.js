@@ -397,6 +397,34 @@ app.get("/api/trading/paper-health", async (_req, res) => {
 app.get("/api/executions", (_req, res) => {
   try { res.json({ executions: coordinator().ledger.recent(100), summary: coordinator().ledger.summary() }); } catch (err) { res.status(503).json({ error: err.message }); }
 });
+app.get("/api/backrun/status", (_req,res) => {
+  try { res.json(coordinator().status().backrun); } catch (_) { res.status(503).json({error:"Backrun status unavailable"}); }
+});
+for (const [endpoint, select] of [
+  ["recent-triggers", rows => rows],
+  ["candidates", rows => rows.filter(r => r.candidateId)],
+  ["simulations", rows => rows.filter(r => r.simulation)],
+]) app.get("/api/backrun/"+endpoint, (_req,res) => {
+  try { res.json({records:select(coordinator().backrun?.ledger.recent(100)||[])}); }
+  catch (_) { res.status(503).json({error:"Backrun records unavailable"}); }
+});
+app.get("/api/backrun/benchmark", (_req,res) => {
+  try {
+    const c=coordinator(), file=c.profile.backrun.benchmarkPath;
+    res.json({benchmark:fs.existsSync(file)?JSON.parse(fs.readFileSync(file,"utf8")):null});
+  } catch (_) { res.status(503).json({error:"Benchmark unavailable"}); }
+});
+app.post("/api/backrun/triggers", (req,res) => {
+  try {
+    const source=coordinator().backrun?.source;
+    if(!source?.feed) return res.status(409).json({error:"Custom order-flow source not running"});
+    const body=req.body;
+    if(!body || Object.keys(body).some(k=>!["hash","rawTx"].includes(k)) || !body.rawTx || !body.hash)
+      return res.status(400).json({error:"Signed raw transaction and hash required"});
+    require("../backrun/rawTransaction").validateRaw(body.rawTx,body.hash);
+    source.feed(body); res.status(202).json({accepted:true});
+  } catch (_) { res.status(400).json({error:"Invalid custom trigger"}); }
+});
 
 // Winston logger for server.log
 const logger = winston.createLogger({
@@ -2166,6 +2194,9 @@ const start = async (port = PORT) => {
   if (process.env.NODE_ENV !== "test") {
     const scheduler = startArbitrageScheduler();
     server.once("close", () => scheduler.stop());
+    const c=coordinator();
+    await c.startBackrun().catch(err=>{c.backrunStartError="Backrun startup failed; check dedicated fork, source and database";notifyError("backrun_start",new Error(c.backrunStartError));});
+    server.once("close",()=>c.stopBackrun());
   }
 
   return new Promise((resolve) => {

@@ -1320,40 +1320,43 @@ Executor v3 retains the flash-loan entrypoint, so the existing route executor re
 
 ## 39. Current implementation progress on this branch
 
-Implemented foundations:
+The branch now contains the additive implementation candidate:
 
-- `server/backrun/triggerIntake.js`
-- `server/backrun/backrunEngine.js`
-- `server/backrun/fundingEngine.js`
-- `server/backrun/bundlePlan.js`
-- WETH-first backrun configuration
-- adaptive funding configuration
-- private relay multi-transaction bundle support
-- executor v3 owned-capital entrypoint
-- executor v3 readiness/deployment version
-- ABI synchronization for the new entrypoint
-- bundle simulation validator for ordered trigger + backrun
-- initial Node unit tests
-- initial contract owned-capital tests
+- bounded trigger intake and public pending / MEV-Share / authenticated custom sources;
+- direct V2/V3 router decoding and simulation-derived aggregator impact;
+- canonical CandidateIndex reuse against ephemeral post-trigger pool overlays;
+- isolated chain-1 fork prediction, exact post-trigger quoting and sizing;
+- measured CAPITAL / FLASH_LOAN selection with reserves and per-token risk limits;
+- executor v3, synchronized ABIs and retained flash-loan invariants;
+- ordered unsigned PAPER fork simulation and signed private LIVE bundle validation;
+- shared pending-submission / receipt accounting and signing safety;
+- intra-block replay harness with canonical receipt fidelity checks;
+- complete-coverage historical economics benchmark and funding-path proof output;
+- PostgreSQL backrun/benchmark migration, durable journal and read APIs;
+- Backrun observer workspace with latency, funding and rejection details;
+- backrun preflight, smoke and evidence-backed commissioning report commands;
+- VPS host-service templates and a documented rollback;
+- deterministic, contract, frontend, persistence and controlled local-chain checks.
 
-Not yet complete:
+See [the implementation runbook](BACKRUN_ENGINE.md) for commands, limitations and
+source interfaces. The existing post-block baseline remains available by setting
+BACKRUN_ENABLED=false. Default production behavior remains disabled.
 
-- TriggerDecoder
-- aggregator decoding
-- real order-flow connector
-- StatePredictor
-- post-trigger quote backend
-- historical intra-block replay harness in repository
-- coordinator integration
-- dedicated backrun execution engine
-- backrun database schema
-- backrun API
-- UI
-- multi-day benchmark
-- VPS PAPER commissioning
-- final LIVE gates
+The following empirical acceptance items are still outstanding:
 
-The branch must therefore be treated as an implementation branch, not production-ready.
+- actual canonical replay of mainnet block 26115902 with an archive RPC;
+- isolated proof that transaction 143, rather than transaction 84, created the edge;
+- measured seven-to-thirty-day historical economics through executor v3;
+- real mainnet-fork evidence for both funding paths;
+- deployed/verified executor v3 and explicitly funded capital when used;
+- VPS deployment and seven continuous days of unsigned live order-flow PAPER;
+- at least one profitable ordered bundle observation under actual configuration;
+- operator economic/risk acceptance and explicit LIVE election.
+
+The audit transcript and mock/local-chain test results are not substitutes for
+these items. The branch is therefore an implementation candidate with closed
+commissioning gates, not a production-ready backrunner. Main stays at the proven
+baseline until the requested acceptance evidence is available and reviewed.
 
 ---
 

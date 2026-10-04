@@ -6,7 +6,7 @@ class TriggerIntake extends EventEmitter {
     super();
     this.maxPending = maxPending;
     this.pending = new Map();
-    this.seen = new Set();
+    this.seen = new Map();
     this.stats = { received: 0, accepted: 0, duplicate: 0, dropped: 0 };
   }
 
@@ -32,8 +32,8 @@ class TriggerIntake extends EventEmitter {
       this.stats.duplicate++;
       return false;
     }
-    this.seen.add(item.hash);
-    if (this.seen.size > this.maxPending * 8) this.seen.clear();
+    this.seen.set(item.hash, item.receivedAt);
+    while (this.seen.size > this.maxPending * 8) this.seen.delete(this.seen.keys().next().value);
     if (this.pending.size >= this.maxPending) {
       const oldest = this.pending.keys().next().value;
       this.pending.delete(oldest);

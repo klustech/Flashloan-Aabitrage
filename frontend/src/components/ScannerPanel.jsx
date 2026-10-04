@@ -156,7 +156,7 @@ export default function ScannerPanel() {
               <Chip
                 size="small"
                 variant={backrun.enabled ? "filled" : "outlined"}
-                label={backrun.enabled ? "Backrun PAPER enabled" : "Backrun disabled"}
+                label={backrun.enabled ? "Backrun configured" : "Backrun disabled"}
               />
               <Typography variant="caption" color="text.secondary">
                 Order flow: {backrun.orderflowSource || "disabled"} · Funding:{" "}

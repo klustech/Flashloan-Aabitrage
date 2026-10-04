@@ -40,6 +40,8 @@ class FundingEngine {
     token = address(token);
     amount = bn(amount);
     grossProfit = bn(grossProfit);
+    if (amount.lte(0) || bn(gasCostBorrowToken).lt(0) || bn(builderPaymentBorrowToken).lt(0))
+      throw new Error("Invalid backrun amount/cost");
     const variableCost = bn(gasCostBorrowToken).add(builderPaymentBorrowToken);
     const policy=this.tokenPolicy(token),minimum=policy.minimum;
     const mode = this.profile.backrun?.fundingMode || "adaptive";
@@ -55,11 +57,13 @@ class FundingEngine {
     const capitalViable =
       capital.gte(amount) && capitalNet.gte(minimum);
 
-    const premiumBps = Number(terms?.premiumBps ?? 0);
-    const flashFee = this.flashloan.fee(amount, premiumBps);
+    const premiumBps = Number(terms?.premiumBps);
+    const validTerms = terms?.premiumBps !== null && terms?.premiumBps !== undefined &&
+      Number.isInteger(premiumBps) && premiumBps >= 0 && premiumBps < 10000;
+    const flashFee = validTerms ? this.flashloan.fee(amount, premiumBps) : bn(0);
     const flashNet = grossProfit.sub(variableCost).sub(flashFee);
     const flashViable =
-      bn(terms?.availableLiquidity ?? 0).gte(amount) &&
+      validTerms && bn(terms?.availableLiquidity ?? 0).gte(amount) &&
       flashNet.gte(minimum);
 
     if ((mode === "adaptive" || mode === "capital") && capitalViable) {
@@ -69,6 +73,10 @@ class FundingEngine {
         expectedNetProfit: capitalNet,
         capitalAvailable: capital,
         flashFee,
+        capitalNet,
+        flashNet,
+        protectedReserveBps: this.profile.backrun.capitalReserveBps,
+        capitalViable, flashViable,
       };
     }
     if ((mode === "adaptive" || mode === "flashloan") && flashViable) {
@@ -78,6 +86,10 @@ class FundingEngine {
         expectedNetProfit: flashNet,
         capitalAvailable: capital,
         flashFee,
+        capitalNet,
+        flashNet,
+        protectedReserveBps: this.profile.backrun.capitalReserveBps,
+        capitalViable, flashViable,
       };
     }
 

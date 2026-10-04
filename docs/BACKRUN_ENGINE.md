@@ -1,237 +1,251 @@
-# Transaction-Triggered Backrun Architecture
+# Transaction-triggered backrun implementation
 
-## Why this exists
+Baseline: main commit `4c9ef5a`. This additive implementation remains disabled
+unless `BACKRUN_ENABLED=true`. It is an implementation candidate, not a claim of
+mainnet profitability or completed commissioning. The authoritative acceptance
+criteria remain in [the blueprint](TRANSACTION_TRIGGERED_BACKRUN_BLUEPRINT.md).
 
-The previous production core is a finalized-block scanner. It is correct for residual
-cross-DEX discrepancies, but commissioning evidence showed that a representative
-real mainnet opportunity was created and removed inside the same block:
+## Implemented path
 
-- block 26115902, transaction index 143 touched the tracked Pancake V3 pool;
-- transaction index 144 immediately executed the tracked Uniswap V3 -> Pancake V3
-  WETH cycle;
-- the exact route at block 26115901 was -6.40 bps gross;
-- the executed route was +12.24 bps gross;
-- the same route was positive with owned WETH after observed gas, but negative after
-  adding the historical Aave V2 premium.
+Public pending transactions, MEV-Share hints or authenticated custom raw
+transactions enter a bounded, deduplicated queue. Direct V2/V3 router calldata
+resolves exact tracked pool identities. Unknown aggregator calldata can proceed
+only with a signed raw transaction; its actual execution logs determine tracked
+impact. Hash-only hints are recorded/rejected when exact prediction is impossible.
 
-The implementation therefore keeps the proven block scanner as a fallback/diagnostic
-path and adds a separate transaction-triggered backrun path. The two strategies must
-not be conflated in telemetry or commissioning evidence.
+A dedicated chain-1 Hardhat node forks the pinned parent, applies the authentic
+trigger and reads touched pools. Its overlay never replaces the confirmed
+registry. CandidateIndex reprices affected two/three-hop routes with WETH priority.
+The normal exact DEX adapters and TradeSizer run against that fork state.
 
-## Safety model
+Funding policy compares retained executor capital with Aave terms, protects the
+configured capital reserve and enforces token-specific size/profit limits.
+Selected exact sizes pass executor calls and measured gas estimates. Adaptive
+funding tests both available entrypoints with measured costs and prefers viable
+capital. Quotes in different tokens are ranked in native units.
 
-The backrun subsystem is disabled by default.
+PAPER rebuilds the parent and mines the trigger followed by an unsigned,
+impersonated operator call in one local block. No signing key is used. A successful
+receipt must contain the executor's actual profit withdrawal above the signed
+gas-cost budget and minimum profit. Fork coinbase accounting compares identical
+prefix/bundle block headers and subtracts the backrun priority fee once. This is
+a net balance check; LIVE independently requires relay evidence of zero direct
+coinbase transfer. Unsigned local execution is explicitly labelled separately
+from a private relay simulation.
 
-```env
-BACKRUN_ENABLED=false
-BACKRUN_ORDERFLOW_SOURCE=disabled
-BACKRUN_MEV_SHARE_STREAM_URL=https://mev-share.flashbots.net
+LIVE uses the authentic raw trigger first and locally signed arb second. Every
+relay simulation must match both hashes/order, successful outcomes, parent state,
+gas ceiling and zero direct backrun coinbase transfer. Submission checks parent
+identity, trigger nonce/availability, age, trading revision, wallet gas, pause,
+loss and pending-submission limits again. No public broadcast fallback exists.
+
+The shared confirmed-block scheduler maintains topology/cache and reconciles
+receipts. While backrunning is enabled it performs canonical refresh rather than
+competing with the trigger engine for a second full sizing pass. Disabling
+backrunning restores the original post-block scan. A shared pending ledger and
+coordinator lock prevent simultaneous legacy/backrun signing.
+
+## Laptop / WSL setup
+
+Use Node 22 and a mainnet archive RPC supporting the historical block range. No
+mainnet deployment, token funding, SSH command or trade is performed automatically
+by this implementation.
+
+Create a private profile from both templates:
+
+```bash
+cp server/config/mainnet-paper.env.example .env.backrun-paper
+cat server/config/backrun-paper.env.example >> .env.backrun-paper
+chmod 600 .env.backrun-paper
 ```
 
-PAPER remains unsigned. A PAPER backrun plan never contains a signed transaction.
-LIVE backruns require all of the following:
+Edit the HTTP/WS RPC, PostgreSQL, API credential and verified executor identities.
+The deployment used for backrunning must expose executorVersion 3. CAPITAL
+requires real tokens already held by that executor. No token balances are
+fabricated by the predictor or benchmark. Aave must be economically viable for
+FLASH_LOAN; having liquidity alone is insufficient.
 
-1. the ordinary LIVE readiness gates;
-2. a raw trigger transaction;
-3. a signed backrun transaction created only after profitability checks;
-4. an ordered two-transaction bundle simulation;
-5. successful trigger and backrun hashes in that simulation;
-6. measured backrun gas within the configured ceiling;
-7. private relay submission only.
+Then load the file without printing credentials:
 
-A backrun must fail closed when the trigger cannot be reproduced or when the
-post-trigger state cannot be evaluated. The implementation does not silently fall
-back from private/hinted order flow to public-mempool execution.
-
-## Components
-
-### `server/backrun/triggerIntake.js`
-
-Bounded, deduplicating trigger queue. A trigger contains:
-
-```js
-{
-  hash,
-  rawTx,            // required for LIVE bundle construction
-  affectedPools,    // canonical pool addresses from decoder/hints
-  receivedAt,
-  source
-}
+```bash
+set -a
+source .env.backrun-paper
+set +a
+export PAPER_ENV_FILE=.env.backrun-paper
+test -z "${PRIVATE_KEY:-}" || { echo "Remove PRIVATE_KEY from the PAPER profile"; exit 1; }
+npm ci --ignore-scripts --legacy-peer-deps
+npm --prefix server ci --ignore-scripts --legacy-peer-deps
+npm run db:migrate:executions
+npm run backrun:fork
 ```
 
-The intake deliberately does not guess affected pools from incomplete information.
-The order-flow adapter/decoder must provide them.
+Keep the last command in a separate terminal. It binds only 127.0.0.1:8547 and
+starts with no test accounts or deploy scripts. Never expose this disposable
+node: its impersonation/reset RPC is intentionally powerful.
 
-### `server/backrun/mevShareSource.js`
+In a second terminal, load the same private environment and run:
 
-Built-in read-only SSE client for the Flashbots MEV-Share mainnet hint stream. It
-reconnects with bounded exponential backoff, emits normalized transaction hints, and
-never signs or submits transactions. The hint stream may contain swap logs, calldata,
-function selectors or only a transaction hash depending on the originating user's
-privacy preferences. Hints without enough tracked-pool information are rejected by
-the decoder rather than guessed.
-
-### `server/backrun/backrunEngine.js`
-
-Builds two- and three-leg cycles from the existing canonical `PoolRegistry`, limits
-them to routes touching the trigger's affected pools, and prioritizes configured
-backrun borrow tokens. The default is:
-
-```env
-BACKRUN_BORROW_TOKENS=WETH,DAI,USDC
+```bash
+npm run backrun:preflight
+npm run api
 ```
 
-WETH is first because the commissioning audit observed WETH-funded cycles while the
-DAI-only scanner observed none.
+Open the existing private dashboard and select PAPER explicitly. Select the
+Backrun observer workspace. Start the dashboard normally with its server-side
+API credential/proxy; do not place API_KEY in the browser bundle. API and fork
+processes must share the host loopback network. The existing API Docker image
+does not bundle the development-only Hardhat runtime; the supplied backrun VPS
+profile therefore uses host services.
 
-The engine requires an injected `evaluatePostTrigger` adapter. This is intentional:
-a normal finalized-state JSON-RPC quote is not a valid post-trigger quote. Production
-must evaluate the route against state *after the trigger transaction* using a
-transaction/bundle-capable simulation backend.
+Then:
 
-### `server/backrun/fundingEngine.js`
-
-Funding is selected per opportunity:
-
-- `CAPITAL`: executor already holds sufficient token balance and net profit survives
-  gas/builder costs.
-- `FLASH_LOAN`: Aave liquidity is sufficient and net profit survives premium plus
-  gas/builder costs.
-- `REJECT`: neither funding source meets the minimum-profit gate.
-
-`adaptive` prefers owned capital because thin backruns can be destroyed by a
-flash-loan premium. Operators may force `capital` or `flashloan` for controlled
-experiments.
-
-Per-token limits are mandatory whenever `BACKRUN_ENABLED=true`. They are token-denominated and deliberately have no unsafe cross-token fallback: `BACKRUN_MIN_PROFIT_WETH` cannot inherit the DAI minimum, and `BACKRUN_MAX_AMOUNT_WETH` must be set independently. Startup fails closed if any configured backrun token lacks either limit.
-
-A configurable reserve prevents using all executor capital:
-
-```env
-BACKRUN_FUNDING_MODE=adaptive
-BACKRUN_CAPITAL_RESERVE_BPS=1000
+```bash
+npm run backrun:smoke
 ```
 
-### Executor v3
+The smoke command sends authenticated GETs only, requires advancing blocks and
+order-flow counters, checks database/runtime health and zero signatures/submissions.
+It does not require invented profitable trades. Under a quiet or disconnected
+source it fails honestly.
 
-`ArbitrageFlashloan.executorVersion` is now `3`.
+## Historical intra-block proof
 
-The existing `initiateFlashLoan(ArbitrageData)` remains unchanged. A second owner-only
-entrypoint is added:
+The supplied transcript is preserved as
+`test/fixtures/backrun-audit-evidence.json`, explicitly marked as user-supplied
+diagnostic evidence. It is not converted into a successful regression proof.
 
-```solidity
-executeCapitalArbitrage(ArbitrageData)
+```bash
+npm run backrun:replay
 ```
 
-It:
+The command reconstructs four independent prefixes of block 26115902:
+previous block, transactions 0..142, 0..143, and 0..144. Each prefix is mined in
+the original block number/order with its timestamp/base fee/coinbase/prevRandao.
+Replayed receipts must match canonical transaction hashes, indices, status,
+gas used and exact log payloads before route quotes are accepted.
 
-- requires the executor already to hold at least `borrowAmount`;
-- executes the same validated swap route;
-- requires the final token balance to be at least starting balance + `minProfit`;
-- never consumes principal to subsidize a losing route;
-- transfers only realized profit to `profitRecipient`;
-- remains pause- and owner-gated.
+The fixture includes both 100-fee V3 pools, so this case study can run without
+the full topology file. The proof requires: negative previous-block quote;
+nonpositive quote after tx142; positive quote after tx143; materially smaller
+edge after tx144. Prior/post-trigger quotes must match the supplied observations
+within the fixture's explicit tolerance.
 
-LIVE readiness now requires executor version 3 and a matching deployed bytecode hash.
-Existing version-2 deployments therefore fail readiness until explicitly redeployed.
+If tx84 had already created the edge, the tx143-specific proof fails. That is a
+valid finding; do not change the fixture to force a pass.
 
-### `server/backrun/executorTransaction.js`
+Hardhat/archive support for blob/authorization envelopes, historical hardforks
+and system-state changes can vary. Authentic signed envelopes are reconstructed
+only from existing signature fields and their hashes are verified. Unsupported
+transactions, missing receipts or semantic mismatches stop proof issuance.
 
-Selects the correct executor entrypoint from the funding decision. This keeps
-funding choice out of router/DEX code.
+## Seven-to-thirty-day benchmark
 
-### `server/backrun/bundlePlan.js`
+Provide the actual canonical topology in `POOL_CACHE_PATH`, then explicit block
+bounds covering at least seven days:
 
-Constructs the ordered execution plan. LIVE order is immutable:
-
-```
-[trigger raw transaction, signed backrun transaction]
-```
-
-PAPER returns an unsigned plan and records that full bundle simulation is still
-required before LIVE.
-
-### Private relay support
-
-`PrivateRelays` now accepts one or more signed raw transactions. Existing
-single-transaction execution remains backward compatible.
-
-`validateBackrunBundleSimulation` validates the two-result simulation separately:
-the trigger must be first and successful, the backrun must be second and successful,
-and only backrun gas is charged to our opportunity economics. Trigger gas belongs to
-the trigger sender.
-
-## Post-trigger evaluator contract
-
-A production evaluator receives:
-
-```js
-evaluatePostTrigger({ trigger, route, block, signal })
+```bash
+export BACKRUN_START_BLOCK=YOUR_START_BLOCK
+export BACKRUN_END_BLOCK=YOUR_END_BLOCK
+npm run backrun:benchmark
 ```
 
-and must return:
+This is a costly exact archive/fork experiment, not the earlier fast log audit.
+Each tracked trigger reconstructs its full preceding block prefix. Available
+capital/flash paths are evaluated through the executor; viable paths are appended
+unsigned to that same historical prefix and mined in the same block.
+Canonical prefix receipts and principal preservation are rechecked.
 
-```js
-{
-  borrowAmount,
-  grossProfit,
-  gasCostBorrowToken,
-  builderPaymentBorrowToken,
-  flashloanTerms
-}
+The report separates gross, measured capital net and flash net by token, route
+length and DEX combination. It records coverage/errors, decision latency,
+funding availability, net/capital percentiles, gas and builder budgets. At most
+one opportunity per trigger contributes to capture estimates; competition and
+concurrent capital availability remain explicit upper-bound assumptions.
+
+Existing executor-v3 code/capital must actually exist at the historical parent
+being replayed. A missing executor or unsupported prefix is incomplete coverage,
+not evidence that the market had no opportunities. Choose a suitable post-deployment
+window for prospective commissioning, or implement/review an explicitly labelled
+deployment-scenario simulator separately.
+
+The first proven profitable execution for each funding mode writes its matching
+capital/flash mainnet-fork evidence file. Controlled local mock tests do not issue
+these files. Production benchmark reports persist in a separate PostgreSQL table.
+
+Run CLI experiments while the observer is stopped. A filesystem lock also
+serializes fork contexts across API/CLI processes, preventing one experiment from
+resetting another's state. Preserve runtime and database volumes.
+
+## VPS PAPER commissioning
+
+Templates are in `ops/systemd/backrun-fork.service` and
+`ops/systemd/backrun-paper.service`. Adjust the service user, Node executable
+and /opt path to the actual VPS. Install dependencies and apply migrations first.
+The service user needs runtime/cache ownership; the private profile lives at
+`/etc/arbitrage/backrun-paper.env`. Keep both API and fork on host loopback.
+Use the existing dashboard proxy or an authenticated SSH tunnel for operator
+access. Source/fork/database failure leaves LIVE disarmed.
+
+The observer does not auto-activate PAPER or LIVE. PAPER must be selected after
+service startup. At least seven continuous days are required. Source loss,
+head stagnation, a process gap above 30 seconds, database failure, signing,
+submission or risk-configuration change invalidates the unfinished run.
+
+Build the commissioning report only after replay, benchmark, both funding-path
+proofs and PAPER evidence exist:
+
+```bash
+npm run backrun:commission
 ```
 
-The evaluator must derive these values from a state that includes the trigger
-transaction. Reading the current/past finalized block and pretending it is
-post-trigger state is prohibited.
+It additionally requires an explicit `runtime/backrun/risk-review.json` containing:
+`profileFingerprint`, `reviewed: true`, a positive
+`minimumOpportunitiesPerDay`, positive `minimumNetNativePerDay` in wei,
+`capitalPlan`, `drawdownPlan`, and `competitionAssumptions`. The net threshold
+must include the operator's infrastructure allowance.
 
-Recommended implementations, in order:
+The report rejects incomplete coverage, a single historical anomaly, missing
+same-block simulation, excessive measured p95 latency, insufficient frequency/net
+and absent risk review. Completed PAPER evidence is valid for seven days; switching
+to LIVE does not retroactively erase that completed run. The evidence configuration
+hash omits only PAPER_ONLY, so moving from commissioning to LIVE does not invalidate
+otherwise identical risk settings. Trading still requires explicit ARM and GO LIVE.
 
-1. private/hinted-order-flow simulation backend that can simulate the trigger and
-   candidate backrun atomically;
-2. local shadow fork continuously pinned to the current parent block;
-3. historical replay harness for regression/backtesting.
+No report or green unit suite elects LIVE for the operator.
 
-## Configuration
+## API / persistence
 
-```env
-BACKRUN_ENABLED=false
-BACKRUN_BORROW_TOKENS=WETH,DAI,USDC
-# Required hard risk limits for every configured backrun token before enabling:
-BACKRUN_MIN_PROFIT_WETH=
-BACKRUN_MAX_AMOUNT_WETH=
-BACKRUN_MIN_PROFIT_DAI=
-BACKRUN_MAX_AMOUNT_DAI=
-BACKRUN_MIN_PROFIT_USDC=
-BACKRUN_MAX_AMOUNT_USDC=
-BACKRUN_FUNDING_MODE=adaptive
-BACKRUN_CAPITAL_RESERVE_BPS=1000
-BACKRUN_MAX_CANDIDATES=32
-BACKRUN_ORDERFLOW_SOURCE=disabled
-```
+Authenticated read endpoints:
 
-Allowed order-flow source values are `disabled`, `mev_share` and `custom`. The built-in MEV-Share source consumes the official mainnet SSE hint stream; custom sources must provide the same normalized hint shape. Merely changing the setting does not create an order-flow adapter;
-deployment must supply and verify the corresponding adapter.
+- GET /api/backrun/status
+- GET /api/backrun/recent-triggers
+- GET /api/backrun/candidates
+- GET /api/backrun/simulations
+- GET /api/backrun/benchmark
 
-## Commissioning sequence
+POST /api/backrun/triggers accepts only hash + authentic signed raw transaction
+on an explicitly configured custom source. It reuses fail-closed API authentication
+and the separate mutation rate budget. It cannot bypass PAPER or execution gates.
 
-1. Keep the existing finalized-block scanner running as a control.
-2. Replay the known block-26115902 regression case and prove:
-   - pre-trigger route is unprofitable;
-   - post-trigger route is profitable;
-   - post-backrun route is compressed again.
-3. Backtest at least seven days of trigger transactions through the same evaluator.
-4. Record opportunity frequency by starting token, route, DEX pair and funding mode.
-5. Run unsigned PAPER on live order flow.
-6. Require successful ordered bundle simulations with zero signatures/submissions in
-   PAPER.
-7. Deploy executor v3 only after the backrun PAPER evidence is satisfactory.
-8. Re-run all readiness checks with the new bytecode hash.
-9. LIVE remains a separate explicit operator action.
+Migration 0002 adds backrun_records and backrun_benchmarks. Records preserve exact
+integer token values in JSONB and a fsynced journal. Raw trigger transactions are
+excluded. API reads use bounded recent records; PostgreSQL retains historical data.
+Existing deployments must run the migration; Compose init files cover only fresh
+databases.
 
-## Non-goals
+## Validation and remaining evidence
 
-This change does not claim that every positive closed swap cycle is profitable MEV.
-It does not infer private order flow from finalized blocks, and it does not treat
-marginal spot spreads as executable opportunities. Exact post-trigger simulation,
-funding cost, measured gas, builder allowance and minimum profit remain mandatory.
+Tests exercise decoders, pool identity, signed envelopes, context isolation,
+funding costs/reserves, lifecycle persistence, queue/state expiry, unsigned PAPER,
+ordered relay validation, historical receipt fidelity and evidence invalidation.
+A dedicated controlled local-chain test mines actual CAPITAL and FLASH_LOAN
+executor calls through the fork backend. CI also verifies PostgreSQL precision,
+contracts, frontend tests/build and Docker configuration/images.
+
+These controlled checks do not provide mainnet tx143 causality, seven-day
+historical/PAPER results, a VPS deployment, or private-relay commissioning.
+Those are explicit outstanding acceptance items until real evidence is collected.
+
+Protocol references:
+[Hardhat fork/mining RPC](https://v2.hardhat.org/hardhat-network/docs/reference),
+[Flashbots bundle RPC](https://docs.flashbots.net/flashbots-auction/advanced/rpc-endpoint),
+[MEV-Share event stream](https://docs.flashbots.net/flashbots-mev-share/searchers/event-stream).

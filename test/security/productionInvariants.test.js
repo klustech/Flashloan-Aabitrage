@@ -15,4 +15,19 @@ describe('Production executor invariants',function(){
   it('refuses zero output limits, invalid path endpoints and missing pool IDs',async()=>{let d=data();d.steps[0].minAmountOut=0;await expect(arb.initiateFlashLoan(d)).to.be.revertedWith('zero minimum output');d=data();d.steps[0].v2Path=[b.address,a.address];await expect(arb.initiateFlashLoan(d)).to.be.revertedWith('v2 path mismatch');d=data();d.steps[0].dexType=3;await expect(arb.initiateFlashLoan(d)).to.be.revertedWith('missing pool id');});
   it('rejects unsolicited callbacks even from the configured pool',async()=>{await ethers.provider.send('hardhat_impersonateAccount',[pool.address]);await ethers.provider.send('hardhat_setBalance',[pool.address,'0x10000000000000000']);const signer=await ethers.getSigner(pool.address);await expect(arb.connect(signer).executeOperation([a.address],[amount],[0],arb.address,'0x')).to.be.revertedWith('unexpected callback');await ethers.provider.send('hardhat_stopImpersonatingAccount',[pool.address]);});
   it('pause prevents flashloan initiation and executor version is explicit',async()=>{expect(await arb.executorVersion()).to.equal(3);await arb.pause();await expect(arb.initiateFlashLoan(data())).to.be.revertedWith('Pausable: paused');});
+  it('capital execution retains all principal, pays only profit and cleans both allowances',async()=>{
+    await a.mint(arb.address,amount.mul(3));const before=await a.balanceOf(owner.address);
+    await arb.executeCapitalArbitrage(data());
+    expect(await a.balanceOf(arb.address)).to.equal(amount.mul(3));
+    expect((await a.balanceOf(owner.address)).sub(before)).to.equal(amount.div(10));
+    expect(await a.allowance(arb.address,r1.address)).to.equal(0);expect(await b.allowance(arb.address,r2.address)).to.equal(0);
+    expect(await a.balanceOf(pool.address)).to.equal(amount.mul(10));
+  });
+  it('capital execution rejects insufficient funds, zero output, broken continuity and pause',async()=>{
+    await expect(arb.executeCapitalArbitrage(data())).to.be.revertedWith('insufficient capital');
+    await a.mint(arb.address,amount);
+    let d=data();d.steps[0].minAmountOut=0;await expect(arb.executeCapitalArbitrage(d)).to.be.revertedWith('zero minimum output');
+    d=data();d.steps[1].tokenIn=a.address;await expect(arb.executeCapitalArbitrage(d)).to.be.reverted;
+    await arb.pause();await expect(arb.executeCapitalArbitrage(data())).to.be.revertedWith('Pausable: paused');
+  });
 });

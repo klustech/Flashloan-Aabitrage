@@ -47,6 +47,7 @@ class MevShareSource extends EventEmitter {
   }
 
   handleEvent(raw){
+    if(raw.length>1048576){this.stats.parseErrors++;this.emit('source_error',new Error('MEV-Share event exceeds limit'));return;}
     const lines=raw.split(/\r?\n/);
     const data=lines.filter(line=>line.startsWith('data:')).map(line=>line.slice(5).trim()).join('\n');
     if(!data)return;
@@ -89,6 +90,7 @@ class MevShareSource extends EventEmitter {
       res.setEncoding('utf8');
       res.on('data',chunk=>{
         buffer+=chunk;
+        if(buffer.length>1048576){res.destroy();this.schedule(new Error('MEV-Share stream buffer exceeds limit'));return;}
         let idx;
         while((idx=buffer.search(/\r?\n\r?\n/))>=0){
           const block=buffer.slice(0,idx);
@@ -104,7 +106,7 @@ class MevShareSource extends EventEmitter {
     req.on?.('error',error=>{if(!settled)this.schedule(error);});
   }
 
-  status(){return {...this.stats,connected:Boolean(this.res&&!this.res.destroyed),closed:this.closed,url:this.url};}
+  status(){return {...this.stats,connected:Boolean(!this.closed&&this.res&&this.res.statusCode===200&&!this.res.destroyed),closed:this.closed};}
 }
 
 module.exports={MevShareSource};

@@ -16,10 +16,12 @@
   "routePools": [
     {
       "dex": "uniswap_v3",
+      "feeTier": 100,
       "address": "0xc7bbec68d12a0d1830360f8ec58fa599ba1b0e9b"
     },
     {
       "dex": "pancake_v3",
+      "feeTier": 100,
       "address": "0xacdb27b266142223e1e676841c1e809255fc6d07"
     }
   ],

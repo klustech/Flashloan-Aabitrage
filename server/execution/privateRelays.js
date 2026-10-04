@@ -34,7 +34,7 @@ class PrivateRelays {
   async submit(approved,bundle,targetBlock,guard){
     const txs=this.normalizeBundle(bundle),results=[];
     for(const item of approved){
-      guard();
+      await guard();
       const response=await item.relay.sendRawBundle(txs,targetBlock);
       if(!response.error)results.push({url:item.url,bundleHash:response.bundleHash});
     }

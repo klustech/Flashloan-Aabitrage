@@ -286,5 +286,25 @@ module.exports = {
   isDbEnabled,
   waitForPoolReady,
   getRecentTrades,
+  async upsertBackrun(record) {
+    await waitForPoolReady();
+    if(!isDbEnabled()||!pool)throw new Error("Backrun persistence unavailable");
+    await pool.query(`INSERT INTO backrun_records(id,trigger_hash,trigger_source,status,mode,parent_block,target_block,payload)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb)
+      ON CONFLICT(id) DO UPDATE SET status=EXCLUDED.status,parent_block=EXCLUDED.parent_block,
+      target_block=EXCLUDED.target_block,payload=EXCLUDED.payload,updated_at=NOW()`,
+      [record.id,record.triggerHash,record.triggerSource,record.status,record.mode,record.parentBlock??null,record.targetBlock??null,JSON.stringify(record)]);
+  },
+  async getBackruns(limit=100) {
+    await waitForPoolReady();
+    if(!isDbEnabled()||!pool)throw new Error("Backrun persistence unavailable");
+    return (await pool.query("SELECT payload FROM backrun_records ORDER BY updated_at DESC LIMIT $1",
+      [Math.max(1,Math.min(2000,Number(limit)||100))])).rows.map(r=>r.payload);
+  },
+  async insertBackrunBenchmark(report) {
+    await waitForPoolReady();
+    if(!isDbEnabled()||!pool)throw new Error("Benchmark persistence unavailable");
+    await pool.query("INSERT INTO backrun_benchmarks(id,profile_fingerprint,payload) VALUES($1,$2,$3::jsonb)",
+      [report.id,report.profileFingerprint,JSON.stringify(report)]);
+  },
 };
-

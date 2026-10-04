@@ -73,18 +73,31 @@ function productionProfile(env = process.env) {
       maxCandidates: integer(env.BACKRUN_MAX_CANDIDATES || 32,'BACKRUN_MAX_CANDIDATES',1,128),
       orderflowSource: String(env.BACKRUN_ORDERFLOW_SOURCE || 'disabled').toLowerCase(),
       mevShareStreamUrl: env.BACKRUN_MEV_SHARE_STREAM_URL || 'https://mev-share.flashbots.net',
+      forkRpcUrl: env.BACKRUN_FORK_RPC_URL || 'http://127.0.0.1:8547',
+      maxTriggerAgeMs: integer(env.BACKRUN_MAX_TRIGGER_AGE_MS || 8000,'BACKRUN_MAX_TRIGGER_AGE_MS',100,60000),
+      simulationTimeoutMs: integer(env.BACKRUN_SIMULATION_TIMEOUT_MS || 8000,'BACKRUN_SIMULATION_TIMEOUT_MS',100,60000),
+      maxSimulationAgeMs: integer(env.BACKRUN_MAX_SIMULATION_AGE_MS || 1500,'BACKRUN_MAX_SIMULATION_AGE_MS',100,10000),
+      maxPending: integer(env.BACKRUN_MAX_PENDING || 64,'BACKRUN_MAX_PENDING',1,2048),
+      latencyBudgetMs: integer(env.BACKRUN_LATENCY_BUDGET_MS || 2500,'BACKRUN_LATENCY_BUDGET_MS',100,10000),
+      benchmarkPath: env.BACKRUN_BENCHMARK_PATH || 'runtime/backrun/benchmark.json',
+      replayProofPath: env.BACKRUN_REPLAY_PROOF_PATH || 'runtime/backrun/replay-proof.json',
+      commissioningPath: env.BACKRUN_COMMISSIONING_PATH || 'runtime/backrun/commissioning.json',
     },
   };
   if (env.DEFAULT_CHAIN && env.DEFAULT_CHAIN !== 'ethereum') throw new Error('Production profile supports Ethereum only');
-  for (const symbol of [...profile.tokenSymbols,...profile.borrowSymbols,...profile.backrun.borrowSymbols]) if (!tokens[symbol] || !profile.tokenSymbols.includes(symbol)) throw new Error(`Unknown/unscanned token ${symbol}`);
+  if(!['true','false'].includes(String(env.BACKRUN_ENABLED||'false').toLowerCase()))throw new Error('BACKRUN_ENABLED must be true or false');
+  for (const symbol of [...profile.tokenSymbols,...profile.borrowSymbols,...(profile.backrun.enabled?profile.backrun.borrowSymbols:[])]) if (!tokens[symbol] || !profile.tokenSymbols.includes(symbol)) throw new Error(`Unknown/unscanned token ${symbol}`);
+  if(!profile.backrun.borrowSymbols.length||new Set(profile.backrun.borrowSymbols).size!==profile.backrun.borrowSymbols.length)throw new Error('Distinct backrun settlement tokens required');
   if (!['adaptive','capital','flashloan'].includes(profile.backrun.fundingMode)) throw new Error('BACKRUN_FUNDING_MODE must be adaptive, capital or flashloan');
-  if (!['disabled','mev_share','custom'].includes(profile.backrun.orderflowSource)) throw new Error('Unsupported BACKRUN_ORDERFLOW_SOURCE');
+  if (!['disabled','public_pending','mev_share','custom'].includes(profile.backrun.orderflowSource)) throw new Error('Unsupported BACKRUN_ORDERFLOW_SOURCE');
   if (profile.backrun.enabled) {
     for (const symbol of profile.backrun.borrowSymbols) {
       if (!profile.backrun.minimumProfitBySymbol[symbol]) throw new Error(`BACKRUN_MIN_PROFIT_${symbol} required when BACKRUN_ENABLED=true`);
       if (!profile.backrun.maxAmountBySymbol[symbol]) throw new Error(`BACKRUN_MAX_AMOUNT_${symbol} required when BACKRUN_ENABLED=true`);
     }
     if (profile.backrun.orderflowSource==='mev_share' && new URL(profile.backrun.mevShareStreamUrl).protocol!=='https:') throw new Error('BACKRUN_MEV_SHARE_STREAM_URL must use HTTPS');
+    if(profile.backrun.orderflowSource==='disabled')throw new Error('Enabled backrun requires an order-flow source');
+    require('../backrun/forkBackend').assertLocalForkUrl(profile.backrun.forkRpcUrl);
   }
   for (const url of profile.relays) if (new URL(url).protocol !== 'https:') throw new Error('Private relay must use HTTPS');
   profile.fingerprint = utils.keccak256(utils.toUtf8Bytes(JSON.stringify(serialize(profile))));
