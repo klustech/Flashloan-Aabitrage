@@ -2,12 +2,28 @@ const { getNetworkConfig } = require('./networkConfig');
 const { integer, address, serialize } = require('../bot/units');
 const { utils } = require('ethers');
 const {paperOnly,assertPaperConfiguration}=require('./paperPolicy');
+
+const BACKRUN_DEFAULTS = Object.freeze({
+  WETH: { minBorrow: '0.01', maxBorrow: '25', minimumProfit: '0.00005' },
+  DAI:  { minBorrow: '100',  maxBorrow: '50000', minimumProfit: '1' },
+  USDC: { minBorrow: '100',  maxBorrow: '50000', minimumProfit: '1' },
+  USDT: { minBorrow: '100',  maxBorrow: '50000', minimumProfit: '1' },
+  WBTC: { minBorrow: '0.001',maxBorrow: '2', minimumProfit: '0.00001' },
+});
+
+function list(value, fallback='') {
+  return String(value || fallback).split(',').map(s=>s.trim()).filter(Boolean);
+}
+function envAmount(env, prefix, symbol, fallback) {
+  return env[`${prefix}_${symbol}`] || fallback;
+}
 function productionProfile(env = process.env) {
   assertPaperConfiguration(env);
   const network = getNetworkConfig('ethereum');
   const tokens = { ...network.tokens };
-  if (env.TOKENS_DAI) tokens.DAI = env.TOKENS_DAI;
-  if (env.TOKENS_WETH) tokens.WETH = env.TOKENS_WETH;
+  for (const symbol of ['DAI','WETH','USDC','USDT','WBTC']) {
+    if (env[`TOKENS_${symbol}`]) tokens[symbol] = env[`TOKENS_${symbol}`];
+  }
   const routers = {
     uniswap_v2: { ...network.dexRouters.uniswap_v2, router: env.UNISWAP_ROUTER_ADDRESS || network.dexRouters.uniswap_v2.router },
     sushiswap_v2: { ...network.dexRouters.sushiswap, router: env.SUSHISWAP_ROUTER_ADDRESS || network.dexRouters.sushiswap.router },
@@ -19,10 +35,43 @@ function productionProfile(env = process.env) {
       quoterVersion: 2, feeTiers: [100,500,2500,10000],
     },
   };
+  const opportunityMode=String(env.OPPORTUNITY_MODE||'block').trim().toLowerCase();
+  if(!['block','backrun','hybrid'].includes(opportunityMode))throw new Error('OPPORTUNITY_MODE must be block, backrun or hybrid');
+  const backrunBorrowSymbols=list(env.BACKRUN_BORROW_TOKENS,'WETH,DAI,USDC');
+  const fundingModes=list(env.BACKRUN_FUNDING_MODES,'TREASURY,AAVE_FLASH_LOAN').map(s=>s.toUpperCase());
+  for(const mode of fundingModes)if(!['TREASURY','AAVE_FLASH_LOAN'].includes(mode))throw new Error(`Unsupported BACKRUN_FUNDING_MODE ${mode}`);
+  const backrunLimits={};
+  for(const symbol of backrunBorrowSymbols){
+    const defaults=BACKRUN_DEFAULTS[symbol]||{minBorrow:'1',maxBorrow:'10000',minimumProfit:'1'};
+    backrunLimits[symbol]=Object.freeze({
+      minBorrow:envAmount(env,'BACKRUN_MIN_BORROW',symbol,defaults.minBorrow),
+      maxBorrow:envAmount(env,'BACKRUN_MAX_BORROW',symbol,defaults.maxBorrow),
+      minimumProfit:envAmount(env,'BACKRUN_MIN_PROFIT',symbol,defaults.minimumProfit),
+    });
+  }
   const profile = {
     chain: 'ethereum', chainId: 1, paperOnly:paperOnly(env), tokens, routers,
-    tokenSymbols: (env.SCAN_TOKENS || 'DAI,WETH,USDC,USDT,WBTC').split(',').map(s=>s.trim()),
-    borrowSymbols: (env.BORROW_TOKENS || 'DAI').split(',').map(s=>s.trim()),
+    opportunityMode,
+    tokenSymbols: list(env.SCAN_TOKENS,'DAI,WETH,USDC,USDT,WBTC'),
+    borrowSymbols: list(env.BORROW_TOKENS,'DAI'),
+    backrunBorrowSymbols,
+    backrunLimits,
+    backrun: Object.freeze({
+      enabled: opportunityMode==='backrun'||opportunityMode==='hybrid',
+      sources:list(env.BACKRUN_ORDER_FLOW_SOURCES,'mev_share'),
+      requireStatePrediction: String(env.BACKRUN_REQUIRE_STATE_PREDICTION||'true').toLowerCase()!=='false',
+      traceTimeoutMs:integer(env.BACKRUN_TRACE_TIMEOUT_MS||2500,'BACKRUN_TRACE_TIMEOUT_MS',250,15000),
+      budgetMs:integer(env.BACKRUN_BUDGET_MS||4000,'BACKRUN_BUDGET_MS',250,10000),
+      maxCandidates:integer(env.BACKRUN_EXACT_QUOTE_CANDIDATES||12,'BACKRUN_EXACT_QUOTE_CANDIDATES',1,32),
+      maxSizedCandidates:integer(env.BACKRUN_SIZED_CANDIDATES||2,'BACKRUN_SIZED_CANDIDATES',1,4),
+      eventTtlMs:integer(env.BACKRUN_EVENT_TTL_MS||12000,'BACKRUN_EVENT_TTL_MS',1000,60000),
+      mevShareStreamUrl:env.MEV_SHARE_STREAM_URL||'https://mev-share.flashbots.net/api/v1/transactions',
+      mevShareApiUrl:env.MEV_SHARE_API_URL||'https://relay.flashbots.net',
+      builders:list(env.MEV_SHARE_BUILDERS,'default'),
+      fundingModes,
+      publicPendingEnabled:String(env.PUBLIC_PENDING_BACKRUN||'false').toLowerCase()==='true',
+      extraRouters:list(env.BACKRUN_EXTRA_ROUTERS),
+    }),
     flashloanProvider: { protocol:'aave', version:2, addressesProvider:env.AAVE_LENDING_POOL_ADDRESS_PROVIDER || network.aave.v2.lendingPoolAddressProvider, lendingPool:env.AAVE_V2_LENDING_POOL || network.aave.v2.lendingPool },
     contractAddress: env.CONTRACT_ADDRESS,
     operatorAddress: env.OPERATOR_ADDRESS,
@@ -30,6 +79,7 @@ function productionProfile(env = process.env) {
     expectedProfitRecipient: env.EXPECTED_PROFIT_RECIPIENT,
     expectedTimelock: env.EXPECTED_TIMELOCK,
     expectedContractCodeHash: env.EXPECTED_CONTRACT_CODE_HASH,
+    requiredExecutorVersion:integer(env.REQUIRED_EXECUTOR_VERSION||2,'REQUIRED_EXECUTOR_VERSION',2,100),
     maxBorrowAmount: env.MAX_BORROW_AMOUNT || '50000',
     minBorrowAmount: env.MIN_BORROW_AMOUNT || '1',
     minimumRequiredProfit: env.MIN_PROFIT_TOKEN || env.MIN_PROFIT_DAI || '1',
@@ -51,14 +101,14 @@ function productionProfile(env = process.env) {
     poolDiscoveryIntervalBlocks: integer(env.POOL_DISCOVERY_INTERVAL_BLOCKS || 300,'POOL_DISCOVERY_INTERVAL_BLOCKS',1,7200),
     maxCachedBlockGap: integer(env.MAX_CACHED_BLOCK_GAP || 64,'MAX_CACHED_BLOCK_GAP',1,256),
     maxRouteHops: 3,
-    relays: (env.APPROVED_PRIVATE_RELAYS || 'https://relay.flashbots.net').split(',').map(s=>s.trim()),
+    relays: list(env.APPROVED_PRIVATE_RELAYS,'https://relay.flashbots.net'),
     confirmations: integer(env.RECEIPT_CONFIRMATIONS || 2,'RECEIPT_CONFIRMATIONS',1,32),
     maxDailyLossNative: env.MAX_DAILY_LOSS_ETH || '0.02',
   };
   if (env.DEFAULT_CHAIN && env.DEFAULT_CHAIN !== 'ethereum') throw new Error('Production profile supports Ethereum only');
-  for (const symbol of [...profile.tokenSymbols,...profile.borrowSymbols]) if (!tokens[symbol] || !profile.tokenSymbols.includes(symbol)) throw new Error(`Unknown/unscanned token ${symbol}`);
-  for (const url of profile.relays) if (new URL(url).protocol !== 'https:') throw new Error('Private relay must use HTTPS');
+  for (const symbol of [...profile.tokenSymbols,...profile.borrowSymbols,...profile.backrunBorrowSymbols]) if (!tokens[symbol] || !profile.tokenSymbols.includes(symbol)) throw new Error(`Unknown/unscanned token ${symbol}`);
+  for (const url of [...profile.relays,profile.backrun.mevShareApiUrl,profile.backrun.mevShareStreamUrl]) if (new URL(url).protocol !== 'https:') throw new Error('Private relay/order-flow endpoints must use HTTPS');
   profile.fingerprint = utils.keccak256(utils.toUtf8Bytes(JSON.stringify(serialize(profile))));
   return Object.freeze(profile);
 }
-module.exports = { productionProfile };
+module.exports = { productionProfile, BACKRUN_DEFAULTS };
