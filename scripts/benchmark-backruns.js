@@ -44,14 +44,15 @@ async function main() {
             if (!opportunities.length) { report.reject("no_viable_exact_route"); return; }
             const best = opportunities[0], measured={};
             for(const option of [best,...best.alternatePrepared]){
-              if(Object.keys(measured).length){await backend.reset(data.parent);await backend.mine(data.raw.slice(0,index+1),data.block);}
+              if(Object.keys(measured).length){await backend.reset(data.parent);await backend.mine(data.raw.slice(0,index+1),data.block,
+                {canonicalTransactions:data.block.transactions.slice(0,index+1)});}
               const transaction=option.transaction;
               const token=new Contract(option.route.borrowToken,["function balanceOf(address) view returns(uint256)"],provider);
               const principal=await token.balanceOf(contract.address,{blockTag:data.block.number});
               // Rebuild the prefix and append the unsigned executor in the
               // SAME historical block, preserving ordering and header.
               const sim=await backend.simulateUnsignedPrefix({rawTransactions:data.raw.slice(0,index+1),
-                parent:data.parent,header:data.block,transaction});
+                parent:data.parent,header:data.block,transaction,canonicalTransactions:data.block.transactions.slice(0,index+1)});
               verifyReceipts(sim.prefixReceipts,data.receipts.slice(0,index+1));
               const execution=sim.backrunReceipt;
               const profit = execution.logs.filter(l=>address(l.address)===address(contract.address)).map(l=>{

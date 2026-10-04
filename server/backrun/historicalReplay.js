@@ -29,7 +29,7 @@ class HistoricalReplay {
     for (const tx of block.transactions) {
       this.progress({ stage: "signed_transaction", blockNumber: number,
         transactionIndex: raw.length, transactionType: Number(tx.type ?? 0) });
-      raw.push(await rawTransaction(this.archive, tx));
+      raw.push(await rawTransaction(this.archive, tx, { canonicalReplay: true }));
       this.progress({ stage: "canonical_receipt", blockNumber: number, transactionIndex: receipts.length });
       receipts.push(await this.archive.getTransactionReceipt(tx.hash));
     }
@@ -46,7 +46,9 @@ class HistoricalReplay {
       let block = data.parent, receipts = [];
       if (endIndex >= 0) {
         this.progress({ stage: "mine_prefix", blockNumber: data.block.number, endIndex });
-        const result = await this.backend.mine(data.raw.slice(0, endIndex + 1), data.block, { signal });
+        const result = await this.backend.mine(data.raw.slice(0, endIndex + 1), data.block, {
+          signal, canonicalTransactions: data.block.transactions.slice(0, endIndex + 1),
+        });
         block = result.block; receipts = result.receipts;
         this.progress({ stage: "verify_receipts", blockNumber: data.block.number, endIndex });
         verifyReceipts(receipts, data.receipts.slice(0, endIndex + 1));

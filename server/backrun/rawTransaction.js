@@ -1,6 +1,6 @@
 const { utils } = require("ethers");
 const { address } = require("../bot/units");
-function validateRaw(rawTx, expectedHash, chainId = 1) {
+function validateRaw(rawTx, expectedHash, chainId = 1, { allowUnprotectedLegacy = false, expectedSender } = {}) {
   if (!utils.isHexString(rawTx) || !utils.isHexString(expectedHash, 32) ||
       utils.keccak256(rawTx).toLowerCase() !== expectedHash.toLowerCase())
     throw new Error("Raw trigger transaction hash mismatch");
@@ -17,11 +17,27 @@ function validateRaw(rawTx, expectedHash, chainId = 1) {
     tx = { chainId:n(fields[0]),nonce:n(fields[1]),from:utils.recoverAddress(digest,{r,s,v:27+parity}),
       to:fields[5],value:fields[6],data:fields[7],gasLimit:require("../bot/units").bn(fields[4]),type,r,s };
   } else tx = utils.parseTransaction(rawTx);
-  if (tx.chainId !== chainId || !tx.from || !tx.r || !tx.s)
-    throw new Error("Signed mainnet trigger required");
+  // v=27/28 legacy signatures remain valid on Ethereum but do not embed a
+  // chain ID. Only canonical historical replay may opt into these envelopes;
+  // pending/LIVE trigger intake keeps the strict chain-ID check by default.
+  const unprotectedLegacy = (tx.type === null || tx.type === 0) && tx.chainId === 0 && [27, 28].includes(tx.v);
+  if ((tx.chainId !== chainId && !(allowUnprotectedLegacy && unprotectedLegacy)) || !tx.from || !tx.r || !tx.s) {
+    const error = new Error("Signed mainnet trigger required");
+    error.transactionChainId = tx.chainId;
+    error.signatureV = tx.v;
+    throw error;
+  }
+  if (allowUnprotectedLegacy && unprotectedLegacy && !expectedSender)
+    throw new Error("Canonical sender required for unprotected legacy replay");
+  if (expectedSender && address(tx.from) !== address(expectedSender))
+    throw new Error("Canonical transaction sender mismatch");
   return { ...tx, from: address(tx.from) };
 }
-async function rawTransaction(provider, tx) {
+function validateCanonicalRaw(rawTx, transaction) {
+  if (!transaction?.hash || !transaction?.from) throw new Error("Canonical transaction hash and sender required");
+  return validateRaw(rawTx, transaction.hash, 1, { allowUnprotectedLegacy: true, expectedSender: transaction.from });
+}
+async function rawTransaction(provider, tx, { canonicalReplay = false } = {}) {
   if (!tx?.hash) throw new Error("Transaction unavailable");
   let raw;
   try { raw = await provider.send("eth_getRawTransactionByHash", [tx.hash]); } catch (_) {}
@@ -56,7 +72,8 @@ async function rawTransaction(provider, tx) {
     raw = utils.serializeTransaction(unsigned, { r: tx.r, s: tx.s, v: tx.v });
     }
   }
-  validateRaw(raw, tx.hash);
+  if (canonicalReplay) validateCanonicalRaw(raw, tx);
+  else validateRaw(raw, tx.hash);
   return raw;
 }
-module.exports = { rawTransaction, validateRaw };
+module.exports = { rawTransaction, validateRaw, validateCanonicalRaw };

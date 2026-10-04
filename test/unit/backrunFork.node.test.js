@@ -52,3 +52,37 @@ test("isolated fork backend mines trigger+unsigned executor in one block for CAP
       }
     }finally{await provider.send("evm_setAutomine",[true]);}
   });
+test("canonical unprotected legacy prefix is mined and revalidated before an unsigned same-block call",
+  {skip:!process.env.LOCAL_BACKRUN_TEST_RPC,timeout:120000},async()=>{
+    const url=process.env.LOCAL_BACKRUN_TEST_RPC,provider=new providers.StaticJsonRpcProvider(url,1);
+    const triggerSigner=Wallet.createRandom(),operator=Wallet.createRandom().address,recipient=Wallet.createRandom().address;
+    await provider.send("hardhat_reset",[]);
+    for(const account of [triggerSigner.address,operator])
+      await provider.send("hardhat_setBalance",[account,utils.hexValue(utils.parseEther("1"))]);
+    await provider.send("evm_setAutomine",[false]);
+    const parent=await latestBlock(provider);
+    let snapshot=await provider.send("evm_snapshot",[]);
+    const backend=new ForkBackend({url,provider});
+    backend.reset=async()=>{
+      assert.equal(await provider.send("evm_revert",[snapshot]),true);
+      snapshot=await provider.send("evm_snapshot",[]);await provider.send("evm_setAutomine",[false]);
+    };
+    const raw=await triggerSigner.signTransaction({to:recipient,value:1,nonce:0,chainId:0,gasLimit:21000,
+      gasPrice:parent.baseFeePerGas.mul(2).add(10)});
+    const canonicalTransactions=[utils.parseTransaction(raw)];
+    const header={...parent,number:parent.number+1,timestamp:parent.timestamp+12,
+      baseFeePerGas:require("../../server/backrun/forkBackend").nextBaseFee(parent)};
+    try{
+      await assert.rejects(backend.mine([raw],header),/Signed mainnet/);
+      await backend.reset(parent);
+      const prefix=await backend.mine([raw],header,{canonicalTransactions});
+      assert.equal(prefix.receipts[0].status,1);
+      const result=await backend.simulateUnsignedPrefix({rawTransactions:[raw],canonicalTransactions,parent,header,
+        transaction:{from:operator,to:recipient,data:"0x",gasLimit:21000,
+          maxFeePerGas:parent.baseFeePerGas.mul(2).add(10),maxPriorityFeePerGas:1}});
+      assert.equal(result.prefixReceipts[0].transactionHash,canonicalTransactions[0].hash);
+      assert.equal(result.backrunReceipt.transactionIndex,1);
+      assert.equal(result.signed,false);assert.equal(result.submitted,false);
+      assert.equal(result.directCoinbasePayment,"0");
+    }finally{await provider.send("evm_setAutomine",[true]);}
+  });

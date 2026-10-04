@@ -305,3 +305,14 @@ configured secrets, long hex payloads and raw provider request/response bodies
 are excluded. No new proof is issued when replay throws. Keep the local fork
 log private: it may contain raw provider errors even though CLI diagnostics are
 sanitized. Share the CLI diagnostic JSON instead.
+
+Historical blocks may contain signed legacy transactions with `v=27/28` and
+no embedded chain ID. EIP-155 retains the validity of that signature scheme.
+Canonical replay accepts these original envelopes only when their hashes and
+recovered senders match the canonical transaction records. It carries those
+records through prefix mining and historical unsigned-executor simulations.
+The raw bytes and parsed chain ID are preserved; signatures are not recreated.
+Pending order-flow and LIVE trigger validation still require chain-ID protection.
+Other-chain protected signatures, typed chain-zero transactions, unsigned
+envelopes, mismatched hashes and mismatched senders remain rejected.
+See [EIP-155](https://eips.ethereum.org/EIPS/eip-155).

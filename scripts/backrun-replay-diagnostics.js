@@ -23,6 +23,8 @@ function replayDiagnostic(error, context = {}, env = process.env) {
     if (Number.isInteger(context[key])) diagnostic[key] = context[key];
   if (typeof error?.code === "string" || typeof error?.code === "number")
     diagnostic.code = redact(error.code, env);
+  for (const key of ["transactionChainId", "signatureV"])
+    if (Number.isInteger(error?.[key])) diagnostic[key] = error[key];
   const nested = error?.error?.reason || error?.error?.message || error?.cause?.message;
   if (nested) diagnostic.rpcMessage = redact(nested, env);
   const causes = [];

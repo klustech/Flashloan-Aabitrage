@@ -1,7 +1,7 @@
 const { providers, utils } = require("ethers");
 const { bn, address } = require("../bot/units");
 const { checkSignal } = require("../bot/asyncControl");
-const { validateRaw } = require("./rawTransaction");
+const { validateRaw, validateCanonicalRaw } = require("./rawTransaction");
 const fs=require("fs"),path=require("path"),{randomUUID}=require("crypto");
 function assertLocalForkUrl(url) {
   const u = new URL(url);
@@ -72,13 +72,16 @@ class ForkBackend {
     if (block.miner) await this.provider.send("hardhat_setCoinbase", [block.miner]);
     if (block.mixHash) await this.provider.send("hardhat_setPrevRandao", [block.mixHash]);
   }
-  async mine(rawTransactions, block, { signal } = {}) {
+  async mine(rawTransactions, block, { signal, canonicalTransactions } = {}) {
+    if (canonicalTransactions !== undefined && (!Array.isArray(canonicalTransactions) || canonicalTransactions.length !== rawTransactions.length))
+      throw new Error("Canonical prefix transaction count mismatch");
     checkSignal(signal); await this.configureBlock(block);
     const expected = [];
     for (const raw of rawTransactions) {
       checkSignal(signal);
       const hash = utils.keccak256(raw);
-      validateRaw(raw, hash);
+      if (canonicalTransactions) validateCanonicalRaw(raw, canonicalTransactions[expected.length]);
+      else validateRaw(raw, hash);
       const accepted = await this.provider.send("eth_sendRawTransaction", [raw]);
       if (accepted.toLowerCase() !== hash.toLowerCase()) throw new Error("Fork accepted a different transaction");
       expected.push(hash);
@@ -104,7 +107,9 @@ class ForkBackend {
   async simulateUnsignedBundle({ trigger, parent, header, transaction, signal }) {
     return this.simulateUnsignedPrefix({ rawTransactions:[trigger.rawTx],parent,header,transaction,signal });
   }
-  async simulateUnsignedPrefix({rawTransactions,parent,header,transaction,signal}) {
+  async simulateUnsignedPrefix({rawTransactions,parent,header,transaction,signal,canonicalTransactions}) {
+    if (canonicalTransactions !== undefined && (!Array.isArray(canonicalTransactions) || canonicalTransactions.length !== rawTransactions.length))
+      throw new Error("Canonical prefix transaction count mismatch");
     const prefix=await latestBlock(this.provider),expectedPrefix=rawTransactions.map(utils.keccak256);
     if(prefix.number!==header.number||prefix.transactions.length!==expectedPrefix.length||
       expectedPrefix.some((h,i)=>prefix.transactions[i].toLowerCase()!==h.toLowerCase()))
@@ -115,7 +120,9 @@ class ForkBackend {
     await this.reset(parent, signal); await this.configureBlock(header);
     const expected=[];
     for(const raw of rawTransactions){
-      checkSignal(signal);const hash=utils.keccak256(raw);validateRaw(raw,hash);
+      checkSignal(signal);const hash=utils.keccak256(raw);
+      if (canonicalTransactions) validateCanonicalRaw(raw, canonicalTransactions[expected.length]);
+      else validateRaw(raw,hash);
       const accepted=await this.provider.send("eth_sendRawTransaction",[raw]);
       if(accepted.toLowerCase()!==hash.toLowerCase())throw new Error("Prefix accepted transaction mismatch");
       expected.push(hash);
