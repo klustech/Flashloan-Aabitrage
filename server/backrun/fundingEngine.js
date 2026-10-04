@@ -53,17 +53,20 @@ class FundingEngine {
     };
 
     const capital = await this.capitalAvailable(token, blockTag);
-    const capitalNet = grossProfit.sub(variableCost);
+    const capitalCostCovered = grossProfit.gte(variableCost);
+    const capitalNet = capitalCostCovered ? grossProfit.sub(variableCost) : bn(0);
     const capitalViable =
-      capital.gte(amount) && capitalNet.gte(minimum);
+      capitalCostCovered && capital.gte(amount) && capitalNet.gte(minimum);
 
     const premiumBps = Number(terms?.premiumBps);
     const validTerms = terms?.premiumBps !== null && terms?.premiumBps !== undefined &&
       Number.isInteger(premiumBps) && premiumBps >= 0 && premiumBps < 10000;
     const flashFee = validTerms ? this.flashloan.fee(amount, premiumBps) : bn(0);
-    const flashNet = grossProfit.sub(variableCost).sub(flashFee);
+    const flashCost = variableCost.add(flashFee);
+    const flashCostCovered = validTerms && grossProfit.gte(flashCost);
+    const flashNet = flashCostCovered ? grossProfit.sub(flashCost) : bn(0);
     const flashViable =
-      validTerms && bn(terms?.availableLiquidity ?? 0).gte(amount) &&
+      flashCostCovered && bn(terms?.availableLiquidity ?? 0).gte(amount) &&
       flashNet.gte(minimum);
 
     if ((mode === "adaptive" || mode === "capital") && capitalViable) {
@@ -75,6 +78,8 @@ class FundingEngine {
         flashFee,
         capitalNet,
         flashNet,
+        capitalCostCovered,
+        flashCostCovered,
         protectedReserveBps: this.profile.backrun.capitalReserveBps,
         capitalViable, flashViable,
       };
@@ -88,6 +93,8 @@ class FundingEngine {
         flashFee,
         capitalNet,
         flashNet,
+        capitalCostCovered,
+        flashCostCovered,
         protectedReserveBps: this.profile.backrun.capitalReserveBps,
         capitalViable, flashViable,
       };
@@ -105,6 +112,8 @@ class FundingEngine {
       flashFee,
       capitalNet,
       flashNet,
+      capitalCostCovered,
+      flashCostCovered,
     };
   }
 }
