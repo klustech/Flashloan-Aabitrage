@@ -108,7 +108,7 @@ source .env.backrun-paper
 set +a
 export PAPER_ENV_FILE=.env.backrun-paper
 test -z "${PRIVATE_KEY:-}" || { echo "Remove PRIVATE_KEY from the PAPER profile"; exit 1; }
-npm ci --ignore-scripts --legacy-peer-deps
+npm ci --include=dev --ignore-scripts --legacy-peer-deps
 npm --prefix server ci --ignore-scripts --legacy-peer-deps
 npm run db:migrate:executions
 npm run backrun:fork
@@ -150,7 +150,7 @@ The supplied transcript is preserved as
 diagnostic evidence. It is not converted into a successful regression proof.
 
 ```bash
-npm run backrun:replay
+npm run backrun:replay -- --local
 ```
 
 The command reconstructs four independent prefixes of block 26115902:
@@ -284,3 +284,24 @@ Protocol references:
 [Hardhat fork/mining RPC](https://v2.hardhat.org/hardhat-network/docs/reference),
 [Flashbots bundle RPC](https://docs.flashbots.net/flashbots-auction/advanced/rpc-endpoint),
 [MEV-Share event stream](https://docs.flashbots.net/flashbots-mev-share/searchers/event-stream).
+
+## Replay diagnostics and local node lifecycle
+
+Use `npm run backrun:replay -- --local` for a single-terminal replay. It starts a
+chain-1 Hardhat node on loopback port 8547 if needed, waits for readiness, and
+stops only the process group it created when replay ends. An already-running
+verified chain-1 Hardhat node is reused and left running. Without `--local`,
+keep `npm run backrun:fork` alive in another terminal while replay executes.
+
+Hardhat is a development dependency. Install with `npm ci --include=dev
+--ignore-scripts --legacy-peer-deps`, even when the PAPER environment has
+`NODE_ENV=production`. This command does not enable signing or LIVE execution.
+
+Replay prints bounded progress for configuration, archive chain ID, canonical
+headers, signed envelopes, fork resets, prefix mining, receipt verification and
+quotes. On failure, `BACKRUN_REPLAY_FAILED` reports the stage, relevant block or
+transaction index, error code and sanitized diagnostic. Authenticated URLs,
+configured secrets, long hex payloads and raw provider request/response bodies
+are excluded. No new proof is issued when replay throws. Keep the local fork
+log private: it may contain raw provider errors even though CLI diagnostics are
+sanitized. Share the CLI diagnostic JSON instead.

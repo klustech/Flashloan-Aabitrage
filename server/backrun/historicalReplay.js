@@ -15,17 +15,22 @@ function verifyReceipts(actual, expected) {
   }
 }
 class HistoricalReplay {
-  constructor({ archive, backend }) { Object.assign(this, { archive, backend }); this.cache = new Map(); }
+  constructor({ archive, backend, progress = () => {} }) { Object.assign(this, { archive, backend, progress }); this.cache = new Map(); }
   async block(number) {
     if (this.cache.has(number)) return this.cache.get(number);
+    this.progress({ stage: "canonical_block", blockNumber: number });
     const [block, rawHeader] = await Promise.all([this.archive.getBlockWithTransactions(number),
       this.archive.send("eth_getBlockByNumber", ["0x" + number.toString(16), false])]);
     if (!block?.hash || !rawHeader?.hash || block.hash !== rawHeader.hash) throw new Error("Historical block unavailable");
+    this.progress({ stage: "canonical_parent", blockNumber: number - 1 });
     const parent = await this.archive.getBlock(number - 1);
     if (parent.hash !== block.parentHash) throw new Error("Historical parent mismatch");
     const raw = [], receipts = [];
     for (const tx of block.transactions) {
+      this.progress({ stage: "signed_transaction", blockNumber: number,
+        transactionIndex: raw.length, transactionType: Number(tx.type ?? 0) });
       raw.push(await rawTransaction(this.archive, tx));
+      this.progress({ stage: "canonical_receipt", blockNumber: number, transactionIndex: receipts.length });
       receipts.push(await this.archive.getTransactionReceipt(tx.hash));
     }
     const data = { block: { ...block, mixHash: rawHeader.mixHash }, parent, raw, receipts };
@@ -34,14 +39,19 @@ class HistoricalReplay {
   async prefix(data, endIndex, work, signal) {
     if (!Number.isInteger(endIndex) || endIndex < -1 || endIndex >= data.raw.length)
       throw new Error("Historical prefix outside block");
+    this.progress({ stage: "fork_lock", blockNumber: data.block.number, endIndex });
     return this.backend.exclusive(async () => {
+      this.progress({ stage: "fork_reset", blockNumber: data.parent.number, endIndex });
       await this.backend.reset(data.parent, signal);
       let block = data.parent, receipts = [];
       if (endIndex >= 0) {
+        this.progress({ stage: "mine_prefix", blockNumber: data.block.number, endIndex });
         const result = await this.backend.mine(data.raw.slice(0, endIndex + 1), data.block, { signal });
         block = result.block; receipts = result.receipts;
+        this.progress({ stage: "verify_receipts", blockNumber: data.block.number, endIndex });
         verifyReceipts(receipts, data.receipts.slice(0, endIndex + 1));
       }
+      this.progress({ stage: "quote_prefix", blockNumber: block.number, endIndex });
       return work({ provider: this.backend.provider, block, receipts, raw: data.raw.slice(0, endIndex + 1) });
     }, signal);
   }
