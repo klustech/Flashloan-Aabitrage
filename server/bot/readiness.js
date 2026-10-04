@@ -31,8 +31,8 @@ async function startupChecks({
       utils.keccak256(code) !== profile.expectedContractCodeHash
     )
       throw new Error("EXPECTED_CONTRACT_CODE_HASH missing/mismatched");
-    if ((await contract.executorVersion()).toString() !== "2")
-      throw new Error("hardened executor version required");
+    if ((await contract.executorVersion()).toString() !== "3")
+      throw new Error("backrun-capable hardened executor version required");
   });
   if (requireSignerGas)
     await check("signer gas", async () => {

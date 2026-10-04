@@ -2,9 +2,18 @@ const { getNetworkConfig } = require('./networkConfig');
 const { integer, address, serialize } = require('../bot/units');
 const { utils } = require('ethers');
 const {paperOnly,assertPaperConfiguration}=require('./paperPolicy');
+function optionalPositiveDecimal(value,name){
+  if(value===undefined||value===null||String(value).trim()==='')return null;
+  const text=String(value).trim();
+  if(!/^\d+(?:\.\d+)?$/.test(text)||Number(text)<=0)throw new Error(`${name} must be a positive decimal`);
+  return text;
+}
 function productionProfile(env = process.env) {
   assertPaperConfiguration(env);
   const network = getNetworkConfig('ethereum');
+  const backrunBorrowSymbols=(env.BACKRUN_BORROW_TOKENS || 'WETH,DAI,USDC').split(',').map(s=>s.trim()).filter(Boolean);
+  const backrunMinimumProfitBySymbol=Object.fromEntries(backrunBorrowSymbols.map(symbol=>[symbol,optionalPositiveDecimal(env[`BACKRUN_MIN_PROFIT_${symbol}`],`BACKRUN_MIN_PROFIT_${symbol}`)]));
+  const backrunMaxAmountBySymbol=Object.fromEntries(backrunBorrowSymbols.map(symbol=>[symbol,optionalPositiveDecimal(env[`BACKRUN_MAX_AMOUNT_${symbol}`],`BACKRUN_MAX_AMOUNT_${symbol}`)]));
   const tokens = { ...network.tokens };
   if (env.TOKENS_DAI) tokens.DAI = env.TOKENS_DAI;
   if (env.TOKENS_WETH) tokens.WETH = env.TOKENS_WETH;
@@ -54,9 +63,29 @@ function productionProfile(env = process.env) {
     relays: (env.APPROVED_PRIVATE_RELAYS || 'https://relay.flashbots.net').split(',').map(s=>s.trim()),
     confirmations: integer(env.RECEIPT_CONFIRMATIONS || 2,'RECEIPT_CONFIRMATIONS',1,32),
     maxDailyLossNative: env.MAX_DAILY_LOSS_ETH || '0.02',
+    backrun: {
+      enabled: String(env.BACKRUN_ENABLED || 'false').toLowerCase() === 'true',
+      borrowSymbols: backrunBorrowSymbols,
+      minimumProfitBySymbol: backrunMinimumProfitBySymbol,
+      maxAmountBySymbol: backrunMaxAmountBySymbol,
+      fundingMode: String(env.BACKRUN_FUNDING_MODE || 'adaptive').toLowerCase(),
+      capitalReserveBps: integer(env.BACKRUN_CAPITAL_RESERVE_BPS || 1000,'BACKRUN_CAPITAL_RESERVE_BPS',0,9900),
+      maxCandidates: integer(env.BACKRUN_MAX_CANDIDATES || 32,'BACKRUN_MAX_CANDIDATES',1,128),
+      orderflowSource: String(env.BACKRUN_ORDERFLOW_SOURCE || 'disabled').toLowerCase(),
+      mevShareStreamUrl: env.BACKRUN_MEV_SHARE_STREAM_URL || 'https://mev-share.flashbots.net',
+    },
   };
   if (env.DEFAULT_CHAIN && env.DEFAULT_CHAIN !== 'ethereum') throw new Error('Production profile supports Ethereum only');
-  for (const symbol of [...profile.tokenSymbols,...profile.borrowSymbols]) if (!tokens[symbol] || !profile.tokenSymbols.includes(symbol)) throw new Error(`Unknown/unscanned token ${symbol}`);
+  for (const symbol of [...profile.tokenSymbols,...profile.borrowSymbols,...profile.backrun.borrowSymbols]) if (!tokens[symbol] || !profile.tokenSymbols.includes(symbol)) throw new Error(`Unknown/unscanned token ${symbol}`);
+  if (!['adaptive','capital','flashloan'].includes(profile.backrun.fundingMode)) throw new Error('BACKRUN_FUNDING_MODE must be adaptive, capital or flashloan');
+  if (!['disabled','mev_share','custom'].includes(profile.backrun.orderflowSource)) throw new Error('Unsupported BACKRUN_ORDERFLOW_SOURCE');
+  if (profile.backrun.enabled) {
+    for (const symbol of profile.backrun.borrowSymbols) {
+      if (!profile.backrun.minimumProfitBySymbol[symbol]) throw new Error(`BACKRUN_MIN_PROFIT_${symbol} required when BACKRUN_ENABLED=true`);
+      if (!profile.backrun.maxAmountBySymbol[symbol]) throw new Error(`BACKRUN_MAX_AMOUNT_${symbol} required when BACKRUN_ENABLED=true`);
+    }
+    if (profile.backrun.orderflowSource==='mev_share' && new URL(profile.backrun.mevShareStreamUrl).protocol!=='https:') throw new Error('BACKRUN_MEV_SHARE_STREAM_URL must use HTTPS');
+  }
   for (const url of profile.relays) if (new URL(url).protocol !== 'https:') throw new Error('Private relay must use HTTPS');
   profile.fingerprint = utils.keccak256(utils.toUtf8Bytes(JSON.stringify(serialize(profile))));
   return Object.freeze(profile);

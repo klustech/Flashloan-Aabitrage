@@ -610,5 +610,102 @@
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "borrowToken",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "borrowAmount",
+            "type": "uint256"
+          },
+          {
+            "components": [
+              {
+                "internalType": "enum ArbitrageFlashloan.DexType",
+                "name": "dexType",
+                "type": "uint8"
+              },
+              {
+                "internalType": "address",
+                "name": "router",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "tokenIn",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "tokenOut",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "minAmountOut",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint24",
+                "name": "v3Fee",
+                "type": "uint24"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "balancerPoolId",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "int128",
+                "name": "curveIndexIn",
+                "type": "int128"
+              },
+              {
+                "internalType": "int128",
+                "name": "curveIndexOut",
+                "type": "int128"
+              },
+              {
+                "internalType": "bool",
+                "name": "curveUnderlying",
+                "type": "bool"
+              },
+              {
+                "internalType": "address[]",
+                "name": "v2Path",
+                "type": "address[]"
+              }
+            ],
+            "internalType": "struct ArbitrageFlashloan.SwapStep[]",
+            "name": "steps",
+            "type": "tuple[]"
+          },
+          {
+            "internalType": "uint256",
+            "name": "minProfit",
+            "type": "uint256"
+          },
+          {
+            "internalType": "string",
+            "name": "route",
+            "type": "string"
+          }
+        ],
+        "internalType": "struct ArbitrageFlashloan.ArbitrageData",
+        "name": "data",
+        "type": "tuple"
+      }
+    ],
+    "name": "executeCapitalArbitrage",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
   }
 ]

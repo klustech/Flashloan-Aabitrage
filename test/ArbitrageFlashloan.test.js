@@ -172,6 +172,38 @@ describe("ArbitrageFlashloan", function () {
     expect(poolBalance).to.equal(flashAmount.mul(10).add(premium));
   });
 
+  it("executes a profitable cycle with owned capital and preserves principal", async () => {
+    await dai.mint(arbitrage.address, flashAmount);
+    const beforeRecipient = await dai.balanceOf(deployer.address);
+    const arbData = buildArbData();
+
+    const expectedProfit = flashAmount.mul(11).div(10).sub(flashAmount);
+    const tx = await arbitrage.executeCapitalArbitrage(arbData);
+
+    await expect(tx)
+      .to.emit(arbitrage, "ArbitrageExecuted")
+      .withArgs(flashAmount, expectedProfit, routeString);
+
+    expect(await dai.balanceOf(arbitrage.address)).to.equal(flashAmount);
+    expect((await dai.balanceOf(deployer.address)).sub(beforeRecipient)).to.equal(expectedProfit);
+  });
+
+  it("rejects owned-capital execution from non-owners and cannot subsidize a losing route", async () => {
+    const [, attacker] = await ethers.getSigners();
+    await dai.mint(arbitrage.address, flashAmount);
+    await expect(
+      arbitrage.connect(attacker).executeCapitalArbitrage(buildArbData())
+    ).to.be.revertedWith("unauthorized");
+
+    await routerB.setRate(weth.address, dai.address, 1, 1);
+    const data = buildArbData({ minProfit: 1 });
+    data.steps[1].minAmountOut = 1;
+    await expect(arbitrage.executeCapitalArbitrage(data)).to.be.revertedWith(
+      "profit<minProfit"
+    );
+    expect(await dai.balanceOf(arbitrage.address)).to.equal(flashAmount);
+  });
+
   it("reverts a non-profitable cycle (profit < minProfit)", async () => {
     // Make routerB return only 1:1, so the cycle returns 100 DAI < 100.09 + 1.
     await routerB.setRate(weth.address, dai.address, 1, 1);

@@ -12,4 +12,19 @@ function validateBundleSimulation(simulation,{signedTx,stateBlock,maxGasUnits}) 
   if(result.ethSentToCoinbase===undefined||!bn(result.ethSentToCoinbase).isZero())throw new Error('Unexpected direct coinbase payment');
   return {gasUsed,builderDirectPaymentNative:bn(0)};
 }
-module.exports={validateBundleSimulation};
+function validateBackrunBundleSimulation(simulation,{triggerRawTx,backrunSignedTx,stateBlock,maxGasUnits}) {
+  if(!simulation||simulation.error||simulation.firstRevert||!Array.isArray(simulation.results)||simulation.results.length!==2)
+    throw new Error('Backrun bundle simulation failed/missing');
+  if(Number(simulation.stateBlockNumber)!==stateBlock)throw new Error('Backrun bundle simulation state block mismatch');
+  const [trigger,backrun]=simulation.results;
+  const triggerHash=utils.keccak256(triggerRawTx).toLowerCase();
+  const backrunHash=utils.keccak256(backrunSignedTx).toLowerCase();
+  if(trigger.error||trigger.revert||trigger.txHash?.toLowerCase()!==triggerHash)throw new Error('Trigger transaction failed/mismatched');
+  if(backrun.error||backrun.revert||backrun.txHash?.toLowerCase()!==backrunHash)throw new Error('Backrun transaction failed/mismatched');
+  const gasUsed=bn(backrun.gasUsed),triggerGasUsed=bn(trigger.gasUsed||0);
+  if(gasUsed.lte(0)||gasUsed.gt(maxGasUnits))throw new Error('Backrun gas outside limits');
+  if(!bn(simulation.totalGasUsed).eq(triggerGasUsed.add(gasUsed)))throw new Error('Backrun bundle gas accounting mismatch');
+  if(backrun.ethSentToCoinbase===undefined||!bn(backrun.ethSentToCoinbase).isZero())throw new Error('Unexpected direct coinbase payment');
+  return {gasUsed,triggerGasUsed,builderDirectPaymentNative:bn(0),triggerHash,backrunHash};
+}
+module.exports={validateBundleSimulation,validateBackrunBundleSimulation};

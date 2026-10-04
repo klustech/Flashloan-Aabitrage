@@ -4,7 +4,7 @@ This document outlines the architectural decisions and limitations of the `Arbit
 
 ## Overview
 
-The arbitrage contract exposes a **single entrypoint**, `initiateFlashLoan(ArbitrageData)`, which executes a multi-DEX route in one flash loan. The legacy V2-only path has been removed; every route (including pure-V2 routes) now flows through this one function. Supported DEX types per `SwapStep`:
+Executor v3 exposes two route entrypoints: `initiateFlashLoan(ArbitrageData)` for Aave V2 funding and `executeCapitalArbitrage(ArbitrageData)` for capital already held by the executor. Both use the same validated multi-DEX route structure and profit-or-revert guards. The legacy V2-only path remains removed. Supported DEX types per `SwapStep`:
 
 - Uniswap V2 (`DexType.UNISWAP_V2`)
 - Uniswap V3 (`DexType.UNISWAP_V3`)

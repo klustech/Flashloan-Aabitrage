@@ -2,8 +2,8 @@
 pragma solidity 0.8.20;
 
 /// @title ArbitrageFlashloan
-/// @notice Aave V2 flash-loan arbitrage contract with multi-DEX support (V2, V3, Balancer, Curve)
-/// @dev Supports N-hop dynamic paths, profit recipient config, and timelock integration
+/// @notice Multi-DEX arbitrage executor supporting Aave V2 flash liquidity and pre-funded capital
+/// @dev Supports N-hop dynamic paths, adaptive funding entrypoints, profit recipient config, and timelock integration
 
 import {IFlashLoanReceiver} from "./interfaces/IFlashLoanReceiver.sol";
 import {ILendingPool} from "./interfaces/ILendingPool.sol";
@@ -73,7 +73,7 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
 
     ILendingPoolAddressesProvider public immutable provider;
     ILendingPool public immutable lendingPool;
-    uint256 public constant executorVersion = 2;
+    uint256 public constant executorVersion = 3;
     bool private loanActive;
     bool private callbackCompleted;
     bytes32 private activeDataHash;
@@ -240,6 +240,37 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
         require(callbackCompleted, "callback missing");
         loanActive = false;
         activeDataHash = bytes32(0);
+    }
+
+    /// @notice Execute an arbitrage route with capital already held by this contract.
+    /// @dev The starting capital remains in the executor; only realized profit is transferred.
+    function executeCapitalArbitrage(ArbitrageData calldata data)
+        external
+        onlyOwner
+        whenNotPaused
+        nonReentrant
+    {
+        require(!loanActive, "loan active");
+        _validateArbitrageData(data);
+
+        IERC20 token = IERC20(data.borrowToken);
+        uint256 startingBalance = token.balanceOf(address(this));
+        require(startingBalance >= data.borrowAmount, "insufficient capital");
+
+        uint256 currentAmount = data.borrowAmount;
+        for (uint256 i = 0; i < data.steps.length; i++) {
+            currentAmount = _executeSwap(data.steps[i], currentAmount);
+        }
+
+        uint256 finalBalance = token.balanceOf(address(this));
+        require(finalBalance >= startingBalance + data.minProfit, "profit<minProfit");
+
+        uint256 profit = finalBalance - startingBalance;
+        if (profit > 0) {
+            token.safeTransfer(profitRecipient, profit);
+            emit ProfitWithdrawn(data.borrowToken, profitRecipient, profit);
+        }
+        emit ArbitrageExecuted(data.borrowAmount, int256(profit), data.route);
     }
 
     /// @inheritdoc IFlashLoanReceiver

@@ -100,6 +100,44 @@ test("PAPER_ONLY rejects keys, invalid flags, arming, direct LIVE state and spoo
   }
   assert.equal(productionProfile({ PAPER_ONLY: "true" }).paperOnly, true);
 });
+test("backrun profile is disabled by default, WETH-first and validates funding/source modes", () => {
+  const profile = productionProfile({ PAPER_ONLY: "true" });
+  assert.equal(profile.backrun.enabled, false);
+  assert.deepEqual(profile.backrun.borrowSymbols, ["WETH", "DAI", "USDC"]);
+  assert.equal(profile.backrun.fundingMode, "adaptive");
+  assert.equal(profile.backrun.orderflowSource, "disabled");
+  assert.throws(
+    () => productionProfile({ PAPER_ONLY: "true", BACKRUN_FUNDING_MODE: "magic" }),
+    /BACKRUN_FUNDING_MODE/
+  );
+  assert.throws(
+    () => productionProfile({ PAPER_ONLY: "true", BACKRUN_ORDERFLOW_SOURCE: "mystery" }),
+    /BACKRUN_ORDERFLOW_SOURCE/
+  );
+  assert.throws(
+    () => productionProfile({
+      PAPER_ONLY: "true",
+      BACKRUN_ENABLED: "true",
+      BACKRUN_ORDERFLOW_SOURCE: "mev_share",
+    }),
+    /BACKRUN_MIN_PROFIT_WETH/
+  );
+  const enabled = productionProfile({
+    PAPER_ONLY: "true",
+    BACKRUN_ENABLED: "true",
+    BACKRUN_ORDERFLOW_SOURCE: "mev_share",
+    BACKRUN_MIN_PROFIT_WETH: "0.00001",
+    BACKRUN_MAX_AMOUNT_WETH: "1",
+    BACKRUN_MIN_PROFIT_DAI: "1",
+    BACKRUN_MAX_AMOUNT_DAI: "50000",
+    BACKRUN_MIN_PROFIT_USDC: "1",
+    BACKRUN_MAX_AMOUNT_USDC: "50000",
+  });
+  assert.equal(enabled.backrun.enabled, true);
+  assert.equal(enabled.backrun.minimumProfitBySymbol.WETH, "0.00001");
+  assert.equal(enabled.backrun.maxAmountBySymbol.WETH, "1");
+});
+
 function preflightFixture() {
   return {
     env: {

@@ -103,6 +103,11 @@ async function preflight({
   await check("public fallback disabled", () =>
     requireValue(env.ALLOW_PUBLIC_MEMPOOL_FALLBACK === "false", "fallback")
   );
+  await check("backrun order-flow configuration", () => {
+    const profile = productionProfile(env);
+    if (profile.backrun.enabled)
+      requireValue(profile.backrun.orderflowSource !== "disabled", "BACKRUN_ORDERFLOW_SOURCE");
+  });
   await check("API authentication", () =>
     requireValue(String(env.API_KEY || "").trim(), "API_KEY")
   );
