@@ -1202,6 +1202,21 @@ app.post("/api/rl/reset", (_req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // Opportunities API
 // ─────────────────────────────────────────────────────────────────────────────
+// GET /api/backrun/status
+// Read-only diagnostics for the transaction-triggered backrun pipeline.
+app.get("/api/backrun/status", (_req, res) => {
+  try {
+    const c = coordinator();
+    res.json(c.backrunService?.status?.() || {
+      started: false,
+      enabled: Boolean(c.profile.backrun?.enabled),
+      mode: c.profile.opportunityMode,
+    });
+  } catch (err) {
+    res.status(503).json({ error: err.message });
+  }
+});
+
 
 // GET /api/opportunities
 // Returns recent arbitrage opportunities detected by the bot
@@ -1923,6 +1938,7 @@ app.get("/api/daily-stats", async (_req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 function startArbitrageScheduler() {
   const c = coordinator();
+  if (!["block","hybrid"].includes(c.profile.opportunityMode)) return null;
   if (c.scheduler) return c.scheduler;
   const { BlockScheduler } = require("../bot/blockScheduler");
   c.scheduler = new BlockScheduler({
@@ -2164,8 +2180,20 @@ const start = async (port = PORT) => {
   // Initialize WebSocket server
   initWebSocketServer(server);
   if (process.env.NODE_ENV !== "test") {
+    const c = coordinator();
     const scheduler = startArbitrageScheduler();
-    server.once("close", () => scheduler.stop());
+    if (c.profile.backrun?.enabled) {
+      const { BackrunService } = require("../backrun/backrunService");
+      c.backrunService = c.backrunService || new BackrunService({ coordinator: c });
+      c.backrunService.start();
+      logger.info(
+        `[Backrun] transaction-triggered service started (mode=${c.profile.opportunityMode}, sources=${c.profile.backrun.sources.join(",")})`
+      );
+    }
+    server.once("close", () => {
+      scheduler?.stop();
+      c.backrunService?.stop?.();
+    });
   }
 
   return new Promise((resolve) => {
