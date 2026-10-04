@@ -17,6 +17,8 @@ class FundingEngine {
     flashPremiumBps = 0,
     gasCostBorrowToken = 0,
     builderPaymentBorrowToken = 0,
+    gasCostByMode = {},
+    builderPaymentByMode = {},
     minimumRequiredProfit = 0,
     allowedModes = ["TREASURY", "AAVE_FLASH_LOAN"],
   }) {
@@ -24,8 +26,9 @@ class FundingEngine {
     const finalAmount = bn(expectedFinalAmount);
     const treasury = bn(treasuryBalance);
     const liquidity = bn(flashLiquidity);
-    const gas = bn(gasCostBorrowToken);
-    const builder = bn(builderPaymentBorrowToken);
+    const costFor = (mode, map, fallback) => bn(map?.[mode] ?? fallback);
+    const gas = mode => costFor(mode, gasCostByMode, gasCostBorrowToken);
+    const builder = mode => costFor(mode, builderPaymentByMode, builderPaymentBorrowToken);
     const threshold = bn(minimumRequiredProfit);
     const allowed = new Set(allowedModes.map(normalizeMode));
     const options = [];
@@ -33,12 +36,16 @@ class FundingEngine {
     if (allowed.has("TREASURY") && treasury.gte(amount)) {
       const financingFee = bn(0);
       const grossProfit = finalAmount.sub(amount);
-      const expectedNetProfit = grossProfit.sub(gas).sub(builder);
+      const gasCost = gas("TREASURY");
+      const builderPayment = builder("TREASURY");
+      const expectedNetProfit = grossProfit.sub(gasCost).sub(builderPayment);
       options.push({
         mode: "TREASURY",
         financingFee,
         grossProfit,
         expectedNetProfit,
+        gasCostBorrowToken: gasCost,
+        builderPaymentBorrowToken: builderPayment,
         profitable: expectedNetProfit.gt(0) && expectedNetProfit.gte(threshold),
         availableLiquidity: treasury,
       });
@@ -47,12 +54,16 @@ class FundingEngine {
     if (allowed.has("AAVE_FLASH_LOAN") && liquidity.gte(amount)) {
       const financingFee = amount.mul(Number(flashPremiumBps)).add(5000).div(10000);
       const grossProfit = finalAmount.sub(amount).sub(financingFee);
-      const expectedNetProfit = grossProfit.sub(gas).sub(builder);
+      const gasCost = gas("AAVE_FLASH_LOAN");
+      const builderPayment = builder("AAVE_FLASH_LOAN");
+      const expectedNetProfit = grossProfit.sub(gasCost).sub(builderPayment);
       options.push({
         mode: "AAVE_FLASH_LOAN",
         financingFee,
         grossProfit,
         expectedNetProfit,
+        gasCostBorrowToken: gasCost,
+        builderPaymentBorrowToken: builderPayment,
         profitable: expectedNetProfit.gt(0) && expectedNetProfit.gte(threshold),
         availableLiquidity: liquidity,
       });
