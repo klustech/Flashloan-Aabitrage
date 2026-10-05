@@ -10,6 +10,7 @@ upload and Solhint style lint, which have no security role.
 | Slither | `security-gates.yml` | Any High-impact finding outside `contracts/mocks` |
 | Dependency audit | `security-gates.yml` → `scripts/audit-gate.js` | A high/critical production advisory (root, `server`, `frontend`) is not in `security/audit-exceptions.json`, or its `reviewBy` date has passed |
 | Production deploy | `deploy-production.yml` | Run from any ref other than `main`; production core or security gates fail on the deployed commit |
+| Production rollout | `deploy-production.yml` | Never runs in the same run as a contract deployment. Apply the uploaded `runtime/deployment.json` to production config, then dispatch again with `skip_contract_deploy=true` |
 
 ## Reviewed exceptions
 

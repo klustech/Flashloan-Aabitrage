@@ -17,10 +17,16 @@ function audit(dir) {
   try {
     out = execFileSync("npm", ["audit", "--omit=dev", "--json"], { cwd: path.join(ROOT, dir), encoding: "utf8", maxBuffer: 64 << 20 });
   } catch (err) {
-    out = err.stdout; // npm audit exits non-zero whenever it finds anything
+    // Exit status 1 with a JSON report is npm's normal "advisories found"
+    // result. A spawn failure, signal or other status means no audit ran.
+    if (err.status !== 1 || !err.stdout) throw new Error(`npm audit did not run in ${dir} (${err.code || err.signal || `status ${err.status}`})`);
+    out = err.stdout;
   }
-  const report = JSON.parse(out || "{}");
+  let report;
+  try { report = JSON.parse(out); } catch (_) { throw new Error(`npm audit returned unparseable output in ${dir}`); }
   if (report.error) throw new Error(`npm audit failed in ${dir}: ${report.error.summary || report.error.code}`);
+  if (!report.metadata?.vulnerabilities || typeof report.vulnerabilities !== "object")
+    throw new Error(`npm audit returned no vulnerability report in ${dir}`);
   const found = new Map();
   for (const vuln of Object.values(report.vulnerabilities || {}))
     for (const via of vuln.via || [])
@@ -58,5 +64,7 @@ function main({ today = new Date().toISOString().slice(0, 10), write = process.a
   return errors.length ? 1 : 0;
 }
 
-if (require.main === module) process.exitCode = main();
+if (require.main === module) {
+  try { process.exitCode = main(); } catch (error) { console.error(`Audit gate failed closed: ${error.message}`); process.exitCode = 1; }
+}
 module.exports = { main };

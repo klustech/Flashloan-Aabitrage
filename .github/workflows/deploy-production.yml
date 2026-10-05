@@ -167,8 +167,16 @@ jobs:
           name: deployment-${{ github.sha }}
           path: runtime/deployment.json
 
+      - name: Withhold application rollout
+        run: |
+          echo "::notice::New executor deployed. Production runtime config is managed outside this repository, so the rollout is withheld in this run. Apply CONTRACT_ADDRESS and EXPECTED_* from the deployment-${{ github.sha }} artifact to production config, then dispatch again with skip_contract_deploy=true."
+
   deploy-production:
-    needs: [build-and-push]
+    # Roll out only when no contract was deployed in this run. A new contract
+    # needs its manifest applied to production config first, so pods never
+    # restart (or get a release tag) against stale or failed contract config.
+    needs: [build-and-push, deploy-contracts]
+    if: ${{ !cancelled() && needs.build-and-push.result == 'success' && needs.deploy-contracts.result == 'skipped' }}
     runs-on: ubuntu-latest
     environment: production
 
