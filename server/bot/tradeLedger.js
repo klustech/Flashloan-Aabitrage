@@ -3,10 +3,20 @@ const path=require('path');
 const {serialize,bn}=require('./units');
 const STATUS=new Set(['DISCOVERED','SIMULATED','SUBMITTED','INCLUDED','REVERTED','DROPPED']);
 const ALLOWED={DISCOVERED:['SIMULATED','DROPPED'],SIMULATED:['SUBMITTED','DROPPED'],SUBMITTED:['INCLUDED','REVERTED','DROPPED'],INCLUDED:[],REVERTED:[],DROPPED:[]};
+// Every write appends JSON plus a newline and fsyncs before it is
+// acknowledged. A final line without its newline is a write that crashed
+// mid-append and was never acknowledged: skip it. Corruption anywhere else
+// is not a torn write and must stop startup.
+function readJournal(text,stats={}){
+  const lines=text.split('\n');
+  if(!text.endsWith('\n')&&lines[lines.length-1]!==''){lines.pop();stats.tornWrites=(stats.tornWrites||0)+1;}
+  return lines.filter(Boolean).map(line=>JSON.parse(line));
+}
 class TradeLedger {
   constructor({file=path.resolve(process.env.EXECUTION_LEDGER_PATH||'runtime/executions.jsonl'),persist}={}){
     this.file=file;this.persist=persist;this.records=new Map();
-    if(file&&fs.existsSync(file))for(const line of fs.readFileSync(file,'utf8').split('\n').filter(Boolean)){const row=JSON.parse(line);this.records.set(row.id,row);}
+    this.tornWrites=0;
+    if(file&&fs.existsSync(file))for(const row of readJournal(fs.readFileSync(file,'utf8'),this))this.records.set(row.id,row);
   }
   async write(record){
     const previous=this.records.get(record.id);if(!STATUS.has(record.status))throw new Error('Unknown trade status');
@@ -19,6 +29,15 @@ class TradeLedger {
     this.records.set(row.id,row);return row;
   }
   recent(limit=100){return [...this.records.values()].sort((a,b)=>b.updatedAt-a.updatedAt).slice(0,limit);}
+  // LIVE intent is written as SUBMITTED before any relay call, so a LIVE
+  // DISCOVERED/SIMULATED record found at startup was never sent. PAPER rows
+  // are evidence and stay as recorded.
+  async expireUnsubmitted(reason='restarted_before_submission'){
+    const expired=[];
+    for(const r of [...this.records.values()])if(r.mode==='LIVE'&&['DISCOVERED','SIMULATED'].includes(r.status))
+      expired.push(await this.write({...r,status:'DROPPED',reason}));
+    return expired;
+  }
   pending(){return this.recent(Number.MAX_SAFE_INTEGER).filter(r=>r.mode==='LIVE'&&r.status==='SUBMITTED');}
   dailyLossNative(now=Date.now()){return this.recent(Number.MAX_SAFE_INTEGER).filter(r=>r.mode==='LIVE'&&r.updatedAt>now-86400000&&r.realizedNetNative).reduce((sum,r)=>{const p=bn(r.realizedNetNative);return p.lt(0)?sum.sub(p):sum;},bn(0));}
   summary(){
@@ -34,4 +53,4 @@ class TradeLedger {
     return serialize({tokens:groups,accuracy,rejectionReasons:reasons,total:this.records.size,pending:this.pending().length});
   }
 }
-module.exports={TradeLedger};
+module.exports={TradeLedger,readJournal};

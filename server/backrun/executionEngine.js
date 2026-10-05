@@ -35,7 +35,9 @@ class BackrunExecutionEngine {
       if ((await this.provider.getBalance(this.wallet.address)).lt(bn(prepared.transaction.gasLimit).mul(prepared.tip.maxFeePerGas)))
         throw new Error("Backrun signer gas unavailable");
       if (await this.contract.paused()) throw new Error("Executor paused");
-      if (this.ledger.pending().length) throw new Error("Pending submission must settle first");
+      // Our own submission intent is recorded before the relay call, so only
+      // a different pending execution blocks this one.
+      if (this.ledger.pending().some(r => r.id !== prepared.executionId)) throw new Error("Pending submission must settle first");
       if (this.ledger.dailyLossNative().gte(utils.parseEther(this.profile.maxDailyLossNative))) throw new Error("Daily loss limit reached");
       checkSignal(signal); if (!this.state.canSign(revision)) throw abortError("Backrun mode changed");
     };

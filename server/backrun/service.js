@@ -37,8 +37,7 @@ class BackrunService {
     const db = require("../dbClient"); await db.waitForPoolReady();
     if (process.env.NODE_ENV === "production" && !db.isDbEnabled()) throw new Error("Backrun DB required");
     if (db.isDbEnabled()) for (const row of (await db.getBackruns(2000)).reverse()) this.ledger.remember(row);
-    for(const row of this.ledger.recent(2000))if(["DETECTED","POST_TRIGGER_QUOTED","FUNDING_SELECTED"].includes(row.status))
-      await this.reject(row,"ephemeral_trigger_expired_on_restart");
+    await this.recoverAfterRestart();
     this.closed = false; this.circuitReason = null;
     this.source.on("hint", this.onHint); this.source.on("source_error", this.onSourceError); this.source.start();
     this.timer = setInterval(() => {
@@ -106,7 +105,7 @@ class BackrunService {
     const c = this.coordinator, controller = new AbortController(), signal = controller.signal;
     this.active = controller;
     const timer = setTimeout(() => controller.abort(), this.profile.backrun.simulationTimeoutMs);
-    let saved = row, started = Date.now(), locked = false;
+    let saved = row, started = Date.now(), locked = false, executed = null;
     try {
       if (!["PAPER", "LIVE_RUNNING"].includes(c.state.state)) throw abortError("Trading stopped");
       if (Date.now() - trigger.receivedAt > this.profile.backrun.maxTriggerAgeMs) throw abortError("Trigger expired in queue");
@@ -158,14 +157,21 @@ class BackrunService {
         this.evidence.record(saved); this.emit("backrun_simulated", saved);
         if (c.state.state === "LIVE_RUNNING") {
           const result = await this.execution.execute({ ...best, simulation: sim }, { signal, revision });
+          executed = result.status;
           saved = await this.ledger.write({ ...saved, status: result.status, txHash: result.txHash, executionId: best.executionId });
         }
       });
       this.stats.processed++;
     } catch (error) {
-      if (["SUBMITTED", "INCLUDED", "REVERTED"].includes(saved.status) || c.ledger.pending().length) {
+      // A transaction the engine reports as sent is uncertain even if our own
+      // journal write afterwards failed: never reject it, stop and reconcile.
+      if (["SUBMITTED", "INCLUDED", "REVERTED"].includes(saved.status) || ["SUBMITTED", "INCLUDED", "REVERTED"].includes(executed) ||
+        c.ledger.pending().length) {
         this.trip("backrun_submission_uncertain");
-      } else await this.reject(saved, safeReason(error));
+      } else {
+        try { await this.reject(saved, safeReason(error)); }
+        catch (_) { this.trip("backrun_persistence_or_ingress_failed"); }
+      }
       if (/mismatch|Mixed pre-trigger|settlement/.test(error.message)) {
         this.stats.predictionFailures++; this.trip("backrun_prediction_or_relay_mismatch");
       }
@@ -181,6 +187,26 @@ class BackrunService {
       ...this.stats, intake: this.intake.snapshot(), engine: this.engine.status(),
       latency: { samples: this.latencies.length, medianMs: percentile(this.latencies, .5), p95Ms: percentile(this.latencies, .95) },
       activity: this.execution.activity, burnIn: this.evidence.report(), recent: this.ledger.recent(20) });
+  }
+  // Pre-submission rows cannot resume after a restart: the trigger, parent and
+  // fork state are gone. A SIMULATED row whose LIVE execution reached the
+  // coordinator ledger as sent is linked to it instead, so receipt
+  // reconciliation settles it rather than losing a possibly-included trade.
+  async recoverAfterRestart() {
+    const sent = [...(this.coordinator.ledger.records?.values?.() || [])].filter(r => r.strategy === "TRANSACTION_TRIGGERED_BACKRUN" &&
+      ["SUBMITTED", "INCLUDED", "REVERTED", "DROPPED"].includes(r.status));
+    const recovered = { expired: 0, linked: 0 };
+    for (const row of this.ledger.recent(2000)) {
+      if (["DETECTED", "POST_TRIGGER_QUOTED", "FUNDING_SELECTED"].includes(row.status)) {
+        await this.reject(row, "ephemeral_trigger_expired_on_restart"); recovered.expired++;
+      } else if (row.status === "SIMULATED") {
+        const linked = sent.find(r => r.triggerHash?.toLowerCase() === row.triggerHash?.toLowerCase());
+        if (linked) { await this.ledger.write({ ...row, status: "SUBMITTED", executionId: linked.id, txHash: linked.txHash }); recovered.linked++; }
+        else { await this.reject(row, "ephemeral_trigger_expired_on_restart"); recovered.expired++; }
+      }
+    }
+    await this.reconcile();
+    return recovered;
   }
   async reconcile(){
     for(const row of this.ledger.recent(2000)){
