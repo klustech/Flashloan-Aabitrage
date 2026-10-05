@@ -6,7 +6,8 @@ import { number, formatUnits, time } from "../ui/format";
 export default function BackrunPanel() {
   const { status } = useTradingStatus();
   const backrun = status?.backrun, config = status?.profile?.backrun, rows = backrun?.recent || [];
-  const latest = rows.find(r => r.funding), source = backrun?.source, engine = backrun?.engine;
+  const latest = rows.find(r => r.funding), source = backrun?.source, engine = backrun?.engine, dash = backrun?.dashboard;
+  const eth = wei => wei === null || wei === undefined ? "—" : formatUnits(wei, 18) + " ETH";
   return <Box sx={{ display: "grid", gap: 3 }}>
     <Alert severity={backrun?.circuitReason ? "warning" : "info"}>
       {status?.safety?.paperOnly ? "PAPER-only: no transaction signatures or submissions." : "LIVE remains subject to commissioning and private bundle simulation."}
@@ -61,13 +62,31 @@ export default function BackrunPanel() {
         </TableRow>)}</TableBody>
       </Table></TableContainer>}
     </Panel>
-    <Panel title="Commissioning evidence" subtitle="A healthy observer and isolated-fork results are prerequisites, not proof of competitive capture.">
-      <Typography variant="body2">Continuous PAPER: {number(Math.floor((backrun?.burnIn?.continuousMs||0)/3600000))} hours ·
-        {" "}Distinct profitable triggers: {number(backrun?.burnIn?.profitable)} ·
-        {" "}Signatures: {number(backrun?.activity?.signatures)} · Submissions: {number(backrun?.activity?.submissions)}</Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-        LIVE also requires canonical intra-block replay, at least seven days of historical economics,
-        both funding-path fork proofs, current PAPER evidence and an operator risk review.
+    <Panel title="PAPER commissioning" subtitle="Live order flow through the production decision path, never signed or submitted. PAPER does not prove inclusion or realised P&L."
+      action={<Chip label={"Day "+number(dash?.continuity?.day ?? 0)+" / 7"} variant="outlined" color={dash?.paperPassed ? "success" : "default"} />}>
+      {(Number(dash?.signatures ?? backrun?.activity?.signatures ?? 0) > 0 || Number(dash?.submissions ?? backrun?.activity?.submissions ?? 0) > 0) &&
+        <Alert severity="error" sx={{ mb: 2 }}>Signatures and submissions must be 0 during PAPER. The continuity window has been reset.</Alert>}
+      <Box sx={{ display:"grid", gridTemplateColumns:{xs:"1fr 1fr",md:"repeat(4,1fr)"}, gap:2 }}>
+        {[["Mode",dash?.mode||"—"],["Executor","v"+(dash?.executorVersion ?? backrun?.executorVersion ?? "—")],
+          ["Current head",dash?.currentHead?.number ?? "—"],["Source",(dash?.source?.name||"—")+(dash?.source?.connected?" · connected":" · disconnected")],
+          ["Triggers / min",number(dash?.triggersPerMinute)],["Evaluated / min",number(dash?.evaluatedPerMinute)],
+          ["Profitable / day",number(dash?.profitablePerDay)],["CAPITAL · FLASH_LOAN",number(dash?.capitalOpportunities)+" · "+number(dash?.flashloanOpportunities)],
+          ["Best hypothetical",eth(dash?.bestHypotheticalNetNative)],["Median hypothetical",eth(dash?.medianHypotheticalNetNative)],
+          ["Total hypothetical net",eth(dash?.totalHypotheticalNetNative)],
+          ["Latency p50 / p95 / p99",[dash?.latency?.p50Ms,dash?.latency?.p95Ms,dash?.latency?.p99Ms].map(number).join(" / ")+" ms"],
+          ["Signatures (must be 0)",number(dash?.signatures ?? backrun?.activity?.signatures)],["Submissions (must be 0)",number(dash?.submissions ?? backrun?.activity?.submissions)],
+          ["Health",Object.entries(dash?.health||{}).map(([k,v])=>k+(v?" ✓":" ✗")).join(" · ")||"—"],
+          ["Last reset",dash?.continuity?.lastReset?.reason||"—"]].map(([label,value])=>
+          <Box key={label}><Typography variant="caption" color="text.secondary">{label}</Typography><Typography variant="body2">{value}</Typography></Box>)}
+      </Box>
+      <Typography variant="subtitle2" sx={{ mt: 2 }}>Top rejection reasons</Typography>
+      <Box sx={{mt:1,display:"flex",gap:1,flexWrap:"wrap"}}>
+        {(dash?.topRejections||[]).length ? dash.topRejections.map(r=><Chip key={r.code} size="small" variant="outlined" label={r.code+": "+r.count} />) :
+          <Typography variant="body2" color="text.secondary">None recorded in this window.</Typography>}
+      </Box>
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+        LIVE also requires local validation, canonical intra-block replay, at least seven days of historical economics,
+        both funding-path fork proofs, 7 continuous PAPER days and an operator risk review.
       </Typography>
       <Box sx={{mt:2,display:"flex",gap:2,flexWrap:"wrap"}}>{Object.entries(backrun?.reasons||{}).map(([reason,count])=><Chip key={reason} size="small" variant="outlined" label={reason+": "+count} />)}</Box>
     </Panel>

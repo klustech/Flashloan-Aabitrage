@@ -44,7 +44,17 @@
     "backrun:install-anvil": "node scripts/install-backrun-anvil.js",
     "backrun:executor-fork": "node scripts/backrun-executor-fork.js",
     "backrun:executor-sweep": "node scripts/backrun-executor-sweep.js",
-    "backrun:executor-batch": "node scripts/backrun-executor-batch.js"
+    "backrun:executor-batch": "node scripts/backrun-executor-batch.js",
+    "backrun:validate-local": "node scripts/backrun-validate-local.js",
+    "backrun:validate:report": "node scripts/backrun-validation-report.js",
+    "backrun:validate:economics": "node scripts/backrun-economic-gates.js all",
+    "backrun:validate:size": "node scripts/backrun-size-sweep.js",
+    "backrun:validate:gas": "node scripts/backrun-gas-stress.js",
+    "backrun:validate:latency": "node scripts/backrun-latency-benchmark.js",
+    "backrun:validate:failure": "node scripts/backrun-failure-test.js",
+    "backrun:validate:recovery": "node scripts/backrun-recovery-test.js",
+    "backrun:projection": "node scripts/backrun-economic-projection.js",
+    "backrun:validate:fresh-clone": "node scripts/backrun-fresh-clone-check.js"
   },
   "keywords": [],
   "author": "",

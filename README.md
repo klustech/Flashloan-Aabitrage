@@ -2,6 +2,8 @@
 
 # Flashloan Arbitrage Bot
 
+> **Commissioning path:** start at [docs/README.md](docs/README.md). Local validation (`npm run backrun:validate-local`) gates PAPER, PAPER gates LIVE.
+
 This experimental project implements an arbitrage bot that leverages Aave flash
 loans and multiple DEX integrations.
 

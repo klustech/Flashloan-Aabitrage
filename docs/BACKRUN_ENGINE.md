@@ -136,7 +136,7 @@ chmod 600 .env.backrun-paper
 
 Edit the HTTP/WS RPC, PostgreSQL, API credential and verified executor identities.
 The deployment used for backrunning must expose executorVersion 4 (see
-[EXECUTOR_GOVERNANCE.md](EXECUTOR_GOVERNANCE.md)); proofs and evidence from older
+[EXECUTOR_GOVERNANCE.md](security/EXECUTOR_GOVERNANCE.md)); proofs and evidence from older
 executors are rejected. CAPITAL
 requires real tokens already held by that executor. No token balances are
 fabricated by the predictor or benchmark. Aave must be economically viable for

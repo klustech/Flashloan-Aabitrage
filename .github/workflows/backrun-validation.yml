@@ -1,0 +1,112 @@
+# .github/workflows/backrun-validation.yml
+# Deterministic backrun validation tooling (docs/validation/LOCAL_VALIDATION_BLUEPRINT.md).
+# CI validates the tooling; commissioning validates the economics, so the
+# 7-day historical benchmark never runs here.
+#  - push / PR: compile, core and Hardhat tests (incl. the executor v4
+#    adversarial suite), validation module tests, failure injection,
+#    restart recovery, controlled Anvil fork tests and the security gates.
+#  - workflow_dispatch with full=true: the complete local validation against
+#    an archive RPC (secret MAINNET_ARCHIVE_RPC_URL), uploading the
+#    local-validation-report artifact that production deployment requires.
+#    Run it with the same production profile variables as the deployment.
+name: Backrun validation
+
+on:
+  push:
+    branches: [main, 'feature/**', 'claude/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      full:
+        description: "Run the complete local validation (archive RPC required) and upload the report"
+        type: boolean
+        default: false
+
+jobs:
+  tooling:
+    name: Validation tooling
+    runs-on: ubuntu-latest
+    env:
+      BACKRUN_VALIDATION_DIR: ${{ github.workspace }}/runtime/ci-validation
+      BACKRUN_EVIDENCE_MANIFEST: ${{ github.workspace }}/runtime/ci-validation/evidence-manifest.json
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm}
+      - run: npm ci --ignore-scripts --legacy-peer-deps
+      - run: cd server && npm ci --ignore-scripts --legacy-peer-deps
+      - run: npx hardhat compile --force
+      - run: npm run test:core
+      - run: npx hardhat test
+      - name: Validation module tests
+        run: >-
+          node --test test/unit/backrunEconomicGates.node.test.js test/unit/backrunFailureInjection.node.test.js
+          test/unit/backrunRecovery.node.test.js test/unit/backrunLatency.node.test.js
+          test/unit/backrunValidationRunner.node.test.js test/unit/backrunPaperEvidence.node.test.js
+      - name: Failure injection and restart recovery gates
+        run: |
+          npm run backrun:validate:failure
+          npm run backrun:validate:recovery
+      - name: Controlled Anvil fork tests
+        run: |
+          npm run backrun:install-anvil
+          node scripts/backrun-fork-node.js --anvil > /tmp/backrun-anvil.log 2>&1 &
+          fork_pid=$!
+          trap 'kill "$fork_pid" || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -sf -H 'content-type: application/json' --data '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' http://127.0.0.1:8548 > /dev/null; then break; fi
+            sleep 1
+          done
+          LOCAL_BACKRUN_TEST_RPC=http://127.0.0.1:8548 LOCAL_BACKRUN_TEST_ENGINE=anvil node --test --test-concurrency=1 test/unit/backrunFork.node.test.js test/unit/mevShareFork.node.test.js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: validation-tooling-evidence
+          path: runtime/ci-validation
+          if-no-files-found: ignore
+
+  security:
+    uses: ./.github/workflows/security-gates.yml
+
+  full:
+    name: Full local validation
+    if: github.event_name == 'workflow_dispatch' && inputs.full
+    needs: [tooling, security]
+    runs-on: ubuntu-latest
+    environment: validation
+    timeout-minutes: 300
+    env:
+      MAINNET_RPC_URL: ${{ secrets.MAINNET_ARCHIVE_RPC_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - run: npm ci --ignore-scripts --legacy-peer-deps
+      - run: cd server && npm ci --ignore-scripts --legacy-peer-deps
+      - run: pip install slither-analyzer==0.11.6
+      - run: npm run backrun:install-anvil
+      - run: npx hardhat compile --force
+      - name: Historical replay inputs
+        run: |
+          npm run backrun:executor-sweep
+          npm run backrun:executor-batch
+      - name: Local validation
+        run: |
+          node scripts/backrun-fork-node.js --anvil > /tmp/backrun-anvil.log 2>&1 &
+          fork_pid=$!
+          trap 'kill "$fork_pid" || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -sf -H 'content-type: application/json' --data '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' http://127.0.0.1:8548 > /dev/null; then break; fi
+            sleep 1
+          done
+          LOCAL_BACKRUN_TEST_RPC=http://127.0.0.1:8548 npm run backrun:validate-local
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: local-validation-report
+          path: |
+            runtime/backrun/validation
+            runtime/backrun/evidence-manifest.json

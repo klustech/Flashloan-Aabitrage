@@ -10,7 +10,22 @@ upload and Solhint style lint, which have no security role.
 | Slither | `security-gates.yml` | Any High-impact finding outside `contracts/mocks` |
 | Dependency audit | `security-gates.yml` → `scripts/audit-gate.js` | A high/critical production advisory (root, `server`, `frontend`) is not in `security/audit-exceptions.json`, or its `reviewBy` date has passed |
 | Production deploy | `deploy-production.yml` | Run from any ref other than `main`; production core or security gates fail on the deployed commit |
+| Backrun validation | `backrun-validation.yml` (push, PR) | Compile, core tests, Hardhat (incl. adversarial executor suite), validation module tests, failure injection, restart recovery or the controlled Anvil fork tests fail |
+| Validated commit | `scripts/deploy-production.js` | No passing local validation report (`npm run backrun:validate-local`) for the exact commit, compiler and executor build being deployed |
 | Production rollout | `deploy-production.yml` | Never runs in the same run as a contract deployment. Apply the uploaded `runtime/deployment.json` to production config, then dispatch again with `skip_contract_deploy=true` |
+
+## Deployment vs LIVE authorization
+
+Deployment and LIVE are different gates:
+
+- **Deploy** requires the source commit to equal the validated commit, CI and
+  security green, executor v4 and local validation current.
+- **LIVE trading** additionally requires the historical benchmark, PAPER
+  evidence, risk approval and the commissioning report
+  ([LIVE_READINESS.md](../commissioning/LIVE_READINESS.md)).
+
+CI validates the tooling. Commissioning validates the economics: 7-day
+benchmarks never run in CI.
 
 ## Separate test runners
 

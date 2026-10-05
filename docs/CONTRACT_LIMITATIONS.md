@@ -21,7 +21,7 @@ The contract is **profit-or-revert**: after running the route it requires the fi
 ### Flash-loan surface
 
 - The standalone `FlashloanExecutor.sol` contract (a second, insecure flash-loan receiver) has been **deleted**. `ArbitrageFlashloan.sol` is the only flash-loan contract.
-- Constructor signature is `(address provider, address profitRecipient, address admin, address executor, address[] routers)`. See [EXECUTOR_GOVERNANCE.md](EXECUTOR_GOVERNANCE.md).
+- Constructor signature is `(address provider, address profitRecipient, address admin, address executor, address[] routers)`. See [EXECUTOR_GOVERNANCE.md](security/EXECUTOR_GOVERNANCE.md).
 
 ### Aave version
 

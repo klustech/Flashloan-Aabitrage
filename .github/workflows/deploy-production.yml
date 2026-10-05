@@ -14,6 +14,9 @@ on:
         required: false
         default: "true"
         type: boolean
+      validation_run_id:
+        description: "Run ID of a 'Backrun validation' full run on this commit (required for a contract deploy)"
+        required: false
 
 env:
   REGISTRY: ghcr.io
@@ -150,6 +153,19 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --ignore-scripts --legacy-peer-deps
+
+      # Release gate: deploy-production.js refuses to deploy unless a passing
+      # local validation report exists for this exact commit and build.
+      - name: Fetch local validation report
+        uses: actions/download-artifact@v4
+        with:
+          name: local-validation-report
+          path: runtime/backrun
+          run-id: ${{ github.event.inputs.validation_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compile (validated build)
+        run: npx hardhat compile --force
 
       # deploy-production.js is the production deployer: it checks chain ID,
       # Aave bytecode and writes runtime/deployment.json with the expected code

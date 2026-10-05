@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { serialize } = require("../bot/units");
+const { readJournal } = require("../bot/tradeLedger");
 const ALLOWED = {
   DETECTED: ["POST_TRIGGER_QUOTED", "REJECTED"],
   POST_TRIGGER_QUOTED: ["FUNDING_SELECTED", "REJECTED"],
@@ -17,9 +18,10 @@ class BackrunLedger {
       const fd = fs.openSync(file, "r"), size = fs.fstatSync(fd).size, length = Math.min(size, 4 * 1024 * 1024);
       const buffer = Buffer.alloc(length);
       try { fs.readSync(fd, buffer, 0, length, size - length); } finally { fs.closeSync(fd); }
-      const lines = buffer.toString("utf8").split("\n");
-      if (size > length) lines.shift();
-      for (const line of lines.filter(Boolean)) this.remember(JSON.parse(line));
+      let text = buffer.toString("utf8");
+      if (size > length) text = text.slice(text.indexOf("\n") + 1);
+      this.tornWrites = 0;
+      for (const row of readJournal(text, this)) this.remember(row);
     }
   }
   remember(row) {

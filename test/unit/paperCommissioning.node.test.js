@@ -306,3 +306,21 @@ test("smoke rejects LIVE signing activity and stalled blocks", async () => {
   assert.equal(report.ready, false);
   assert.match(report.checks[0].name, /progress timeout/);
 });
+test("backrun PAPER preflight requires a passing local validation report", async () => {
+  const f = preflightFixture();
+  Object.assign(f.env, { BACKRUN_ENABLED: "true", BACKRUN_ORDERFLOW_SOURCE: "mev_share",
+    BACKRUN_MIN_PROFIT_WETH: "0.001", BACKRUN_MAX_AMOUNT_WETH: "1", BACKRUN_MIN_PROFIT_DAI: "1", BACKRUN_MAX_AMOUNT_DAI: "1000",
+    BACKRUN_MIN_PROFIT_USDC: "1", BACKRUN_MAX_AMOUNT_USDC: "1000" });
+  f.checkExecutor = async () => ({ ready: true });
+  f.checkValidation = () => { throw new Error("local validation failed: gate latency not passed"); };
+  let report = await preflight(f);
+  assert.equal(report.ready, false);
+  assert.equal(report.checks.find((c) => c.name === "local validation report").passed, false);
+  f.checkValidation = () => ({ gitCommit: "abc" });
+  report = await preflight(f);
+  assert.equal(report.checks.find((c) => c.name === "local validation report").passed, true);
+  const disabled = preflightFixture();
+  disabled.checkExecutor = async () => ({ ready: true });
+  disabled.checkValidation = () => { throw new Error("must not run"); };
+  assert.ok(!(await preflight(disabled)).checks.some((c) => c.name === "local validation report"));
+});

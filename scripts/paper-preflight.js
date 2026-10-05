@@ -74,6 +74,14 @@ async function checkDatabase(env) {
     await client.end();
   }
 }
+function localValidation(profile, env) {
+  const { buildManifest } = require("../server/backrun/validation/validationEvidence");
+  const { localValidationStatus } = require("../server/backrun/validation/acceptance");
+  const maxAgeMs = Number(env.BACKRUN_VALIDATION_MAX_AGE_HOURS || 168) * 3600000;
+  const status = localValidationStatus({ manifest: buildManifest(profile, { env }), env, maxAgeMs });
+  if (!status.ok) throw new Error(status.reason);
+  return { createdAt: status.report.createdAt, gitCommit: status.report.gitCommit };
+}
 async function preflight({
   env = process.env,
   provider,
@@ -82,6 +90,7 @@ async function preflight({
   checkWs = websocketBlock,
   checkRuntime = writableRuntime,
   checkExecutor = startupChecks,
+  checkValidation = localValidation,
 } = {}) {
   const checks = [],
     check = async (name, fn) => {
@@ -131,6 +140,10 @@ async function preflight({
       fingerprint: profile.fingerprint,
     };
   });
+  // Backrun PAPER starts only from a passing local validation report for this
+  // exact commit, executor build and profile (blueprint §38).
+  if (profile?.backrun?.enabled)
+    await check("local validation report", () => checkValidation(profile, env));
   await check("Ethereum HTTP / EIP-1559", async () => {
     requireValue(env.MAINNET_RPC_URL, "MAINNET_RPC_URL");
     provider ||= new providers.JsonRpcProvider({

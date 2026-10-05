@@ -22,6 +22,12 @@ async function main(){
   const governance=requiredAddress('GOVERNANCE_ADDRESS'),operator=requiredAddress('OPERATOR_ADDRESS'),recipient=requiredAddress('PROFIT_RECIPIENT');
   if(new Set([governance,operator,recipient]).size!==3)throw new Error('GOVERNANCE_ADDRESS, OPERATOR_ADDRESS and PROFIT_RECIPIENT must all differ');
   if(deployer.address===operator||deployer.address===governance)throw new Error('Deploy with a key that holds neither the operator nor the governance role');
+  // Release gate: deploy only the commit, compiler and executor build that
+  // passed local validation (docs/security/RELEASE_GATES.md).
+  const {buildManifest}=require('../server/backrun/validation/validationEvidence');
+  const {localValidationStatus}=require('../server/backrun/validation/acceptance');
+  const validation=localValidationStatus({manifest:buildManifest(profile),requirePaperReady:false});
+  if(!validation.ok)throw new Error(`Deployment requires current local validation: ${validation.reason}`);
   if(await ethers.provider.getCode(governance)==='0x')throw new Error('GOVERNANCE_ADDRESS must be a multisig contract');
   if(await ethers.provider.getCode(profile.flashloanProvider.addressesProvider)==='0x')throw new Error('Aave V2 provider not deployed');
   const routers=[...new Set(Object.values(profile.routers).map(r=>ethers.utils.getAddress(r.router)))];
@@ -34,7 +40,7 @@ async function main(){
   const Executor=await ethers.getContractFactory('ArbitrageFlashloan',deployer);
   const contract=await Executor.deploy(profile.flashloanProvider.addressesProvider,recipient,timelock.address,operator,routers);await contract.deployed();
   const code=await ethers.provider.getCode(contract.address);
-  const manifest={CONTRACT_ADDRESS:contract.address,OPERATOR_ADDRESS:operator,EXPECTED_ADMIN:timelock.address,GOVERNANCE_ADDRESS:governance,EXPECTED_PROFIT_RECIPIENT:recipient,EXPECTED_CONTRACT_CODE_HASH:ethers.utils.keccak256(code),AAVE_LENDING_POOL_ADDRESS_PROVIDER:profile.flashloanProvider.addressesProvider,AAVE_V2_LENDING_POOL:profile.flashloanProvider.lendingPool,approvedRouters:routers,executorVersion:EXECUTOR_VERSION};
+  const manifest={CONTRACT_ADDRESS:contract.address,OPERATOR_ADDRESS:operator,EXPECTED_ADMIN:timelock.address,GOVERNANCE_ADDRESS:governance,EXPECTED_PROFIT_RECIPIENT:recipient,EXPECTED_CONTRACT_CODE_HASH:ethers.utils.keccak256(code),AAVE_LENDING_POOL_ADDRESS_PROVIDER:profile.flashloanProvider.addressesProvider,AAVE_V2_LENDING_POOL:profile.flashloanProvider.lendingPool,approvedRouters:routers,executorVersion:EXECUTOR_VERSION,validatedCommit:validation.report.gitCommit};
   fs.mkdirSync('runtime',{recursive:true,mode:0o700});fs.writeFileSync('runtime/deployment.json',JSON.stringify(manifest,null,2),{mode:0o600});console.log(JSON.stringify(manifest,null,2));
 }
 if(require.main===module)main().catch(err=>{console.error(err.message);process.exitCode=1;});

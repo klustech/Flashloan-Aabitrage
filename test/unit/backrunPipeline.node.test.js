@@ -163,7 +163,9 @@ test("PAPER_ONLY blocks dedicated backrun execution before any signer, relay or 
 });
 test("commissioning requires matching full evidence, recent unsigned PAPER and explicit economic acceptance",()=>{
   const {buildReport}=require("../../scripts/backrun-commissioning-report");
-  const p=profile(),now=Date.now(),fingerprint=evidenceFingerprint(p),proof={passed:true,profileFingerprint:fingerprint};
+  const fs=require("fs"),os=require("os"),path=require("path"),dir=fs.mkdtempSync(path.join(os.tmpdir(),"commission-"));
+  const p=profile();p.backrun.commissioningPath=path.join(dir,"report.json");
+  const now=Date.now(),fingerprint=evidenceFingerprint(p),proof={passed:true,profileFingerprint:fingerprint};
   const evidence={
     replay:{...proof,intraBlock:true,canonicalReceiptsVerified:true},
     benchmark:{...proof,durationMs:7*86400000,coverageComplete:true,sameBlockBundleVerified:true,
@@ -171,9 +173,19 @@ test("commissioning requires matching full evidence, recent unsigned PAPER and e
     paper:{...proof,continuousMs:7*86400000,profitable:3,signatures:0,submissions:0,lastHeartbeat:now},
     capitalForkProof:{...proof,mode:"CAPITAL",executorVersion:4},flashForkProof:{...proof,mode:"FLASH_LOAN",executorVersion:4},
     riskReview:{reviewed:true,profileFingerprint:fingerprint,minimumOpportunitiesPerDay:2,minimumNetNativePerDay:"50",
-      capitalPlan:"bounded",drawdownPlan:"stop",competitionAssumptions:"reviewed"}
+      capitalPlan:"bounded",drawdownPlan:"stop",competitionAssumptions:"reviewed"},
+    localValidation:{kind:"BACKRUN_LOCAL_VALIDATION",localValidationPassed:true,readyForPaper:true,profileFingerprint:fingerprint,executorVersion:4},
+    projection:{economicallyReady:true,profileFingerprint:fingerprint}
   };
   assert.equal(buildReport(p,evidence,now).passed,true);
+  // LIVE readiness accepts the issued report only with local validation recorded in it.
+  try{
+    const issued=buildReport(p,{...evidence,localValidation:{...evidence.localValidation,gitCommit:"abc",createdAt:now}},now);
+    fs.writeFileSync(p.backrun.commissioningPath,JSON.stringify(issued));
+    assert.deepEqual(commissioningChecks(p,{PRIVATE_KEY:"0x01"}).errors,[]);
+    fs.writeFileSync(p.backrun.commissioningPath,JSON.stringify({...issued,localValidation:null}));
+    assert.deepEqual(commissioningChecks(p,{PRIVATE_KEY:"0x01"}).errors,["Passing local validation report missing from commissioning"]);
+  }finally{fs.rmSync(dir,{recursive:true,force:true});}
   for(const changed of [
     {...evidence,replay:{...evidence.replay,canonicalReceiptsVerified:false}},
     {...evidence,paper:{...evidence.paper,signatures:1}},
@@ -182,7 +194,12 @@ test("commissioning requires matching full evidence, recent unsigned PAPER and e
     {...evidence,capitalForkProof:{...evidence.capitalForkProof,executorVersion:3}},
     {...evidence,flashForkProof:{...evidence.flashForkProof,executorVersion:3}},
     {...evidence,benchmark:{...evidence.benchmark,netNative:"1"}},
-    {...evidence,riskReview:{...evidence.riskReview,reviewed:false}}
+    {...evidence,riskReview:{...evidence.riskReview,reviewed:false}},
+    {...evidence,localValidation:null},
+    {...evidence,projection:{...evidence.projection,economicallyReady:false}},
+    {...evidence,projection:null},
+    {...evidence,localValidation:{...evidence.localValidation,readyForPaper:false}},
+    {...evidence,localValidation:{...evidence.localValidation,profileFingerprint:"other"}}
   ])assert.equal(buildReport(p,changed,now).passed,false);
 });
 test("ordered relay validation rejects trigger/backrun failure, missing direct-payment evidence and extra results",()=>{

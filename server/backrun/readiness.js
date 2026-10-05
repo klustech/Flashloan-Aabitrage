@@ -28,6 +28,8 @@ function commissioningChecks(profile, env = process.env) {
       throw new Error(`Fork proofs must come from executor version ${EXECUTOR_VERSION}`);
     for(const proof of [evidence.replay,evidence.benchmark,evidence.paper,evidence.capitalForkProof,evidence.flashForkProof])
       if(proof.profileFingerprint!==evidenceFingerprint(profile))throw new Error("Individual backrun evidence configuration mismatch");
+    if (!evidence.localValidation?.gitCommit || !evidence.checks?.some(c => c.name.startsWith("Local validation") && c.passed))
+      throw new Error("Passing local validation report missing from commissioning");
     if (!evidence.economicAcceptance?.passed || !evidence.economicAcceptance?.riskReview)
       throw new Error("Economic frequency, latency, capital and risk acceptance missing");
   } catch (e) { errors.push(e.message); }

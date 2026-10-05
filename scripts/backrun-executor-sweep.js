@@ -9,6 +9,8 @@ const { sweepOptions, summarizeSweep } = require("../server/backrun/localSweep")
 const { AaveV2 } = require("../server/flashloan/aaveV2");
 const { bn } = require("../server/bot/units");
 const { replayDiagnostic } = require("./backrun-replay-diagnostics");
+const { EXECUTOR_VERSION } = require("../server/config/executorVersion");
+const { executorCodeHash } = require("../server/backrun/validation/validationEvidence");
 const OUTPUT = "runtime/backrun/local-executor-sweep.json";
 
 async function main({ progress = () => {} } = {}) {
@@ -28,7 +30,7 @@ async function main({ progress = () => {} } = {}) {
       data.block.transactions[index + 1]?.hash.toLowerCase() !== fixture.arbitrageTransaction.toLowerCase())
     throw new Error("Sweep fixture does not match canonical trigger/arbitrage order");
   const minimum = utils.parseEther(profile.backrun.minimumProfitBySymbol.WETH || "0.00001"), results = [];
-  const metadata = { kind: "LOCAL_EXECUTOR_SIZE_FEE_SWEEP", fixture: fixture.name, blockNumber: data.block.number,
+  const metadata = { kind: "LOCAL_EXECUTOR_SIZE_FEE_SWEEP", executorVersion: EXECUTOR_VERSION, executorArtifactHash: executorCodeHash(), fixture: fixture.name, blockNumber: data.block.number,
     blockHash: data.block.hash, parentHash: data.parent.hash, triggerHash: fixture.triggerTransaction, chainId: 1,
     replayBackend: "anvil", deployedOnlyLocally: true, unsigned: true, mainnetSubmitted: false, commissioningEvidence: false,
     syntheticCapital: true, syntheticGasFunds: true, builderInclusionTested: false,

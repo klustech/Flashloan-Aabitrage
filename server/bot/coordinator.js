@@ -2,6 +2,7 @@ const {Contract,Wallet,utils}=require('ethers');
 const {assertLiveAllowed}=require('../config/paperPolicy');
 const crypto=require('crypto');
 const {productionProfile}=require('../config/productionProfile');
+const {EXECUTOR_VERSION}=require('../config/executorVersion');
 const {TokenRegistry}=require('../market/tokenRegistry');
 const {PoolRegistry,edge}=require('../market/poolRegistry');
 const {createProvider,pinnedBlock}=require('../market/marketState');
@@ -47,6 +48,7 @@ class Coordinator {
   }
   async initialize(){if(this.initialized)return;const net=await this.provider.getNetwork();if(net.chainId!==this.profile.chainId)throw new Error('Ethereum mainnet RPC required');const block=await pinnedBlock(this.provider);await this.tokens.load(Object.fromEntries(this.profile.tokenSymbols.map(s=>[s,this.profile.tokens[s]])),block.number);this.operatorAddress=this.wallet?.address||this.profile.operatorAddress;if(!this.operatorAddress)throw new Error('OPERATOR_ADDRESS (executor role holder) required');
     const db=require('../dbClient');if(db.isDbEnabled())for(const record of await db.getExecutions(10000)){const local=this.ledger.records.get(record.id);if(!local||local.updatedAt<record.updatedAt)this.ledger.records.set(record.id,record);}
+    await this.ledger.expireUnsubmitted();
     this.initialized=true;}
   async startBackrun(){if(!this.profile.backrun?.enabled)return null;await this.initialize();if(!this.backrun){this.backrun=require('../backrun/createService').createBackrunService(this);this.backrunBlockListener=number=>this.provider.getBlock(number).then(block=>{if(block)this.backrun.headChanged(block);}).catch(()=>{});this.provider.on('block',this.backrunBlockListener);}await this.backrun.start();return this.backrun;}
   stopBackrun(){this.backrun?.stop();if(this.backrunBlockListener)this.provider.removeListener('block',this.backrunBlockListener);}
@@ -222,7 +224,7 @@ class Coordinator {
       return {executed:false,reason:err.message};
     }finally{clearTimeout(timer);externalSignal?.removeEventListener('abort',cancel);this.latency={durationMs:Date.now()-startedAt,...this.scanStats,quotes:this.quoter?.stats,cache:this.marketCache?.status(),candidates:this.candidateIndex?.stats};if(this.lastCycle)this.lastCycle.latency=this.latency;this.emit('scan_completed',this.latency);if(this.state.state==='PAPER' && revision===this.state.revision)this.burnIn.record(this.lastCycle);this.busy=false;}
   }
-  status(){const a=this.backrun?.execution.activity||{signatures:0,submissions:0};return {trading:this.state.snapshot(),busy:this.busy,lastCycle:this.lastCycle,latency:this.latency,scanner:this.scheduler?.status(),backrun:this.backrun?.status()||{enabled:this.profile.backrun?.enabled||false,running:false,reason:this.backrunStartError||'not_started'},readiness:this.readiness,relays:this.relays.status(),safety:{paperOnly:this.profile.paperOnly,hasPrivateKey:Boolean(process.env.PRIVATE_KEY?.trim()),activity:{signatures:this.execution.activity.signatures+a.signatures,submissions:this.execution.activity.submissions+a.submissions}},profile:{paperOnly:this.profile.paperOnly,chain:this.profile.chain,chainId:this.profile.chainId,flashloanProvider:this.profile.flashloanProvider,strategies:['CROSS_DEX_TWO_LEG','TRIANGULAR_THREE_LEG'],backrun:this.profile.backrun,fingerprint:this.profile.fingerprint},paperBurnIn:this.burnIn.data,summary:this.ledger.summary(),executions:this.ledger.recent(100)};}
+  status(){const a=this.backrun?.execution.activity||{signatures:0,submissions:0};return {trading:this.state.snapshot(),busy:this.busy,lastCycle:this.lastCycle,latency:this.latency,scanner:this.scheduler?.status(),backrun:this.backrun?.status()||{enabled:this.profile.backrun?.enabled||false,running:false,reason:this.backrunStartError||'not_started'},readiness:this.readiness,relays:this.relays.status(),safety:{paperOnly:this.profile.paperOnly,hasPrivateKey:Boolean(process.env.PRIVATE_KEY?.trim()),activity:{signatures:this.execution.activity.signatures+a.signatures,submissions:this.execution.activity.submissions+a.submissions}},profile:{paperOnly:this.profile.paperOnly,executorVersion:EXECUTOR_VERSION,chain:this.profile.chain,chainId:this.profile.chainId,flashloanProvider:this.profile.flashloanProvider,strategies:['CROSS_DEX_TWO_LEG','TRIANGULAR_THREE_LEG'],backrun:this.profile.backrun,fingerprint:this.profile.fingerprint},paperBurnIn:this.burnIn.data,summary:this.ledger.summary(),executions:this.ledger.recent(100)};}
 }
 let instance;
 function getCoordinator(){if(!instance)instance=new Coordinator();return instance;}

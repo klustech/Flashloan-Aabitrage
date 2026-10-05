@@ -6,6 +6,8 @@ const { BackrunEvidence } = require("./evidence");
 const { checkSignal, abortError } = require("../bot/asyncControl");
 const { bn, serialize } = require("../bot/units");
 const {safeReason}=require("./errors");
+const { rejectionCode } = require("./rejectionTaxonomy");
+const { EXECUTOR_VERSION } = require("../config/executorVersion");
 function percentile(values, p) {
   if (!values.length) return null;
   return [...values].sort((a, b) => a - b)[Math.min(values.length - 1, Math.ceil(values.length * p) - 1)];
@@ -20,7 +22,7 @@ class BackrunService {
       else if (process.env.NODE_ENV === "production") throw new Error("Backrun database unavailable");
     } });
     this.evidence = evidence || new BackrunEvidence(profile);
-    this.latencies = []; this.queue = []; this.errors = []; this.closed = true; this.processing = false;
+    this.latencies = []; this.stageClocks = []; this.queue = []; this.errors = []; this.closed = true; this.processing = false;
     this.stats = { received: 0, decoded: 0, processed: 0, rejected: 0, simulations: 0, profitable: 0, predictionFailures: 0,
       funding: { CAPITAL: 0, FLASH_LOAN: 0 }, expectedByToken: {}, dexPairs: {}, reasons: {}, lastTriggerAt: null };
     this.onHint = hint => this.ingest(hint).catch(() => this.trip("backrun_persistence_or_ingress_failed"));
@@ -37,16 +39,18 @@ class BackrunService {
     const db = require("../dbClient"); await db.waitForPoolReady();
     if (process.env.NODE_ENV === "production" && !db.isDbEnabled()) throw new Error("Backrun DB required");
     if (db.isDbEnabled()) for (const row of (await db.getBackruns(2000)).reverse()) this.ledger.remember(row);
-    for(const row of this.ledger.recent(2000))if(["DETECTED","POST_TRIGGER_QUOTED","FUNDING_SELECTED"].includes(row.status))
-      await this.reject(row,"ephemeral_trigger_expired_on_restart");
+    await this.recoverAfterRestart();
     this.closed = false; this.circuitReason = null;
     this.source.on("hint", this.onHint); this.source.on("source_error", this.onSourceError); this.source.start();
     this.timer = setInterval(() => {
       try {
         const c = this.coordinator, state = c.state.snapshot();
-        this.evidence.heartbeat({ healthy: !this.closed && !this.circuitReason && this.source.status().connected &&
-          Boolean(c.marketCache.head) && Date.now() - this.lastHeadAt < 30000 &&
-          (process.env.NODE_ENV !== "production" || db.isDbEnabled()),
+        // Components, not one flag: the continuity rules in evidence.js decide
+        // which conditions reset the PAPER window and which have a grace period.
+        this.evidence.heartbeat({ running: !this.closed, circuitReason: this.circuitReason || null,
+          sourceConnected: Boolean(this.source.status().connected),
+          headAgeMs: c.marketCache.head && this.lastHeadAt ? Date.now() - this.lastHeadAt : Infinity,
+          dbHealthy: process.env.NODE_ENV !== "production" || db.isDbEnabled(),
           paper: state.state === "PAPER",
           signatures: this.execution.activity.signatures + c.execution.activity.signatures,
           submissions: this.execution.activity.submissions + c.execution.activity.submissions });
@@ -54,7 +58,7 @@ class BackrunService {
     }, 5000); this.timer.unref?.(); return this;
   }
   headChanged(block) {
-    this.lastHeadAt = Date.now();
+    this.lastHeadAt = Date.now(); this.evidence.observeHead?.();
     if (this.headHash && this.headHash !== block.hash) this.active?.abort();
     this.headHash = block.hash;
   }
@@ -73,9 +77,10 @@ class BackrunService {
     const c = this.coordinator;
     if (!["PAPER", "LIVE_RUNNING"].includes(c.state.state)) return { accepted: false, reason: "trading_stopped_or_paused" };
     const trigger = decodeTriggerHint(hint, c.poolRegistry);
-    if (!trigger.usable) { this.reason(trigger.reason); return { accepted: false, reason: trigger.reason }; }
+    this.evidence.observeTrigger?.({ decoded: trigger.usable });
+    if (!trigger.usable) { this.reason(trigger.reason); this.evidence.rejected?.(null, trigger.reason); return { accepted: false, reason: trigger.reason }; }
     this.stats.decoded++;
-    if (!this.intake.push(trigger)) return { accepted: false, reason: "duplicate_trigger" };
+    if (!this.intake.push(trigger)) { this.evidence.rejected?.(null, "duplicate_trigger"); return { accepted: false, reason: "duplicate_trigger" }; }
     const id = randomUUID(), row = await this.ledger.write({ id, triggerHash: trigger.hash, triggerSource: trigger.source || "unknown",
       triggerReceivedAt: trigger.receivedAt, affectedPools: trigger.affectedPools, predictionMode: trigger.predictionMode,
       mode: c.state.snapshot().mode, status: "DETECTED" });
@@ -89,7 +94,8 @@ class BackrunService {
   }
   async reject(row, reason) {
     this.reason(reason);
-    const saved = await this.ledger.write({ ...row, status: "REJECTED", rejectionReason: reason });
+    const saved = await this.ledger.write({ ...row, status: "REJECTED", rejectionReason: reason, rejectionCode: rejectionCode(reason) });
+    this.evidence.rejected?.(saved, reason);
     this.emit("backrun_rejected", saved); return saved;
   }
   async drain() {
@@ -106,7 +112,13 @@ class BackrunService {
     const c = this.coordinator, controller = new AbortController(), signal = controller.signal;
     this.active = controller;
     const timer = setTimeout(() => controller.abort(), this.profile.backrun.simulationTimeoutMs);
-    let saved = row, started = Date.now(), locked = false;
+    let saved = row, started = Date.now(), locked = false, executed = null, outcome = "REJECTED", fundingMode = null, candidates = 0;
+    // Stage clock, ms since the trigger was received (T0): T1 dequeued, T2 parent
+    // verified, T3 state predicted, T4 routes quoted and sized, T5 funding
+    // selected, T6 bundle simulated, T7 decision recorded, T8 execution
+    // started, T9 execution returned (LIVE only).
+    const clock = { T0: 0 }, mark = stage => { clock[stage] = Date.now() - trigger.receivedAt; };
+    mark("T1");
     try {
       if (!["PAPER", "LIVE_RUNNING"].includes(c.state.state)) throw abortError("Trading stopped");
       if (Date.now() - trigger.receivedAt > this.profile.backrun.maxTriggerAgeMs) throw abortError("Trigger expired in queue");
@@ -121,20 +133,25 @@ class BackrunService {
         const freshTrigger = await c.provider.getTransaction(trigger.hash);
         if (freshTrigger?.blockNumber != null) throw abortError("Trigger already landed");
       }
+      mark("T2");
       saved = await this.ledger.write({ ...saved, parentBlock: block.number, parentHash: block.hash, targetBlock: block.number + 1 });
       await this.engine.inspect({ trigger, registry: c.poolRegistry, block, signal }, async ({ opportunities, rejections, context, stages }) => {
+        clock.T3 = clock.T2 + (context?.predictionMs || 0); mark("T4");
         for (const r of rejections) this.reason(r.reason);
+        candidates = opportunities.length + rejections.length;
         if (!opportunities.length) throw new Error("No viable exact post-trigger route");
-        const best = opportunities[0]; best.executionId = randomUUID();
+        const best = opportunities[0]; best.executionId = randomUUID(); candidates = opportunities.length + rejections.length;
         saved = await this.ledger.write({ ...saved, status: "POST_TRIGGER_QUOTED", candidateId: best.route.id, route: best.route,
+          candidateRoutes: candidates,
           borrowToken: best.route.borrowToken, token: c.tokens.get(best.route.borrowToken), inputAmount: best.quote.borrowAmount,
           grossProfit: best.grossProfit, contextId: context.id, affectedPools: [...context.changedPools], stages });
         saved = await this.ledger.write({ ...saved, status: "FUNDING_SELECTED", fundingMode: best.funding.mode,
-          funding: best.funding, fundingComparisons:best.fundingComparisons, economics: best.economics, capitalAvailable: best.funding.capitalAvailable,
+          funding: best.funding, fundingComparisons:best.fundingComparisons, netNative: best.netNative, economics: best.economics, capitalAvailable: best.funding.capitalAvailable,
           flashPremium: best.funding.flashFee, gasEstimate: best.transaction.gasLimit, builderAllowance: best.tip.builderPaymentNativeWei });
+        mark("T5"); fundingMode = best.funding.mode;
         const simulationStarted = Date.now(); this.stats.simulations++;
         const sim = await this.backend.simulateUnsignedBundle({ trigger, parent: block, header: context.header, transaction: best.transaction, signal });
-        checkSignal(signal);
+        checkSignal(signal); mark("T6");
         if ((await c.provider.getBlock("latest")).hash !== block.hash || revision !== c.state.revision)
           throw abortError("Backrun parent/mode changed during simulation");
         if (Date.now() - trigger.receivedAt > this.profile.backrun.maxTriggerAgeMs) throw abortError("Trigger expired before decision");
@@ -146,7 +163,8 @@ class BackrunService {
           .reduce((s, log) => s.add(log.args.amount), bn(0));
         if (profit.lt(best.economics.minimumRequiredProfit.add(best.costBudgetBorrow)))
           throw new Error("Ordered bundle settlement does not meet profit floor");
-        saved = await this.ledger.write({ ...saved, status: "SIMULATED", latencyMs: Date.now() - trigger.receivedAt,
+        mark("T7");
+        saved = await this.ledger.write({ ...saved, status: "SIMULATED", latencyMs: clock.T7, stageClock: { ...clock },
           stages: { ...stages, quoteSizePrepareMs: simulationStarted - started - context.predictionMs, bundleSimulationMs: Date.now() - simulationStarted },
           simulation: { ordered: true, kind: sim.kind, signed: false, submitted: false, gasUsed: sim.gasUsed,
             triggerGasUsed: sim.triggerGasUsed, parentHash: sim.parentHash, simulatedAt: sim.simulatedAt,
@@ -155,17 +173,25 @@ class BackrunService {
         const symbol = c.tokens.get(best.route.borrowToken).symbol;
         this.stats.expectedByToken[symbol] = bn(this.stats.expectedByToken[symbol] || 0).add(best.economics.expectedNetProfit).toString();
         const pair = best.route.legs.map(l => l.dex).join(" → "); this.stats.dexPairs[pair] = (this.stats.dexPairs[pair] || 0) + 1;
-        this.evidence.record(saved); this.emit("backrun_simulated", saved);
+        outcome = "SIMULATED"; this.evidence.record(saved); this.emit("backrun_simulated", saved);
         if (c.state.state === "LIVE_RUNNING") {
+          mark("T8");
           const result = await this.execution.execute({ ...best, simulation: sim }, { signal, revision });
-          saved = await this.ledger.write({ ...saved, status: result.status, txHash: result.txHash, executionId: best.executionId });
+          executed = result.status; mark("T9"); outcome = result.status;
+          saved = await this.ledger.write({ ...saved, status: result.status, txHash: result.txHash, executionId: best.executionId, stageClock: { ...clock } });
         }
       });
       this.stats.processed++;
     } catch (error) {
-      if (["SUBMITTED", "INCLUDED", "REVERTED"].includes(saved.status) || c.ledger.pending().length) {
+      // A transaction the engine reports as sent is uncertain even if our own
+      // journal write afterwards failed: never reject it, stop and reconcile.
+      if (["SUBMITTED", "INCLUDED", "REVERTED"].includes(saved.status) || ["SUBMITTED", "INCLUDED", "REVERTED"].includes(executed) ||
+        c.ledger.pending().length) {
         this.trip("backrun_submission_uncertain");
-      } else await this.reject(saved, safeReason(error));
+      } else {
+        try { await this.reject(saved, safeReason(error)); }
+        catch (_) { this.trip("backrun_persistence_or_ingress_failed"); }
+      }
       if (/mismatch|Mixed pre-trigger|settlement/.test(error.message)) {
         this.stats.predictionFailures++; this.trip("backrun_prediction_or_relay_mismatch");
       }
@@ -173,14 +199,63 @@ class BackrunService {
       clearTimeout(timer); this.active = null;
       if (locked) c.backrunBusy = false;
       this.latencies.push(Date.now() - trigger.receivedAt); this.latencies = this.latencies.slice(-2000);
+      this.stageClocks.push({ source: trigger.source || "unknown", fundingMode, outcome, clock });
+      if (Number.isFinite(clock.T2)) this.evidence.evaluated?.({ candidates, latencyMs: clock.T7, budgetMs: this.profile.backrun.latencyBudgetMs });
+      if (this.stageClocks.length > 2000) this.stageClocks.shift();
     }
   }
   status() {
     return serialize({ enabled: this.enabled(), running: !this.closed, processing: this.processing,
       orderflowSource: this.profile.backrun.orderflowSource, source: this.source?.status(), circuitReason: this.circuitReason,
       ...this.stats, intake: this.intake.snapshot(), engine: this.engine.status(),
-      latency: { samples: this.latencies.length, medianMs: percentile(this.latencies, .5), p95Ms: percentile(this.latencies, .95) },
-      activity: this.execution.activity, burnIn: this.evidence.report(), recent: this.ledger.recent(20) });
+      latency: { samples: this.latencies.length, medianMs: percentile(this.latencies, .5), p95Ms: percentile(this.latencies, .95),
+        p99Ms: percentile(this.latencies, .99), budgetMs: this.profile.backrun.latencyBudgetMs,
+        decisionP95Ms: percentile(this.stageClocks.map(s => s.clock.T7).filter(Number.isFinite), .95) },
+      activity: this.execution.activity, burnIn: this.evidence.report(), dashboard: this.dashboard(), executorVersion: EXECUTOR_VERSION,
+      recent: this.ledger.recent(20) });
+  }
+  // PAPER workspace summary (blueprint §24). Rates are per continuous window.
+  dashboard() {
+    const r = this.evidence.report(), c = this.coordinator, now = Date.now();
+    const minutes = Math.max(1, (r.continuousMs || 0) / 60000), days = Math.max(1 / 1440, (r.continuousMs || 0) / 86400000);
+    const relays = Object.values(c.relays?.status?.().relays || {});
+    let dbHealthy = true;
+    try { dbHealthy = process.env.NODE_ENV !== "production" || require("../dbClient").isDbEnabled(); } catch (_) { dbHealthy = false; }
+    const per = (n, d) => (Number.isFinite(n) ? Math.round(n / d * 100) / 100 : null);
+    return { mode: c.state.snapshot().mode, executorVersion: EXECUTOR_VERSION,
+      currentHead: c.marketCache?.head ? { number: c.marketCache.head.number, hash: c.marketCache.head.hash } : null,
+      source: { name: this.profile.backrun.orderflowSource, connected: Boolean(this.source?.status?.().connected) },
+      triggersPerMinute: per(r.triggersObserved, minutes), evaluatedPerMinute: per(r.triggersEvaluated, minutes),
+      profitablePerDay: per(r.profitable, days), capitalOpportunities: r.capitalPositive ?? null, flashloanOpportunities: r.flashloanPositive ?? null,
+      bestHypotheticalNetNative: r.bestHypotheticalNetNative ?? null, medianHypotheticalNetNative: r.medianHypotheticalNetNative ?? null,
+      totalHypotheticalNetNative: r.totalHypotheticalNetNative ?? null, latency: r.latency || null,
+      topRejections: Object.entries(r.rejections || {}).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([code, count]) => ({ code, count })),
+      health: { rpc: Boolean(c.marketCache?.head) && now - (this.lastHeadAt || 0) < 60000,
+        fork: !this.circuitReason && !this.closed, database: dbHealthy,
+        relay: relays.every(s => !s.lastErrorAt || now - s.lastErrorAt > 300000) },
+      signatures: r.signatures ?? 0, submissions: r.submissions ?? 0,
+      continuity: { day: r.continuityDay ?? 0, of: 7, continuousMs: r.continuousMs ?? 0, lastReset: (r.resets || []).slice(-1)[0] || null },
+      paperPassed: Boolean(r.passed) };
+  }
+  // Pre-submission rows cannot resume after a restart: the trigger, parent and
+  // fork state are gone. A SIMULATED row whose LIVE execution reached the
+  // coordinator ledger as sent is linked to it instead, so receipt
+  // reconciliation settles it rather than losing a possibly-included trade.
+  async recoverAfterRestart() {
+    const sent = [...(this.coordinator.ledger.records?.values?.() || [])].filter(r => r.strategy === "TRANSACTION_TRIGGERED_BACKRUN" &&
+      ["SUBMITTED", "INCLUDED", "REVERTED", "DROPPED"].includes(r.status));
+    const recovered = { expired: 0, linked: 0 };
+    for (const row of this.ledger.recent(2000)) {
+      if (["DETECTED", "POST_TRIGGER_QUOTED", "FUNDING_SELECTED"].includes(row.status)) {
+        await this.reject(row, "ephemeral_trigger_expired_on_restart"); recovered.expired++;
+      } else if (row.status === "SIMULATED") {
+        const linked = sent.find(r => r.triggerHash?.toLowerCase() === row.triggerHash?.toLowerCase());
+        if (linked) { await this.ledger.write({ ...row, status: "SUBMITTED", executionId: linked.id, txHash: linked.txHash }); recovered.linked++; }
+        else { await this.reject(row, "ephemeral_trigger_expired_on_restart"); recovered.expired++; }
+      }
+    }
+    await this.reconcile();
+    return recovered;
   }
   async reconcile(){
     for(const row of this.ledger.recent(2000)){
