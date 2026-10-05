@@ -29,49 +29,29 @@ jobs:
           echo "Deployment not confirmed. Please type 'DEPLOY' to proceed."
           exit 1
 
+      - name: Require main
+        # Only the reviewed, merged main branch can reach production.
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "Production deploys run only from main (got ${{ github.ref }})."
+          exit 1
+
       - name: Confirm mainnet deployment
-        run: echo "Production deployment confirmed"
+        run: echo "Production deployment of ${{ github.sha }} confirmed"
 
-  test:
+  # The full production gate re-runs on the exact commit being deployed:
+  # deterministic core + contract + frontend suites, PostgreSQL persistence,
+  # blocking Slither and dependency audit.
+  production-core:
     needs: validate
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    uses: ./.github/workflows/production-core.yml
 
-      - name: Use Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Compile contracts
-        run: npx hardhat compile --force
-
-      - name: Run full test suite
-        # This is the deploy gate: any test failure blocks the production deploy.
-        run: npx hardhat test --network hardhat
-
-  security-audit:
+  security-gates:
     needs: validate
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Run Slither analysis
-        run: |
-          pip install slither-analyzer
-          slither . --exclude-dependencies || true
-
-      - name: Check for critical vulnerabilities
-        run: |
-          # Run security checks
-          npm audit --audit-level=critical || true
+    uses: ./.github/workflows/security-gates.yml
 
   build-and-push:
-    needs: [test, security-audit]
+    needs: [production-core, security-gates]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -169,21 +149,23 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts --legacy-peer-deps
 
+      # deploy-production.js is the production deployer: it checks chain ID,
+      # Aave bytecode and writes runtime/deployment.json with the expected code
+      # hash that LIVE readiness verifies. hardhat.config.js signs with PRIVATE_KEY.
       - name: Deploy contracts to mainnet
         env:
           MAINNET_RPC_URL: ${{ secrets.MAINNET_RPC_URL }}
-          DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
-          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
-        run: |
-          npx hardhat run scripts/deploy.js --network mainnet
+          PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+          PROFIT_RECIPIENT: ${{ vars.PROFIT_RECIPIENT }}
+        run: npm run deploy:production
 
-      - name: Verify contracts on Etherscan
-        env:
-          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
-        run: |
-          npx hardhat verify --network mainnet
+      - name: Upload deployment manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-${{ github.sha }}
+          path: runtime/deployment.json
 
   deploy-production:
     needs: [build-and-push]
