@@ -41,9 +41,11 @@ function evaluateAcceptance({ manifest, profile, env = process.env, now = Date.n
   const failedRequired = gates.filter(g => g.required && !g.passed).map(g => g.id);
   const localValidationPassed = failedRequired.length === 0;
   const deployedHashConfigured = Boolean(profile?.expectedContractCodeHash);
-  const readyForPaper = localValidationPassed && problems.length === 0 && deployedHashConfigured;
+  const tradingKey = Boolean(String(env.PRIVATE_KEY || "").trim());
+  const readyForPaper = localValidationPassed && problems.length === 0 && deployedHashConfigured && !tradingKey;
   const blockers = [...failedRequired.map(id => `gate ${id} not passed`), ...problems,
-    ...(deployedHashConfigured ? [] : ["EXPECTED_CONTRACT_CODE_HASH not configured"])];
+    ...(deployedHashConfigured ? [] : ["EXPECTED_CONTRACT_CODE_HASH not configured"]),
+    ...(tradingKey ? ["PRIVATE_KEY present in the PAPER environment"] : [])];
   return { gates, failedRequired, manifestProblems: problems, localValidationPassed, readyForPaper, blockers };
 }
 
@@ -59,13 +61,15 @@ function writeValidationReport({ manifest, profile, env = process.env, now = Dat
 
 // PAPER preflight: a passing local validation report for this exact code,
 // executor build and profile, recent enough to still describe them.
-function localValidationStatus({ manifest, env = process.env, now = Date.now, maxAgeMs = 7 * DAY } = {}) {
+// Deployment needs local validation only (the deployed code hash cannot exist
+// yet); PAPER additionally needs readyForPaper.
+function localValidationStatus({ manifest, env = process.env, now = Date.now, maxAgeMs = 7 * DAY, requirePaperReady = true } = {}) {
   const { ok, reason, record } = readEvidence(REPORT, { manifest, maxAgeMs, env, now });
   if (!ok) return { ok: false, reason };
   if (record.kind !== "BACKRUN_LOCAL_VALIDATION" || record.executorVersion !== EXECUTOR_VERSION)
     return { ok: false, reason: `local validation report is not for executor v${EXECUTOR_VERSION}` };
   if (!record.localValidationPassed) return { ok: false, reason: `local validation failed: ${(record.blockers || []).join("; ")}` };
-  if (!record.readyForPaper) return { ok: false, reason: `not ready for PAPER: ${(record.blockers || []).join("; ")}` };
+  if (requirePaperReady && !record.readyForPaper) return { ok: false, reason: `not ready for PAPER: ${(record.blockers || []).join("; ")}` };
   return { ok: true, reason: null, report: record };
 }
 

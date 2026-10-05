@@ -54,9 +54,14 @@ function replayGate(data, manifest) {
   const violations = executions.filter(e => e.principalPreserved !== true || e.canonicalReceiptsVerified !== true || e.sameBlock !== true);
   if (violations.length) problems.push(`${violations.length} successful execution(s) without verified receipts, same block or preserved principal`);
   if (!data.rows.length) problems.push("no measured canonical executions");
+  for (const mode of ["CAPITAL", "FLASH_LOAN"])
+    if (!data.rows.some(r => r.fundingMode === mode)) problems.push(`no measured ${mode} execution`);
+  // Unresolved technical errors mean part of the replay was never evaluated.
+  const technicalErrors = (data.batch?.blockErrors?.length || 0) + reports.flatMap(r => r.results || []).filter(r => r.status === "ERROR").length;
+  if (technicalErrors) problems.push(`${technicalErrors} unresolved technical replay error(s)`);
   return { reports: reports.map(r => ({ kind: r.kind, status: r.status, executorVersion: r.executorVersion ?? null,
     blocks: r.blockNumber ?? [r.startBlock, r.endBlock] })), succeededExecutions: executions.length, measuredRows: data.rows.length,
-    violations: violations.length, problems, passed: !problems.length, reason: problems[0] || null };
+    violations: violations.length, technicalErrors, problems, passed: !problems.length, reason: problems[0] || null };
 }
 
 async function runGate(gate, { profile, data, minimumWei, manifest }) {

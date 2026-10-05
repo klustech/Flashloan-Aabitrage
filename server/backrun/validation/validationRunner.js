@@ -11,7 +11,7 @@ const ROOT = path.resolve(__dirname, "../../..");
 const node = process.execPath;
 
 function steps(env = process.env) {
-  const forkEnv = { LOCAL_BACKRUN_TEST_ENGINE: env.LOCAL_BACKRUN_TEST_ENGINE || "anvil" };
+  const forkEnv = { LOCAL_BACKRUN_TEST_RPC: env.LOCAL_BACKRUN_TEST_RPC, LOCAL_BACKRUN_TEST_ENGINE: env.LOCAL_BACKRUN_TEST_ENGINE || "anvil" };
   return [
     { id: "compiler", command: "npx", args: ["hardhat", "compile", "--force"], evidence: "step-compiler" },
     { id: "core-tests", command: "npm", args: ["run", "test:core"], evidence: "step-core-tests" },
@@ -44,8 +44,11 @@ function defaultExec(command, args, { env }) {
 }
 
 async function runStep(step, { env, exec, manifestFor, log }) {
-  const started = Date.now(), childEnv = { ...env, ...(step.env || {}) };
-  delete childEnv.PRIVATE_KEY;
+  const started = Date.now(), childEnv = { ...env };
+  // Fork tests share one local node and must run serially, so only the
+  // fork step sees it; test:core would otherwise run them concurrently.
+  delete childEnv.PRIVATE_KEY; delete childEnv.LOCAL_BACKRUN_TEST_RPC; delete childEnv.LOCAL_BACKRUN_TEST_ENGINE;
+  Object.assign(childEnv, step.env || {});
   if (step.requiresEnv && !env[step.requiresEnv]) return { id: step.id, passed: false, durationMs: 0,
     reason: `${step.requiresEnv} not set (start a local fork: node scripts/backrun-fork-node.js --anvil)` };
   const runs = [];
