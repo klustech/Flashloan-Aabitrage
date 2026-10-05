@@ -1,6 +1,6 @@
 // Use the lockfile-pinned local Solidity compiler; no compiler download required.
 const { subtask } = require("hardhat/config");
-const { TASK_COMPILE_SOLIDITY_GET_SOLC_BUILD } = require("hardhat/builtin-tasks/task-names");
+const { TASK_COMPILE_SOLIDITY_GET_SOLC_BUILD, TASK_TEST_GET_TEST_FILES } = require("hardhat/builtin-tasks/task-names");
 subtask(TASK_COMPILE_SOLIDITY_GET_SOLC_BUILD).setAction(async ({ solcVersion }, _hre, runSuper) => {
   if (solcVersion === "0.8.20") return { compilerPath: require.resolve("solc/soljson.js"), isSolcJs: true, version: solcVersion, longVersion: require("solc").version() };
   return runSuper();
@@ -13,6 +13,15 @@ require("hardhat-gas-reporter");
 require("hardhat-deploy");
 require("hardhat-contract-sizer");
 require("dotenv").config({ override: false });
+
+// node:test owns *.node.test.js; mixing it with Mocha can hide failed tests.
+subtask(TASK_TEST_GET_TEST_FILES).setAction(async (args, _hre, runSuper) => {
+  if (args.testFiles.some(file => file.endsWith(".node.test.js"))) {
+    throw new Error("Run *.node.test.js with npm run test:core or node --test, not hardhat test.");
+  }
+  const files = await runSuper(args);
+  return files.filter(file => !file.endsWith(".node.test.js"));
+});
 
 const {
   PRIVATE_KEY,
