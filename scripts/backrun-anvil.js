@@ -18,7 +18,11 @@ function anvilBinary() {
   return binary;
 }
 function anvilArguments() {
+  // A canonical sender may receive its gas/value from an earlier transaction
+  // in the same block. Queue without parent-state balance admission checks;
+  // EVM execution and the replay's exact inclusion/receipt checks still apply.
   return ["--host", "127.0.0.1", "--port", "8548", "--chain-id", "1", "--accounts", "0",
-    "--no-mining", "--order", "fifo", "--disable-default-create2-deployer", "--silent"];
+    "--no-mining", "--order", "fifo", "--disable-pool-balance-checks",
+    "--disable-default-create2-deployer", "--silent"];
 }
 module.exports = { VERSION, DIGESTS, platform, installPath, anvilBinary, anvilArguments };

@@ -524,6 +524,24 @@ tracked pools, not an Ethereum-wide search. The default window and pools are
 anchored around a known example, so this initial sample is not representative
 market evidence.
 
+The dedicated Anvil launcher uses `--disable-pool-balance-checks` with FIFO
+ordering and manual mining. This lets a canonical sender queue a transaction
+whose gas/value is funded by an earlier transaction in the same historical
+block. It changes transaction-pool admission only: EVM execution still requires
+sufficient funds, and exact transaction inclusion/order plus receipt status,
+gas and logs remain mandatory. Historical sender balances are never topped up
+to bypass an admission failure. A truly unfunded transaction is omitted by the
+miner and fails the replay inclusion check.
+
+After updating from an older launcher, stop the running batch with Ctrl+C in
+its original terminal before restarting it. An owned local node is stopped with
+the batch. If Anvil was started separately, stop it in that terminal too and
+restart through the updated launcher. `local_fork_reusing_existing` means an
+existing process was reused; updating files cannot change its startup flags.
+The same rule applies to replay and executor-sweep commands. An
+`eth_sendRawTransaction` insufficient-funds error for a canonical prefix is a
+replay diagnostic, not a request to fund the operator or increase the loan.
+
 For each discovered trigger, the command replays its canonical signed prefix
 and verifies transaction order, receipt status, gas and logs. It deploys the real
 executor constructor locally and preserves only its isolated synthetic funding

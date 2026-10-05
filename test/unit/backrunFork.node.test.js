@@ -271,3 +271,56 @@ test("local executor diagnostic preserves historical prefix and settles both fun
     await provider.send("evm_setAutomine",[true]);
     function onlyCanonical(data,prefix){return {...data,block:{...data.block,hash:prefix.block.hash},receipts:[prefix.receipts[0]]};}
   });
+
+
+test("canonical same-block funding permits a previously unfunded sender without balance overlays",
+  {skip:!process.env.LOCAL_BACKRUN_TEST_RPC||process.env.LOCAL_BACKRUN_TEST_ENGINE!=="anvil",timeout:30000},async()=>{
+    const url=process.env.LOCAL_BACKRUN_TEST_RPC,provider=new providers.StaticJsonRpcProvider(url,1);
+    const funder=Wallet.createRandom(),sender=Wallet.createRandom(),recipient=Wallet.createRandom().address;
+    await provider.send("hardhat_reset",[]);
+    await provider.send("evm_setAutomine",[false]);
+    // Only the synthetic fixture's funding source gets a genesis balance. The
+    // second sender must obtain both gas and value through transaction zero.
+    const initial=utils.parseEther("1"),funding=utils.parseEther("0.1"),value=utils.parseEther("0.01");
+    await provider.send("hardhat_setBalance",[funder.address,utils.hexValue(initial)]);
+    assert.equal((await provider.getBalance(sender.address)).toString(),"0");
+    const parent=await latestBlock(provider),header={...parent,number:parent.number+1,timestamp:parent.timestamp+12,
+      baseFeePerGas:require("../../server/backrun/forkBackend").nextBaseFee(parent)};
+    const fields={nonce:0,chainId:1,type:2,gasLimit:21000,
+      maxFeePerGas:parent.baseFeePerGas.mul(2).add(1),maxPriorityFeePerGas:1};
+    const raws=[await funder.signTransaction({...fields,to:sender.address,value:funding}),
+      await sender.signTransaction({...fields,to:recipient,value})];
+    const canonicalTransactions=raws.map(raw=>utils.parseTransaction(raw));
+    const backend=new ForkBackend({url,provider,engine:"anvil"});
+    const result=await backend.mine(raws,header,{canonicalTransactions});
+    require("../../server/backrun/historicalReplay").verifyReceipts(result.receipts,
+      canonicalTransactions.map((tx,index)=>({transactionHash:tx.hash,transactionIndex:index,
+        status:1,gasUsed:21000,logs:[]})));
+    assert.deepEqual(result.block.transactions,canonicalTransactions.map(tx=>tx.hash));
+    assert.equal((await provider.getBalance(recipient)).toString(),value.toString());
+    const gasCost=i=>result.receipts[i].gasUsed.mul(result.receipts[i].effectiveGasPrice);
+    assert.equal((await provider.getBalance(sender.address)).toString(),funding.sub(value).sub(gasCost(1)).toString());
+    assert.equal((await provider.getBalance(funder.address)).toString(),initial.sub(funding).sub(gasCost(0)).toString());
+    assert.equal(await provider.getTransactionCount(sender.address),1);
+  });
+
+test("relaxed pool admission still rejects an unfunded canonical prefix at EVM execution",
+  {skip:!process.env.LOCAL_BACKRUN_TEST_RPC||process.env.LOCAL_BACKRUN_TEST_ENGINE!=="anvil",timeout:30000},async()=>{
+    const url=process.env.LOCAL_BACKRUN_TEST_RPC,provider=new providers.StaticJsonRpcProvider(url,1);
+    const sender=Wallet.createRandom(),recipient=Wallet.createRandom().address;
+    await provider.send("hardhat_reset",[]);
+    await provider.send("evm_setAutomine",[false]);
+    const parent=await latestBlock(provider),header={...parent,number:parent.number+1,timestamp:parent.timestamp+12,
+      baseFeePerGas:require("../../server/backrun/forkBackend").nextBaseFee(parent)};
+    const raw=await sender.signTransaction({nonce:0,chainId:1,type:2,gasLimit:21000,to:recipient,value:1,
+      maxFeePerGas:parent.baseFeePerGas.mul(2).add(1),maxPriorityFeePerGas:1});
+    const backend=new ForkBackend({url,provider,engine:"anvil"});
+    // Admission succeeds, but execution cannot fabricate funds. The missing
+    // transaction must fail the backend's exact inclusion gate, never a proof.
+    await assert.rejects(backend.mine([raw],header,{canonicalTransactions:[utils.parseTransaction(raw)]}),
+      /Fork transaction order\/inclusion mismatch/);
+    assert.equal(await provider.getTransactionReceipt(utils.keccak256(raw)),null);
+    assert.equal((await provider.getBalance(sender.address)).toString(),"0");
+    assert.equal((await provider.getBalance(recipient)).toString(),"0");
+    assert.equal(await provider.getTransactionCount(sender.address),0);
+  });
