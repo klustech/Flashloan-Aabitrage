@@ -26,7 +26,7 @@ const ACCEPTANCE = [
   { id: "funding-parity", evidence: "funding-parity", title: "CAPITAL and FLASH_LOAN differ only by fee and gas" },
   { id: "failure-injection", evidence: "failure-injection", title: "Every injected dependency failure is fail-closed" },
   { id: "restart-recovery", evidence: "restart-recovery", title: "Crash-point journals recover without resubmission" },
-  { id: "latency", evidence: "latency", title: "p95 decision latency within budget; bounded concurrent queue" },
+  { id: "latency", evidence: "latency", title: "Measured decision-latency baseline (p50/p95/p99); bounded concurrent queue" },
 ].map(g => ({ required: true, ...g }));
 
 function evaluateAcceptance({ manifest, profile, env = process.env, now = Date.now, maxAgeMs = 7 * DAY } = {}) {

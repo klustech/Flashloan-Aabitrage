@@ -22,16 +22,26 @@ test("the service journals a monotonic T0-T7 stage clock on every decision", asy
   assert.equal(service.status().latency.budgetMs, 2500);
 });
 
-test("p95 decision latency is gated on budget and sample count", () => {
+test("a latency baseline needs enough samples; the budget is enforced on request", () => {
   const rows = Array.from({ length: 40 }, (_, i) => ({ triggerSource: i % 2 ? "mev_share" : "custom", fundingMode: "CAPITAL",
     stageClock: { T0: 0, T1: 1, T2: 2, T3: 10, T4: 20, T5: 21, T6: 80 + i, T7: 90 + i } }));
   const samples = L.samplesFromRows(rows);
   assert.equal(L.latencyReport(samples, { budgetMs: 2500 }).passed, true);
-  assert.equal(L.latencyReport(samples, { budgetMs: 100 }).reason, "p95_decision_latency_over_budget");
+  assert.equal(L.latencyReport(samples, { budgetMs: 100 }).passed, true, "baseline recorded");
+  assert.equal(L.latencyReport(samples, { budgetMs: 100 }).withinBudget, false);
+  assert.equal(L.latencyReport(samples, { budgetMs: 100, enforceBudget: true }).reason, "p95_decision_latency_over_budget");
   assert.equal(L.latencyReport(samples.slice(0, 5), { budgetMs: 2500 }).reason, "insufficient_measured_samples");
   const r = L.latencyReport(samples, { budgetMs: 2500 });
   assert.equal(r.bySource.mev_share.samples, 20);
   assert.equal(r.stages.prediction.median, 8);
+});
+
+test("historical batch timings form a labelled local baseline", () => {
+  const batch = { results: [{ timings: { postTriggerStateMs: 30, quoteAndSizeMs: 70, decisionMs: 100 },
+    executions: [{ executionSucceeded: true, fundingMode: "FLASH_LOAN" }] }, { status: "ERROR" }] };
+  const [s, ...rest] = L.samplesFromBatch(batch);
+  assert.equal(rest.length, 0);
+  assert.deepEqual([s.source, s.fundingMode, s.clock.T7, L.stageDurations(s.clock).prediction], ["historical_batch", "FLASH_LOAN", 100, 30]);
 });
 
 test("concurrent bursts stay fail-closed: terminal outcomes, no late decisions, bounded queue", { timeout: 30000 }, async () => {

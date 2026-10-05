@@ -302,7 +302,12 @@ async function evaluateTrigger({ profile, backend, data, trigger, pools, options
       verifyReceipts(prefix.receipts, data.receipts.slice(0, index + 1)); return prefix.block;
     };
     stage({ stage: "batch_post_trigger" });
+    // Local decision-latency baseline: post-trigger state (canonical prefix
+    // mined on Anvil), then route search and exact sizing. Includes replay
+    // overhead a live fork does not have; PAPER measures the live pipeline.
+    const decisionStarted = Date.now();
     const block = await prefixAt(trigger.transactionIndex), post = await context(profile, backend.provider, pools, block);
+    const stateReady = Date.now();
     const routes = candidateRoutes(post.registry, profile.tokens.WETH, trigger.affectedPools, block.number);
     result.routes = routes.length;
     if (routes.length > options.maxRoutes) throw new Error("Batch route bound exceeded; no silent route truncation");
@@ -313,6 +318,8 @@ async function evaluateTrigger({ profile, backend, data, trigger, pools, options
     stage({ stage: "batch_sizing", routeCount: routes.length });
     const sized = await sizing({ routes, quoter: post.quoter, block, terms, flashloan, options });
     result.quoteProbes = sized.quoteProbes; result.sizingSearches = sized.searches; result.errors.push(...sized.errors);
+    result.timings = { postTriggerStateMs: stateReady - decisionStarted, quoteAndSizeMs: Date.now() - stateReady,
+      decisionMs: Date.now() - decisionStarted };
     if (!sized.candidates.length) { result.reason = "no_positive_exact_quote_after_funding_in_tested_sizes"; return result; }
     const before = new Map();
     stage({ stage: "batch_before_trigger" });
