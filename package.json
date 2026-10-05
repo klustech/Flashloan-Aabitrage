@@ -68,6 +68,7 @@
     "hardhat-gas-reporter": "^2.2.3",
     "husky": "^9.1.7",
     "mocha": "^11.0.1",
+    "solc": "0.8.20",
     "solidity-coverage": "^0.8.16",
     "supertest": "^7.1.4"
   },
@@ -104,7 +105,6 @@
     "pg": "^8.16.0",
     "prom-client": "^15.1.0",
     "simple-statistics": "^7.8.8",
-    "solc": "^0.8.20",
     "technicalindicators": "^3.1.0",
     "web3": "^4.16.0",
     "winston": "^3.17.0",

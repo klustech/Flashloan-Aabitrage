@@ -2,8 +2,8 @@
   "_format": "hh-sol-cache-2",
   "files": {
     "/home/user/Flashloan-Aabitrage/contracts/ArbitrageFlashloan.sol": {
-      "lastModificationDate": 1791195879684,
-      "contentHash": "0e2d2da6caa054d11d406b86103730d6",
+      "lastModificationDate": 1791199800334,
+      "contentHash": "fa7a84a46f0e660bdb4a65d20572c0b7",
       "sourceName": "contracts/ArbitrageFlashloan.sol",
       "solcConfig": {
         "version": "0.8.20",
@@ -101,10 +101,10 @@
         "IFlashLoanReceiver"
       ]
     },
-    "/home/user/Flashloan-Aabitrage/contracts/interfaces/IUniswapV2Router02.sol": {
+    "/home/user/Flashloan-Aabitrage/contracts/interfaces/ILendingPoolAddressesProvider.sol": {
       "lastModificationDate": 1791113752735,
-      "contentHash": "f131546b76116707db0d17fb64a270e9",
-      "sourceName": "contracts/interfaces/IUniswapV2Router02.sol",
+      "contentHash": "55bf3e77eea327dbf058c23d24326d1c",
+      "sourceName": "contracts/interfaces/ILendingPoolAddressesProvider.sol",
       "solcConfig": {
         "version": "0.8.20",
         "settings": {
@@ -142,7 +142,7 @@
         "^0.8.0"
       ],
       "artifacts": [
-        "IUniswapV2Router02"
+        "ILendingPoolAddressesProvider"
       ]
     },
     "/home/user/Flashloan-Aabitrage/contracts/interfaces/ILendingPool.sol": {
@@ -189,10 +189,10 @@
         "ILendingPool"
       ]
     },
-    "/home/user/Flashloan-Aabitrage/contracts/interfaces/ILendingPoolAddressesProvider.sol": {
+    "/home/user/Flashloan-Aabitrage/contracts/interfaces/IUniswapV2Router02.sol": {
       "lastModificationDate": 1791113752735,
-      "contentHash": "55bf3e77eea327dbf058c23d24326d1c",
-      "sourceName": "contracts/interfaces/ILendingPoolAddressesProvider.sol",
+      "contentHash": "f131546b76116707db0d17fb64a270e9",
+      "sourceName": "contracts/interfaces/IUniswapV2Router02.sol",
       "solcConfig": {
         "version": "0.8.20",
         "settings": {
@@ -230,11 +230,11 @@
         "^0.8.0"
       ],
       "artifacts": [
-        "ILendingPoolAddressesProvider"
+        "IUniswapV2Router02"
       ]
     },
     "/home/user/Flashloan-Aabitrage/node_modules/@openzeppelin/contracts/security/Pausable.sol": {
-      "lastModificationDate": 1791113899592,
+      "lastModificationDate": 1791199826954,
       "contentHash": "25c8108f36fdd472bc78d4c4af240c11",
       "sourceName": "@openzeppelin/contracts/security/Pausable.sol",
       "solcConfig": {
@@ -280,7 +280,7 @@
       ]
     },
     "/home/user/Flashloan-Aabitrage/node_modules/@openzeppelin/contracts/security/ReentrancyGuard.sol": {
-      "lastModificationDate": 1791113899620,
+      "lastModificationDate": 1791199826970,
       "contentHash": "1535f8c0c68463f8c1b5239f7584e71f",
       "sourceName": "@openzeppelin/contracts/security/ReentrancyGuard.sol",
       "solcConfig": {
@@ -323,54 +323,8 @@
         "ReentrancyGuard"
       ]
     },
-    "/home/user/Flashloan-Aabitrage/node_modules/@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol": {
-      "lastModificationDate": 1791113899268,
-      "contentHash": "909ab67fc5c25033fe6cd364f8c056f9",
-      "sourceName": "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol",
-      "solcConfig": {
-        "version": "0.8.20",
-        "settings": {
-          "optimizer": {
-            "enabled": true,
-            "runs": 200
-          },
-          "metadata": {
-            "bytecodeHash": "ipfs",
-            "useLiteralContent": true
-          },
-          "evmVersion": "paris",
-          "outputSelection": {
-            "*": {
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers",
-                "metadata",
-                "devdoc",
-                "userdoc",
-                "storageLayout",
-                "evm.gasEstimates"
-              ],
-              "": [
-                "ast"
-              ]
-            }
-          }
-        }
-      },
-      "imports": [
-        "../IERC20.sol"
-      ],
-      "versionPragmas": [
-        "^0.8.0"
-      ],
-      "artifacts": [
-        "IERC20Metadata"
-      ]
-    },
     "/home/user/Flashloan-Aabitrage/node_modules/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol": {
-      "lastModificationDate": 1791113899668,
+      "lastModificationDate": 1791199826990,
       "contentHash": "1b5d667d3740d866eca0352758e59827",
       "sourceName": "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol",
       "solcConfig": {
@@ -417,8 +371,54 @@
         "SafeERC20"
       ]
     },
+    "/home/user/Flashloan-Aabitrage/node_modules/@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol": {
+      "lastModificationDate": 1791199826818,
+      "contentHash": "909ab67fc5c25033fe6cd364f8c056f9",
+      "sourceName": "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "metadata": {
+            "bytecodeHash": "ipfs",
+            "useLiteralContent": true
+          },
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata",
+                "devdoc",
+                "userdoc",
+                "storageLayout",
+                "evm.gasEstimates"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "../IERC20.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "IERC20Metadata"
+      ]
+    },
     "/home/user/Flashloan-Aabitrage/node_modules/@openzeppelin/contracts/utils/Context.sol": {
-      "lastModificationDate": 1791113897836,
+      "lastModificationDate": 1791199826202,
       "contentHash": "f07feb4a44b1a4872370da5aa70e8e46",
       "sourceName": "@openzeppelin/contracts/utils/Context.sol",
       "solcConfig": {
@@ -462,7 +462,7 @@
       ]
     },
     "/home/user/Flashloan-Aabitrage/node_modules/@openzeppelin/contracts/token/ERC20/IERC20.sol": {
-      "lastModificationDate": 1791113899260,
+      "lastModificationDate": 1791199826814,
       "contentHash": "df36f7051335cd1e748b1b6463b7fdd3",
       "sourceName": "@openzeppelin/contracts/token/ERC20/IERC20.sol",
       "solcConfig": {
@@ -506,7 +506,7 @@
       ]
     },
     "/home/user/Flashloan-Aabitrage/node_modules/@openzeppelin/contracts/utils/Address.sol": {
-      "lastModificationDate": 1791113897668,
+      "lastModificationDate": 1791199826118,
       "contentHash": "211ffd288c1588ba8c10eae668ca3c66",
       "sourceName": "@openzeppelin/contracts/utils/Address.sol",
       "solcConfig": {
@@ -550,7 +550,7 @@
       ]
     },
     "/home/user/Flashloan-Aabitrage/node_modules/@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol": {
-      "lastModificationDate": 1791113899272,
+      "lastModificationDate": 1791199826822,
       "contentHash": "525fcdad8d171312933f47baf01d1ed8",
       "sourceName": "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol",
       "solcConfig": {
@@ -591,99 +591,6 @@
       ],
       "artifacts": [
         "IERC20Permit"
-      ]
-    },
-    "/home/user/Flashloan-Aabitrage/contracts/mocks/MockUniswapV2Router.sol": {
-      "lastModificationDate": 1791113752735,
-      "contentHash": "c1264d22f1797020e09ec1483f39bd11",
-      "sourceName": "contracts/mocks/MockUniswapV2Router.sol",
-      "solcConfig": {
-        "version": "0.8.20",
-        "settings": {
-          "optimizer": {
-            "enabled": true,
-            "runs": 200
-          },
-          "metadata": {
-            "bytecodeHash": "ipfs",
-            "useLiteralContent": true
-          },
-          "evmVersion": "paris",
-          "outputSelection": {
-            "*": {
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers",
-                "metadata",
-                "devdoc",
-                "userdoc",
-                "storageLayout",
-                "evm.gasEstimates"
-              ],
-              "": [
-                "ast"
-              ]
-            }
-          }
-        }
-      },
-      "imports": [
-        "@openzeppelin/contracts/token/ERC20/IERC20.sol"
-      ],
-      "versionPragmas": [
-        "^0.8.0"
-      ],
-      "artifacts": [
-        "MockUniswapV2Router"
-      ]
-    },
-    "/home/user/Flashloan-Aabitrage/contracts/mocks/MockLendingPool.sol": {
-      "lastModificationDate": 1791195332788,
-      "contentHash": "e4f0a079fa8100a6571a5935af467d58",
-      "sourceName": "contracts/mocks/MockLendingPool.sol",
-      "solcConfig": {
-        "version": "0.8.20",
-        "settings": {
-          "optimizer": {
-            "enabled": true,
-            "runs": 200
-          },
-          "metadata": {
-            "bytecodeHash": "ipfs",
-            "useLiteralContent": true
-          },
-          "evmVersion": "paris",
-          "outputSelection": {
-            "*": {
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers",
-                "metadata",
-                "devdoc",
-                "userdoc",
-                "storageLayout",
-                "evm.gasEstimates"
-              ],
-              "": [
-                "ast"
-              ]
-            }
-          }
-        }
-      },
-      "imports": [
-        "@openzeppelin/contracts/token/ERC20/IERC20.sol",
-        "../interfaces/IFlashLoanReceiver.sol"
-      ],
-      "versionPragmas": [
-        "0.8.20"
-      ],
-      "artifacts": [
-        "MockLendingPool"
       ]
     },
     "/home/user/Flashloan-Aabitrage/contracts/ConnextAdapter.sol": {
@@ -778,8 +685,101 @@
         "IXReceiver"
       ]
     },
+    "/home/user/Flashloan-Aabitrage/contracts/mocks/MockUniswapV2Router.sol": {
+      "lastModificationDate": 1791113752735,
+      "contentHash": "c1264d22f1797020e09ec1483f39bd11",
+      "sourceName": "contracts/mocks/MockUniswapV2Router.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "metadata": {
+            "bytecodeHash": "ipfs",
+            "useLiteralContent": true
+          },
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata",
+                "devdoc",
+                "userdoc",
+                "storageLayout",
+                "evm.gasEstimates"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "@openzeppelin/contracts/token/ERC20/IERC20.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "MockUniswapV2Router"
+      ]
+    },
+    "/home/user/Flashloan-Aabitrage/contracts/mocks/MockLendingPool.sol": {
+      "lastModificationDate": 1791199434058,
+      "contentHash": "e4f0a079fa8100a6571a5935af467d58",
+      "sourceName": "contracts/mocks/MockLendingPool.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "metadata": {
+            "bytecodeHash": "ipfs",
+            "useLiteralContent": true
+          },
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata",
+                "devdoc",
+                "userdoc",
+                "storageLayout",
+                "evm.gasEstimates"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "@openzeppelin/contracts/token/ERC20/IERC20.sol",
+        "../interfaces/IFlashLoanReceiver.sol"
+      ],
+      "versionPragmas": [
+        "0.8.20"
+      ],
+      "artifacts": [
+        "MockLendingPool"
+      ]
+    },
     "/home/user/Flashloan-Aabitrage/node_modules/@openzeppelin/contracts/access/AccessControl.sol": {
-      "lastModificationDate": 1791113897604,
+      "lastModificationDate": 1791199826086,
       "contentHash": "a2b1ec38a8dad325a596f926890772b8",
       "sourceName": "@openzeppelin/contracts/access/AccessControl.sol",
       "solcConfig": {
@@ -828,7 +828,7 @@
       ]
     },
     "/home/user/Flashloan-Aabitrage/node_modules/@openzeppelin/contracts/utils/Strings.sol": {
-      "lastModificationDate": 1791113899716,
+      "lastModificationDate": 1791199827010,
       "contentHash": "48686fc32a22a3754b8e63321857dd2a",
       "sourceName": "@openzeppelin/contracts/utils/Strings.sol",
       "solcConfig": {
@@ -875,7 +875,7 @@
       ]
     },
     "/home/user/Flashloan-Aabitrage/node_modules/@openzeppelin/contracts/utils/introspection/ERC165.sol": {
-      "lastModificationDate": 1791113898420,
+      "lastModificationDate": 1791199826442,
       "contentHash": "0e7db055ce108f9da7bb6686a00287c0",
       "sourceName": "@openzeppelin/contracts/utils/introspection/ERC165.sol",
       "solcConfig": {
@@ -921,7 +921,7 @@
       ]
     },
     "/home/user/Flashloan-Aabitrage/node_modules/@openzeppelin/contracts/access/IAccessControl.sol": {
-      "lastModificationDate": 1791113899040,
+      "lastModificationDate": 1791199826714,
       "contentHash": "57c84298234411cea19c7c284d86be8b",
       "sourceName": "@openzeppelin/contracts/access/IAccessControl.sol",
       "solcConfig": {
@@ -965,7 +965,7 @@
       ]
     },
     "/home/user/Flashloan-Aabitrage/node_modules/@openzeppelin/contracts/utils/math/SignedMath.sol": {
-      "lastModificationDate": 1791113899692,
+      "lastModificationDate": 1791199827002,
       "contentHash": "9488ebd4daacfee8ad04811600d7d061",
       "sourceName": "@openzeppelin/contracts/utils/math/SignedMath.sol",
       "solcConfig": {
@@ -1009,7 +1009,7 @@
       ]
     },
     "/home/user/Flashloan-Aabitrage/node_modules/@openzeppelin/contracts/utils/math/Math.sol": {
-      "lastModificationDate": 1791113899532,
+      "lastModificationDate": 1791199826934,
       "contentHash": "fe63409d8a06818b926cf89e0ea88b1b",
       "sourceName": "@openzeppelin/contracts/utils/math/Math.sol",
       "solcConfig": {
@@ -1053,7 +1053,7 @@
       ]
     },
     "/home/user/Flashloan-Aabitrage/node_modules/@openzeppelin/contracts/utils/introspection/IERC165.sol": {
-      "lastModificationDate": 1791113899228,
+      "lastModificationDate": 1791199826802,
       "contentHash": "03e6768535ac4da0e9756f1d8a4a018a",
       "sourceName": "@openzeppelin/contracts/utils/introspection/IERC165.sol",
       "solcConfig": {
@@ -1097,7 +1097,7 @@
       ]
     },
     "/home/user/Flashloan-Aabitrage/node_modules/@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol": {
-      "lastModificationDate": 1791113899188,
+      "lastModificationDate": 1791199826778,
       "contentHash": "9f8822b72fe2702979e40160cb6d9636",
       "sourceName": "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol",
       "solcConfig": {
@@ -1143,7 +1143,7 @@
       ]
     },
     "/home/user/Flashloan-Aabitrage/node_modules/@openzeppelin/contracts/governance/TimelockController.sol": {
-      "lastModificationDate": 1791113899724,
+      "lastModificationDate": 1791199827014,
       "contentHash": "39cfb1304186349ce1051fe20ff67567",
       "sourceName": "@openzeppelin/contracts/governance/TimelockController.sol",
       "solcConfig": {
@@ -1191,7 +1191,7 @@
       ]
     },
     "/home/user/Flashloan-Aabitrage/node_modules/@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol": {
-      "lastModificationDate": 1791113899388,
+      "lastModificationDate": 1791199826874,
       "contentHash": "c22d4395e33763de693fd440c6fd10e1",
       "sourceName": "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol",
       "solcConfig": {
@@ -1456,50 +1456,6 @@
         "MockProvider"
       ]
     },
-    "/home/user/Flashloan-Aabitrage/contracts/mocks/MockWrappedNative.sol": {
-      "lastModificationDate": 1791195332788,
-      "contentHash": "e45dd7d48526cccb5b6227ea0d165423",
-      "sourceName": "contracts/mocks/MockWrappedNative.sol",
-      "solcConfig": {
-        "version": "0.8.20",
-        "settings": {
-          "optimizer": {
-            "enabled": true,
-            "runs": 200
-          },
-          "metadata": {
-            "bytecodeHash": "ipfs",
-            "useLiteralContent": true
-          },
-          "evmVersion": "paris",
-          "outputSelection": {
-            "*": {
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers",
-                "metadata",
-                "devdoc",
-                "userdoc",
-                "storageLayout",
-                "evm.gasEstimates"
-              ],
-              "": [
-                "ast"
-              ]
-            }
-          }
-        }
-      },
-      "imports": [],
-      "versionPragmas": [
-        "0.8.20"
-      ],
-      "artifacts": [
-        "MockWrappedNative"
-      ]
-    },
     "/home/user/Flashloan-Aabitrage/contracts/mocks/USDTLikeToken.sol": {
       "lastModificationDate": 1791113752735,
       "contentHash": "79b3eb2f9795bcabfd5f071969b14262",
@@ -1542,6 +1498,138 @@
       ],
       "artifacts": [
         "USDTLikeToken"
+      ]
+    },
+    "/home/user/Flashloan-Aabitrage/contracts/mocks/MockV2PairLayout.sol": {
+      "lastModificationDate": 1791199434060,
+      "contentHash": "0d489171364281bd8d9e9ec33d95fe33",
+      "sourceName": "contracts/mocks/MockV2PairLayout.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "metadata": {
+            "bytecodeHash": "ipfs",
+            "useLiteralContent": true
+          },
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata",
+                "devdoc",
+                "userdoc",
+                "storageLayout",
+                "evm.gasEstimates"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "MockV2PairLayout"
+      ]
+    },
+    "/home/user/Flashloan-Aabitrage/contracts/mocks/MockV3PoolLayout.sol": {
+      "lastModificationDate": 1791199434060,
+      "contentHash": "3024304655143dc1c672d8f657487462",
+      "sourceName": "contracts/mocks/MockV3PoolLayout.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "metadata": {
+            "bytecodeHash": "ipfs",
+            "useLiteralContent": true
+          },
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata",
+                "devdoc",
+                "userdoc",
+                "storageLayout",
+                "evm.gasEstimates"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "MockV3PoolLayout"
+      ]
+    },
+    "/home/user/Flashloan-Aabitrage/contracts/mocks/MockWrappedNative.sol": {
+      "lastModificationDate": 1791199434060,
+      "contentHash": "e45dd7d48526cccb5b6227ea0d165423",
+      "sourceName": "contracts/mocks/MockWrappedNative.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "metadata": {
+            "bytecodeHash": "ipfs",
+            "useLiteralContent": true
+          },
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata",
+                "devdoc",
+                "userdoc",
+                "storageLayout",
+                "evm.gasEstimates"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "0.8.20"
+      ],
+      "artifacts": [
+        "MockWrappedNative"
       ]
     }
   }

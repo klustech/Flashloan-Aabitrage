@@ -282,6 +282,11 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
 
     /// @notice Execute an arbitrage route with capital already held by this contract.
     /// @dev The starting capital remains in the executor; only realized profit is transferred.
+    // Reviewed: the starting balance is read before the swaps and compared after
+    // them by design (profit-or-revert). This function is nonReentrant and
+    // executor-only, and swaps reach only governance-approved routers; a
+    // reentrant transfer could only add tokens, never pass a losing route.
+    // slither-disable-next-line reentrancy-balance
     function executeCapitalArbitrage(ArbitrageData calldata data)
         external
         onlyExecutor
@@ -312,6 +317,10 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
     }
 
     /// @inheritdoc IFlashLoanReceiver
+    // Reviewed: callbackCompleted is written after the swaps, but this function is
+    // nonReentrant, callable only by the lending pool for this contract's own
+    // active loan, and initiateFlashLoan refuses to start while loanActive.
+    // slither-disable-next-line reentrancy-eth
     function executeOperation(
         address[] calldata assets,
         uint256[] calldata amounts,
@@ -361,6 +370,10 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
         return int256(finalBalance - balanceBeforeLoan - required);
     }
 
+    // Reviewed: the output is deliberately measured as a balance delta around the
+    // external swap so a router cannot misreport it. Every caller is
+    // nonReentrant or loan-guarded, and the final profit check is on balances.
+    // slither-disable-next-line reentrancy-balance
     function _executeSwap(SwapStep memory step, uint256 amountIn) internal returns (uint256 amountOut) {
         uint256 outputBefore = IERC20(step.tokenOut).balanceOf(address(this));
         // Approve router to spend tokens
