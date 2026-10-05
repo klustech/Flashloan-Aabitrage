@@ -50,6 +50,7 @@ async function main({ progress = () => {} } = {}) {
     try {
       local = await prepareLocalExecutor({ backend, parent: data.parent, artifact,
         addressesProvider: profile.flashloanProvider.addressesProvider, lendingPool: profile.flashloanProvider.lendingPool,
+        routers: Object.values(profile.routers).map(r => r.router),
         wrappedNative: profile.tokens.WETH, amount: options.amounts.at(-1), progress });
       metadata.executorAddress = local.executor.address;
       metadata.executorRuntimeCodeHash = local.runtimeCodeHash;

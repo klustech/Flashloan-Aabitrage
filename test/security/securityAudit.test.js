@@ -10,6 +10,7 @@
 
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
+const { deployExecutor } = require("../helpers/executor");
 
 // DexType.UNISWAP_V2 == 0
 const DEX_UNISWAP_V2 = 0;
@@ -17,7 +18,7 @@ const PREMIUM_BPS = 9; // 0.09%
 
 describe("Security Audit Tests", function () {
   let arbitrage;
-  let owner;
+  let owner, governance;
   let attacker;
   let dai;
   let weth;
@@ -43,14 +44,8 @@ describe("Security Audit Tests", function () {
     const Provider = await ethers.getContractFactory("MockProvider");
     provider = await Provider.deploy(lendingPool.address);
 
-    // Constructor: (provider, profitRecipient, timelock).
-    const Arb = await ethers.getContractFactory("ArbitrageFlashloan");
-    arbitrage = await Arb.deploy(
-      provider.address,
-      owner.address,
-      ethers.constants.AddressZero
-    );
-    await arbitrage.deployed();
+    // Constructor: (provider, profitRecipient, admin, executor).
+    ({ arb: arbitrage, governance } = await deployExecutor(ethers, provider.address, owner.address, [router.address]));
   });
 
   function buildArbData() {
@@ -96,42 +91,39 @@ describe("Security Audit Tests", function () {
       await expect(arbitrage.connect(attacker).pause()).to.be.revertedWith(
         "unauthorized"
       );
-      // Owner can pause; a non-owner / non-timelock cannot unpause.
+      // The executor can pause; only governance can unpause.
       await arbitrage.pause();
+      await expect(arbitrage.unpause()).to.be.revertedWith("unauthorized");
       await expect(arbitrage.connect(attacker).unpause()).to.be.revertedWith(
         "unauthorized"
       );
     });
 
-    it("prevents unauthorized ownership transfer", async function () {
-      await expect(
-        arbitrage.connect(attacker).transferOwnership(attacker.address)
-      ).to.be.revertedWith("unauthorized");
+    it("prevents unauthorized admin, executor and router changes", async function () {
+      for (const signer of [attacker, owner]) {
+        await expect(arbitrage.connect(signer).transferAdmin(signer.address)).to.be.revertedWith("unauthorized");
+        await expect(arbitrage.connect(signer).setExecutor(attacker.address, true)).to.be.revertedWith("unauthorized");
+        await expect(arbitrage.connect(signer).setRouter(attacker.address, true)).to.be.revertedWith("unauthorized");
+      }
     });
 
-    it("prevents unauthorized timelock changes", async function () {
-      await expect(
-        arbitrage.connect(attacker).setTimelock(attacker.address)
-      ).to.be.revertedWith("unauthorized");
+    it("has no owner-controlled timelock to bypass", async function () {
+      expect(arbitrage.setTimelock).to.equal(undefined);
+      expect(arbitrage.setProfitRecipientViaTimelock).to.equal(undefined);
+      expect(arbitrage.transferOwnership).to.equal(undefined);
     });
 
-    it("blocks renounceOwnership entirely", async function () {
-      await expect(arbitrage.renounceOwnership()).to.be.revertedWith(
-        "cannot renounce"
-      );
-      // Even the owner cannot renounce, so ownership can never be orphaned.
-      expect(await arbitrage.owner()).to.equal(owner.address);
-    });
-
-    it("restricts rescueToken to the owner", async function () {
+    it("restricts rescueToken to governance", async function () {
       await dai.mint(arbitrage.address, FLASH_AMOUNT);
 
-      await expect(
-        arbitrage.connect(attacker).rescueToken(dai.address, FLASH_AMOUNT)
-      ).to.be.revertedWith("unauthorized");
+      for (const signer of [attacker, owner]) {
+        await expect(
+          arbitrage.connect(signer).rescueToken(dai.address, FLASH_AMOUNT)
+        ).to.be.revertedWith("unauthorized");
+      }
 
-      // Owner can rescue; funds go to the configured profit recipient (owner).
-      await arbitrage.rescueToken(dai.address, FLASH_AMOUNT);
+      // Governance can rescue; funds go to the configured profit recipient.
+      await arbitrage.connect(governance).rescueToken(dai.address, FLASH_AMOUNT);
       expect(await dai.balanceOf(owner.address)).to.equal(FLASH_AMOUNT);
     });
 
@@ -139,9 +131,10 @@ describe("Security Audit Tests", function () {
       expect(await arbitrage.TIMELOCK_DELAY()).to.equal(24 * 60 * 60);
 
       // A scheduled recipient change cannot be executed before the delay elapses.
-      await arbitrage.scheduleProfitRecipientChange(attacker.address);
+      await expect(arbitrage.scheduleProfitRecipientChange(attacker.address)).to.be.revertedWith("unauthorized");
+      await arbitrage.connect(governance).scheduleProfitRecipientChange(attacker.address);
       await expect(
-        arbitrage.executeProfitRecipientChange(attacker.address)
+        arbitrage.connect(governance).executeProfitRecipientChange(attacker.address)
       ).to.be.revertedWith("timelock pending");
     });
   });
@@ -191,9 +184,9 @@ describe("Security Audit Tests", function () {
       ).to.be.revertedWith("Pausable: paused");
     });
 
-    it("allows the owner to unpause and resume readiness", async function () {
+    it("allows governance to unpause and resume readiness", async function () {
       await arbitrage.pause();
-      await arbitrage.unpause();
+      await arbitrage.connect(governance).unpause();
       expect(await arbitrage.paused()).to.equal(false);
       expect(await arbitrage.canExecute()).to.equal(true);
     });

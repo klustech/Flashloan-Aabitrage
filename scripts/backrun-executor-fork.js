@@ -56,6 +56,7 @@ async function main({ progress = () => {} } = {}) {
   return backend.exclusive(async () => {
     const local = await prepareLocalExecutor({ backend, parent: data.parent, artifact,
       addressesProvider: profile.flashloanProvider.addressesProvider, lendingPool: profile.flashloanProvider.lendingPool,
+      routers: Object.values(profile.routers).map(r => r.router),
       wrappedNative: profile.tokens.WETH, amount: bn(fixture.amountIn), progress });
     try {
       for (const fundingMode of ["CAPITAL", "FLASH_LOAN"]) {

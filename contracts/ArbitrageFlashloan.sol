@@ -3,7 +3,11 @@ pragma solidity 0.8.20;
 
 /// @title ArbitrageFlashloan
 /// @notice Multi-DEX arbitrage executor supporting Aave V2 flash liquidity and pre-funded capital
-/// @dev Supports N-hop dynamic paths, adaptive funding entrypoints, profit recipient config, and timelock integration
+/// @dev Supports N-hop dynamic paths and adaptive funding entrypoints.
+///      Authority is split: `admin` (intended to be a multisig-controlled
+///      timelock) governs configuration and funds; `executors` (hot bot keys)
+///      may only run profit-or-revert arbitrage through admin-approved routers
+///      and trigger an emergency pause. An executor can never be the admin.
 
 import {IFlashLoanReceiver} from "./interfaces/IFlashLoanReceiver.sol";
 import {ILendingPool} from "./interfaces/ILendingPool.sol";
@@ -67,13 +71,15 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
     enum DexType { UNISWAP_V2, UNISWAP_V3, SUSHISWAP, BALANCER, CURVE, PANCAKE_V3 }
 
     // ─── State Variables ────────────────────────────────────────────────────────
-    address public owner;
+    address public admin;
+    address public pendingAdmin;
     address public profitRecipient;
-    address public timelock;
+    mapping(address => bool) public executors;
+    mapping(address => bool) public approvedRouters;
 
     ILendingPoolAddressesProvider public immutable provider;
     ILendingPool public immutable lendingPool;
-    uint256 public constant executorVersion = 3;
+    uint256 public constant executorVersion = 4;
     bool private loanActive;
     bool private callbackCompleted;
     bytes32 private activeDataHash;
@@ -94,7 +100,10 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
     );
     event ProfitWithdrawn(address indexed token, address indexed recipient, uint256 amount);
     event ProfitRecipientChanged(address indexed oldRecipient, address indexed newRecipient);
-    event TimelockChanged(address indexed oldTimelock, address indexed newTimelock);
+    event AdminTransferStarted(address indexed currentAdmin, address indexed pendingAdmin);
+    event AdminTransferred(address indexed oldAdmin, address indexed newAdmin);
+    event ExecutorSet(address indexed account, bool allowed);
+    event RouterSet(address indexed router, bool allowed);
     event TimelockOperationScheduled(bytes32 indexed operationId, uint256 executeAfter);
     event TimelockOperationExecuted(bytes32 indexed operationId);
     event EmergencyPause(address indexed triggeredBy);
@@ -128,18 +137,18 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
 
     // ─── Modifiers ──────────────────────────────────────────────────────────────
 
-    modifier onlyOwner() {
-        require(msg.sender == owner, "unauthorized");
+    modifier onlyAdmin() {
+        require(msg.sender == admin, "unauthorized");
         _;
     }
 
-    modifier onlyOwnerOrTimelock() {
-        require(msg.sender == owner || msg.sender == timelock, "unauthorized");
+    modifier onlyExecutor() {
+        require(executors[msg.sender], "unauthorized");
         _;
     }
 
-    modifier onlyTimelock() {
-        require(msg.sender == timelock, "only timelock");
+    modifier onlyExecutorOrAdmin() {
+        require(executors[msg.sender] || msg.sender == admin, "unauthorized");
         _;
     }
 
@@ -148,13 +157,25 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
     constructor(
         address _provider,
         address _profitRecipient,
-        address _timelock
+        address _admin,
+        address _executor,
+        address[] memory _routers
     ) {
         require(_provider != address(0), "invalid provider");
+        require(_profitRecipient != address(0), "invalid recipient");
+        require(_admin != address(0), "invalid admin");
+        require(_executor != address(0) && _executor != _admin, "invalid executor");
 
-        owner = msg.sender;
-        profitRecipient = _profitRecipient == address(0) ? msg.sender : _profitRecipient;
-        timelock = _timelock;
+        admin = _admin;
+        profitRecipient = _profitRecipient;
+        executors[_executor] = true;
+        emit AdminTransferred(address(0), _admin);
+        emit ExecutorSet(_executor, true);
+        for (uint256 i = 0; i < _routers.length; i++) {
+            require(_routers[i] != address(0), "zero router");
+            approvedRouters[_routers[i]] = true;
+            emit RouterSet(_routers[i], true);
+        }
 
         provider = ILendingPoolAddressesProvider(_provider);
         lendingPool = ILendingPool(provider.getLendingPool());
@@ -162,8 +183,8 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
 
     // ─── Admin Functions ────────────────────────────────────────────────────────
 
-    /// @notice Schedule a profit recipient change (timelock-protected)
-    function scheduleProfitRecipientChange(address _newRecipient) external onlyOwner {
+    /// @notice Schedule a profit recipient change (24h delay on top of the admin's own timelock)
+    function scheduleProfitRecipientChange(address _newRecipient) external onlyAdmin {
         require(_newRecipient != address(0), "invalid recipient");
         bytes32 opId = keccak256(abi.encodePacked("setProfitRecipient", _newRecipient));
         timelockOperations[opId] = block.timestamp + TIMELOCK_DELAY;
@@ -171,7 +192,7 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
     }
 
     /// @notice Execute a scheduled profit recipient change
-    function executeProfitRecipientChange(address _newRecipient) external onlyOwner {
+    function executeProfitRecipientChange(address _newRecipient) external onlyAdmin {
         bytes32 opId = keccak256(abi.encodePacked("setProfitRecipient", _newRecipient));
         require(timelockOperations[opId] != 0, "not scheduled");
         require(block.timestamp >= timelockOperations[opId], "timelock pending");
@@ -182,27 +203,44 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
         emit TimelockOperationExecuted(opId);
     }
 
-    /// @notice Set profit recipient immediately (only via external timelock contract)
-    function setProfitRecipientViaTimelock(address _newRecipient) external onlyTimelock {
-        require(_newRecipient != address(0), "invalid recipient");
-        emit ProfitRecipientChanged(profitRecipient, _newRecipient);
-        profitRecipient = _newRecipient;
+    /// @notice Grant or revoke the hot executor role. The admin can never hold it.
+    function setExecutor(address account, bool allowed) external onlyAdmin {
+        require(account != address(0) && account != admin && account != pendingAdmin, "invalid executor");
+        executors[account] = allowed;
+        emit ExecutorSet(account, allowed);
     }
 
-    /// @notice Update timelock address
-    function setTimelock(address _timelock) external onlyOwner {
-        emit TimelockChanged(timelock, _timelock);
-        timelock = _timelock;
+    /// @notice Approve or revoke a router/vault/pool that swap steps may call.
+    function setRouter(address router, bool allowed) external onlyAdmin {
+        require(router != address(0), "zero router");
+        approvedRouters[router] = allowed;
+        emit RouterSet(router, allowed);
     }
 
-    /// @notice Emergency pause - can be called by owner immediately
-    function pause() external onlyOwner {
+    /// @notice Start a two-step admin handover. Executors cannot become admin.
+    function transferAdmin(address newAdmin) external onlyAdmin {
+        require(newAdmin != address(0) && !executors[newAdmin], "invalid admin");
+        pendingAdmin = newAdmin;
+        emit AdminTransferStarted(admin, newAdmin);
+    }
+
+    /// @notice Complete the admin handover from the pending admin.
+    function acceptAdmin() external {
+        require(msg.sender == pendingAdmin, "unauthorized");
+        require(!executors[msg.sender], "invalid admin");
+        emit AdminTransferred(admin, msg.sender);
+        admin = msg.sender;
+        pendingAdmin = address(0);
+    }
+
+    /// @notice Emergency pause - an executor or the admin can stop trading immediately
+    function pause() external onlyExecutorOrAdmin {
         _pause();
         emit EmergencyPause(msg.sender);
     }
 
-    /// @notice Unpause - requires timelock if set, otherwise owner
-    function unpause() external onlyOwnerOrTimelock {
+    /// @notice Resuming trading is a governance decision
+    function unpause() external onlyAdmin {
         _unpause();
     }
 
@@ -210,7 +248,7 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
 
     /// @notice Initiate flash loan arbitrage
     /// @param data Complete arbitrage parameters
-    function initiateFlashLoan(ArbitrageData calldata data) external onlyOwner whenNotPaused {
+    function initiateFlashLoan(ArbitrageData calldata data) external onlyExecutor whenNotPaused {
         require(!loanActive, "loan active");
         _validateArbitrageData(data);
         balanceBeforeLoan = IERC20(data.borrowToken).balanceOf(address(this));
@@ -246,7 +284,7 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
     /// @dev The starting capital remains in the executor; only realized profit is transferred.
     function executeCapitalArbitrage(ArbitrageData calldata data)
         external
-        onlyOwner
+        onlyExecutor
         whenNotPaused
         nonReentrant
     {
@@ -456,7 +494,7 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
 
     // ─── Validation ─────────────────────────────────────────────────────────────
 
-    function _validateArbitrageData(ArbitrageData calldata data) internal pure {
+    function _validateArbitrageData(ArbitrageData calldata data) internal view {
         require(data.steps.length > 0, "no steps");
         require(data.borrowAmount > 0, "zero borrow");
 
@@ -474,7 +512,7 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
         require(data.borrowToken != address(0), "zero borrow token");
         for (uint256 i = 0; i < data.steps.length; i++) {
             SwapStep calldata step = data.steps[i];
-            require(step.router != address(0), "zero router");
+            require(approvedRouters[step.router], "router not approved");
             require(step.tokenIn != address(0) && step.tokenOut != address(0) && step.tokenIn != step.tokenOut, "invalid swap tokens");
             require(step.minAmountOut > 0, "zero minimum output");
             if (step.dexType == DexType.UNISWAP_V3 || step.dexType == DexType.PANCAKE_V3) require(step.v3Fee > 0, "missing v3 fee");
@@ -488,20 +526,9 @@ contract ArbitrageFlashloan is IFlashLoanReceiver, ReentrancyGuard, Pausable {
 
     // ─── Utility Functions ──────────────────────────────────────────────────────
 
-    /// @notice Rescue stuck ERC20 tokens
-    function rescueToken(address tokenAddr, uint256 amount) external onlyOwner {
+    /// @notice Return held tokens to the profit recipient (governance only)
+    function rescueToken(address tokenAddr, uint256 amount) external onlyAdmin {
         IERC20(tokenAddr).safeTransfer(profitRecipient, amount);
-    }
-
-    /// @notice Prevent ownership renouncement
-    function renounceOwnership() public pure {
-        revert("cannot renounce");
-    }
-
-    /// @notice Transfer ownership
-    function transferOwnership(address newOwner) external onlyOwner {
-        require(newOwner != address(0), "zero address");
-        owner = newOwner;
     }
 
     /// @notice Get pending timelock operation timestamp

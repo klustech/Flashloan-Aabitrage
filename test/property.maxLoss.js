@@ -1,5 +1,6 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
+const { deployExecutor } = require("./helpers/executor");
 
 // DexType.UNISWAP_V2 == 0
 const DEX_UNISWAP_V2 = 0;
@@ -15,7 +16,7 @@ const DEX_UNISWAP_V2 = 0;
  * across a range of swap rates.
  */
 describe("Invariant: arbitrage is profit-or-revert", function () {
-  let arbitrage, deployer, dai, weth, routerA, routerB, lendingPool, provider;
+  let arbitrage, deployer, dai, weth, routerA, routerB, lendingPool, provider, governance;
 
   const PREMIUM_BPS = 9; // 0.09%
   const FLASH_AMOUNT = ethers.utils.parseEther("100");
@@ -38,13 +39,7 @@ describe("Invariant: arbitrage is profit-or-revert", function () {
     const Provider = await ethers.getContractFactory("MockProvider");
     provider = await Provider.deploy(lendingPool.address);
 
-    const Arb = await ethers.getContractFactory("ArbitrageFlashloan");
-    arbitrage = await Arb.deploy(
-      provider.address,
-      deployer.address,
-      ethers.constants.AddressZero
-    );
-    await arbitrage.deployed();
+    ({ arb: arbitrage, governance } = await deployExecutor(ethers, provider.address, deployer.address, [routerA.address, routerB.address]));
 
     // Generous liquidity so swaps never fail for lack of tokens.
     await dai.mint(lendingPool.address, FLASH_AMOUNT.mul(100));

@@ -1,6 +1,6 @@
 # Laptop mainnet PAPER commissioning
 
-This profile observes real Ethereum and performs unsigned executor calls. It never arms, signs or submits a trade. A hardened version-2 executor must already exist on Ethereum mainnet with its owner, recipient, timelock and runtime code hash recorded. Deploy it with a separate deployment environment; do not put its private key in the PAPER environment. Deployment spends gas and is an operator action outside this commissioning setup.
+This profile observes real Ethereum and performs unsigned executor calls. It never arms, signs or submits a trade. A hardened version-2 executor must already exist on Ethereum mainnet with its operator (executor role), admin timelock, recipient and runtime code hash recorded (see [EXECUTOR_GOVERNANCE.md](EXECUTOR_GOVERNANCE.md)). Deploy it with a separate deployment environment; do not put its private key in the PAPER environment. Deployment spends gas and is an operator action outside this commissioning setup.
 
 ## What the hardening implements
 
@@ -44,7 +44,7 @@ A fresh Postgres volume initializes the execution migration automatically. For a
 npm run paper:preflight
 ```
 
-Preflight loads `.env.mainnet-paper` (or `PAPER_ENV_FILE`) without overriding already-exported variables. It checks production mode, unsigned PAPER policy, authentication, host bindings, chain/head/base fee, a received mainnet WebSocket block, executor version/code hash/ownership/recipient/timelock/pause, Aave/router relationships and bytecode, execution schema, absence of historical LIVE rows, and writable evidence locations. It does not start the scanner, sign or submit transactions, create commissioning evidence, or require signer gas. The latter exemption applies only to PAPER preflight; LIVE readiness still checks signer funds. A FAIL row is blocking; no secrets are printed in failure details.
+Preflight loads `.env.mainnet-paper` (or `PAPER_ENV_FILE`) without overriding already-exported variables. It checks production mode, unsigned PAPER policy, authentication, host bindings, chain/head/base fee, a received mainnet WebSocket block, executor version/code hash/executor role/admin/recipient/approved routers/pause, Aave/router relationships and bytecode, execution schema, absence of historical LIVE rows, and writable evidence locations. It does not start the scanner, sign or submit transactions, create commissioning evidence, or require signer gas. The latter exemption applies only to PAPER preflight; LIVE readiness still checks signer funds. A FAIL row is blocking; no secrets are printed in failure details.
 
 Host preflight checks host-side file locations. The subsequent running API health probe independently verifies the mounted container runtime and database.
 

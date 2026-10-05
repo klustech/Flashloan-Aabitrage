@@ -33,6 +33,10 @@ async function main() {
     TIMELOCK_PROPOSERS, // comma-separated list of proposer addresses
     TIMELOCK_EXECUTORS, // comma-separated list of executor addresses
 
+    // Hot bot key that receives only the executor role, and the routers it may use
+    OPERATOR_ADDRESS,
+    APPROVED_ROUTERS, // comma-separated router/vault/pool addresses
+
     // ConnextAdapter parameters
     CONNEXT_ADDRESS, // Connext contract address on this network
     DESTINATION_DOMAIN, // numeric domain ID for Connext
@@ -64,6 +68,14 @@ async function main() {
   }
   if (!TIMELOCK_EXECUTORS) {
     console.error("Error: TIMELOCK_EXECUTORS is not set in .env");
+    process.exit(1);
+  }
+  if (!OPERATOR_ADDRESS || !ethers.utils.isAddress(OPERATOR_ADDRESS)) {
+    console.error("Error: OPERATOR_ADDRESS (executor role) is not set in .env");
+    process.exit(1);
+  }
+  if (!APPROVED_ROUTERS) {
+    console.error("Error: APPROVED_ROUTERS is not set in .env");
     process.exit(1);
   }
   if (!CONNEXT_ADDRESS) {
@@ -140,13 +152,20 @@ async function main() {
   const proposers = TIMELOCK_PROPOSERS.split(",").map((addr) => addr.trim());
   const executors = TIMELOCK_EXECUTORS.split(",").map((addr) => addr.trim());
   const minDelayNs = ethers.BigNumber.from(TIMELOCK_MIN_DELAY_SEC);
+  const operator = ethers.utils.getAddress(OPERATOR_ADDRESS);
+  if ([...proposers, ...executors, deployer.address].some((a) => ethers.utils.getAddress(a) === operator)) {
+    console.error("Error: OPERATOR_ADDRESS must not be the deployer or a timelock proposer/executor");
+    process.exit(1);
+  }
+  const routers = APPROVED_ROUTERS.split(",").map((addr) => ethers.utils.getAddress(addr.trim()));
 
   // OZ TimelockController constructor: (uint256 minDelay, address[] proposers, address[] executors, address admin)
+  // admin = AddressZero: the timelock administers itself, so the deployer keeps no role.
   const timelock = await TimelockFactory.deploy(
     minDelayNs,
     proposers,
     executors,
-    deployer.address,
+    ethers.constants.AddressZero,
     {
       maxFeePerGas,
       maxPriorityFeePerGas,
@@ -156,7 +175,7 @@ async function main() {
   console.log(`✅  ArbitrageTimelock deployed at: ${timelock.address}\n`);
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 2. Deploy ArbitrageFlashloan (provider, profitRecipient, timelock)
+  // 2. Deploy ArbitrageFlashloan (provider, profitRecipient, admin=timelock, executor, routers)
   // ─────────────────────────────────────────────────────────────────────────────
   console.log("🚀  Deploying ArbitrageFlashloan...");
   const ArbFactory = await ethers.getContractFactory(
@@ -170,7 +189,9 @@ async function main() {
   const arbitrage = await ArbFactory.deploy(
     AAVE_LENDING_POOL_ADDRESS_PROVIDER, // _provider
     profitRecipient, // _profitRecipient
-    timelock.address, // _timelock
+    timelock.address, // _admin
+    operator, // _executor
+    routers, // _routers
     {
       maxFeePerGas,
       maxPriorityFeePerGas,
@@ -219,6 +240,8 @@ async function main() {
           AAVE_LENDING_POOL_ADDRESS_PROVIDER,
           profitRecipient,
           timelock.address,
+          operator,
+          routers,
         ],
       });
       console.log("✅  Verification of ArbitrageFlashloan succeeded!\n");
@@ -227,7 +250,7 @@ async function main() {
       console.log(
         `    To verify manually:\n` +
           `      npx hardhat verify --network ${network.name} ${arbitrage.address} ` +
-          `${AAVE_LENDING_POOL_ADDRESS_PROVIDER} ${profitRecipient} ${timelock.address}\n`
+          `${AAVE_LENDING_POOL_ADDRESS_PROVIDER} ${profitRecipient} ${timelock.address} ${operator} '[${routers.join(",")}]'\n`
       );
     }
   } else {

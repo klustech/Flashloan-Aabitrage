@@ -1,5 +1,6 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
+const { deployExecutor } = require("../helpers/executor");
 
 // DexType.UNISWAP_V2 == 0
 const DEX_UNISWAP_V2 = 0;
@@ -13,7 +14,7 @@ const DEX_UNISWAP_V2 = 0;
  * off-chain prediction: succeed iff finalOut >= principal + premium + minProfit.
  */
 describe("Fuzz: profit-or-revert boundary", function () {
-  let arbitrage, deployer, dai, weth, routerA, routerB, lendingPool, provider;
+  let arbitrage, deployer, dai, weth, routerA, routerB, lendingPool, provider, governance;
 
   const PREMIUM_BPS = 9; // 0.09%
   const FLASH_AMOUNT = ethers.utils.parseEther("100");
@@ -39,13 +40,7 @@ describe("Fuzz: profit-or-revert boundary", function () {
     const Provider = await ethers.getContractFactory("MockProvider");
     provider = await Provider.deploy(lendingPool.address);
 
-    const Arb = await ethers.getContractFactory("ArbitrageFlashloan");
-    arbitrage = await Arb.deploy(
-      provider.address,
-      deployer.address,
-      ethers.constants.AddressZero
-    );
-    await arbitrage.deployed();
+    ({ arb: arbitrage, governance } = await deployExecutor(ethers, provider.address, deployer.address, [routerA.address, routerB.address]));
 
     await dai.mint(lendingPool.address, FLASH_AMOUNT.mul(1000));
     await weth.mint(routerA.address, FLASH_AMOUNT.mul(1000));

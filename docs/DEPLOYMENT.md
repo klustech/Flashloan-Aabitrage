@@ -98,8 +98,12 @@ ALLOW_PUBLIC_MEMPOOL_FALLBACK=false
 
 ### Contract Deployment Parameters (.env)
 
-`scripts/deploy.js` deploys the `ArbitrageTimelock` first, then deploys
-`ArbitrageFlashloan` with the constructor `(provider, profitRecipient, timelock)`,
+For Ethereum mainnet production use `npm run deploy:production`; see
+[EXECUTOR_GOVERNANCE.md](EXECUTOR_GOVERNANCE.md) for the role layout.
+
+`scripts/deploy.js` deploys a self-administered `ArbitrageTimelock` first, then
+`ArbitrageFlashloan` with the constructor
+`(provider, profitRecipient, admin=timelock, executor=OPERATOR_ADDRESS, routers)`,
 then the `ConnextAdapter`. It reads these variables (there is **no**
 `MAX_LOSS_BPS` or `FLASHLOAN_PREMIUM_BIPS` — the on-chain max-loss cap was
 removed and the Aave premium is read on-chain at runtime):
@@ -113,6 +117,11 @@ PROFIT_RECIPIENT=0x...   # optional; defaults to the deployer address
 TIMELOCK_MIN_DELAY_SEC=86400          # e.g. 24h delay
 TIMELOCK_PROPOSERS=0xProposer1,0xProposer2
 TIMELOCK_EXECUTORS=0xExecutor1,0xExecutor2
+
+# Hot bot key (executor role only; never a timelock proposer/executor) and the
+# routers/vaults/pools the executor may call
+OPERATOR_ADDRESS=0x...
+APPROVED_ROUTERS=0xRouter1,0xRouter2
 
 # ConnextAdapter (cross-chain forwarding)
 CONNEXT_ADDRESS=0x...
@@ -195,9 +204,10 @@ export SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/...
 npx hardhat run scripts/deploy.js --network sepolia
 
 # Verify ArbitrageFlashloan on Etherscan. Its constructor takes exactly
-# (provider, profitRecipient, timelock):
+# (provider, profitRecipient, admin, executor, routers); the script prints the
+# exact command, including the routers array.
 npx hardhat verify --network sepolia ARB_FLASHLOAN_ADDRESS \
-  $AAVE_LENDING_POOL_ADDRESS_PROVIDER $PROFIT_RECIPIENT $TIMELOCK_ADDRESS
+  $AAVE_LENDING_POOL_ADDRESS_PROVIDER $PROFIT_RECIPIENT $TIMELOCK_ADDRESS $OPERATOR_ADDRESS '[0xRouter1,0xRouter2]'
 ```
 
 ### 2. Deploy Services to Staging

@@ -1,5 +1,5 @@
 const zlib = require("zlib");
-const { Contract, ContractFactory, Wallet, constants, utils } = require("ethers");
+const { Contract, ContractFactory, Wallet, utils } = require("ethers");
 const { bn, address, serialize } = require("../bot/units");
 const { verifyReceipts } = require("./historicalReplay");
 const { latestBlock } = require("./forkBackend");
@@ -22,13 +22,17 @@ const slotHex = slot => utils.hexZeroPad(utils.hexValue(bn(slot)), 32);
 // funded with explicitly synthetic native currency on the dedicated local node.
 // Preserve the resulting LOCAL accounts across reset, without changing historical
 // pool/router/Aave state or putting setup transactions inside a canonical prefix.
-async function prepareLocalExecutor({ backend, parent, artifact, addressesProvider, lendingPool, wrappedNative, amount, progress = () => {} }) {
+async function prepareLocalExecutor({ backend, parent, artifact, addressesProvider, lendingPool, wrappedNative, amount, routers, progress = () => {} }) {
+  if (!Array.isArray(routers) || !routers.length) throw new Error("Local executor requires approved routers");
   if (backend.engine !== "anvil") throw new Error("Local executor diagnostic requires Anvil");
   backend.assertMiningSettled();
   const originalReset = backend.reset.bind(backend), provider = backend.provider;
   await originalReset(parent);
-  const owner = Wallet.createRandom().address, executorAddress = utils.getContractAddress({ from: owner, nonce: 0 });
-  for (const account of [owner, executorAddress]) {
+  // `owner` is the local hot executor and profit recipient; `governance` is a
+  // separate local admin that never sends a transaction.
+  const owner = Wallet.createRandom().address, governance = Wallet.createRandom().address;
+  const executorAddress = utils.getContractAddress({ from: owner, nonce: 0 });
+  for (const account of [owner, governance, executorAddress]) {
     if ((await provider.getCode(account)) !== "0x" || (await provider.getTransactionCount(account)) !== 0 ||
         !(await provider.getBalance(account)).isZero()) throw new Error("Local account collides with historical state");
   }
@@ -54,13 +58,15 @@ async function prepareLocalExecutor({ backend, parent, artifact, addressesProvid
   };
   try {
     const deployment = new ContractFactory(artifact.abi, artifact.bytecode).getDeployTransaction(
-      addressesProvider, owner, constants.AddressZero);
+      addressesProvider, owner, governance, owner, routers);
     deploymentReceipt = await sendLocal(deployment.data);
     executor = new Contract(deploymentReceipt.contractAddress, artifact.abi, provider);
     if (address(executor.address) !== address(executorAddress) || deploymentReceipt.status !== 1 ||
-        !(await executor.executorVersion()).eq(3) || address(await executor.owner()) !== address(owner) ||
+        !(await executor.executorVersion()).eq(4) || !(await executor.executors(owner)) ||
+        address(await executor.admin()) !== address(governance) ||
         address(await executor.profitRecipient()) !== address(owner) ||
         address(await executor.lendingPool()) !== address(lendingPool)) throw new Error("Local executor identity mismatch");
+    for (const router of routers) if (!(await executor.approvedRouters(router))) throw new Error("Local router approval failed");
     progress({ stage: "local_capital_setup", synthetic: true });
     await sendLocal(token.interface.encodeFunctionData("deposit"), wrappedNative, amount);
     await sendLocal(token.interface.encodeFunctionData("transfer", [executor.address, amount]), wrappedNative);
@@ -99,7 +105,7 @@ async function prepareLocalExecutor({ backend, parent, artifact, addressesProvid
     await provider.send("hardhat_setBalance", [wrappedNative, utils.hexValue(vaultBalance.add(capital))]);
     await provider.send("hardhat_setStorageAt", [wrappedNative, slotHex(changed[0][0]), slotHex(capital)]);
     if ((await latestBlock(provider)).hash !== parent.hash || !(await token.balanceOf(executor.address)).eq(capital) ||
-        !(await token.balanceOf(owner)).isZero() || address(await executor.owner()) !== address(owner) ||
+        !(await token.balanceOf(owner)).isZero() || !(await executor.executors(owner)) ||
         address(await executor.lendingPool()) !== address(lendingPool)) throw new Error("Local overlay verification failed");
   };
   // Scope reset interception to this diagnostic instance and one pinned parent.

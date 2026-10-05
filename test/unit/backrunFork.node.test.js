@@ -4,7 +4,7 @@ const {ForkBackend,latestBlock}=require("../../server/backrun/forkBackend");
 test("isolated fork backend mines trigger+unsigned executor in one block for CAPITAL and FLASH_LOAN",
   {skip:!process.env.LOCAL_BACKRUN_TEST_RPC,timeout:120000},async()=>{
     const url=process.env.LOCAL_BACKRUN_TEST_RPC,provider=new providers.StaticJsonRpcProvider(url,1);
-    const owner=Wallet.createRandom().address,triggerSigner=Wallet.createRandom();
+    const owner=Wallet.createRandom().address,governance=Wallet.createRandom().address,triggerSigner=Wallet.createRandom();
     await provider.send("hardhat_reset",[]);
     await provider.send("hardhat_setBalance",[owner,utils.hexValue(utils.parseEther("10"))]);
     await provider.send("hardhat_setBalance",[triggerSigner.address,utils.hexValue(utils.parseEther("1"))]);
@@ -17,7 +17,7 @@ test("isolated fork backend mines trigger+unsigned executor in one block for CAP
     }
     const a=await deploy("MockERC20",["A","A",18]),b=await deploy("MockERC20",["B","B",18]);
     const r1=await deploy("MockUniswapV2Router"),r2=await deploy("MockUniswapV2Router"),pool=await deploy("MockLendingPool",[9]);
-    const ap=await deploy("MockProvider",[pool.address]),executor=await deploy("ArbitrageFlashloan",[ap.address,owner,utils.getAddress("0x"+"01".repeat(20))]);
+    const ap=await deploy("MockProvider",[pool.address]),executor=await deploy("ArbitrageFlashloan",[ap.address,owner,governance,owner,[r1.address,r2.address]]);
     const amount=utils.parseEther("100");
     for(const submit of [()=>a.mint(executor.address,amount.mul(2)),()=>a.mint(pool.address,amount.mul(10)),
       ()=>a.mint(r2.address,amount.mul(10)),()=>b.mint(r1.address,amount.mul(10)),
@@ -186,7 +186,7 @@ test("local executor diagnostic preserves historical prefix and settles both fun
     await backend.reset(parent);const prefix=await backend.mine([raw],header,{canonicalTransactions:[canonical]});
     const data={parent,block:{...header,transactions:[canonical]},raw:[raw],receipts:[prefix.receipts[0],{effectiveGasPrice:header.baseFeePerGas.add(utils.parseUnits("1","gwei"))}]};
     const local=await prepareLocalExecutor({backend,parent,artifact:artifact("ArbitrageFlashloan"),addressesProvider:ap.address,
-      lendingPool:pool.address,wrappedNative:weth.address,amount});
+      lendingPool:pool.address,wrappedNative:weth.address,amount,routers:[r1.address,r2.address]});
     const step={dexType:0,router:r1.address,tokenIn:weth.address,tokenOut:other.address,minAmountOut:1,v3Fee:0,
       balancerPoolId:utils.hexZeroPad("0x",32),curveIndexIn:0,curveIndexOut:0,curveUnderlying:false,v2Path:[]};
     const quoteData={borrowToken:weth.address,borrowAmount:amount,steps:[step,{...step,router:r2.address,tokenIn:other.address,tokenOut:weth.address}],
@@ -214,7 +214,7 @@ test("local executor diagnostic preserves historical prefix and settles both fun
         assert.equal((await weth.balanceOf(pool.address)).toString(),amount.mul(10).add(fundingMode==="FLASH_LOAN"?selected.mul(9).div(10000):0).toString());
         results.push(result);
       }
-      assert.equal(await local.executor.owner(),local.owner);
+      assert.equal(await local.executor.executors(local.owner),true);assert.equal(await local.executor.approvedRouters(r1.address),true);
       assert.equal((await weth.balanceOf(local.executor.address)).toString(),"0");
       assert.equal((await weth.balanceOf(pool.address)).toString(),amount.mul(10).add(amount.mul(9).div(10000)).toString());
       assert.equal(results.length,12);

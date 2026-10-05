@@ -193,20 +193,13 @@ const initTimelock = async () => {
       timeout: 120_000,
     });
 
-    const privateKey = process.env.PRIVATE_KEY;
-    if (!privateKey) {
-      console.warn(
-        "[Timelock] PRIVATE_KEY not set, timelock will be read-only"
-      );
-    }
-
-    const signer = privateKey ? new ethers.Wallet(privateKey, provider) : null;
-
+    // Read-only: governance operations are proposed and executed by the
+    // governance multisig, never signed with the bot's hot PRIVATE_KEY.
     timelockInfo = await initTimelockClient({
       timelockAddress,
       arbitrageAddress,
       provider,
-      signer,
+      signer: null,
     });
 
     timelockInitialized = true;
@@ -228,12 +221,7 @@ const { sendSlackAlert } = require("./slackUtils");
 // ─────────────────────────────────────────────────────────────────────────────
 const {
   initTimelockClient,
-  scheduleOperation,
-  executeOperation,
-  cancelOperation,
   getOperationStatus,
-  schedulePause,
-  scheduleUnpause,
   getRoles,
   computeOperationId,
 } = require("./timelockUtils");
@@ -1769,88 +1757,17 @@ app.get("/api/timelock/operations/:operationId", async (req, res) => {
   }
 });
 
-// POST /api/timelock/schedule
-app.post("/api/timelock/schedule", async (req, res) => {
-  if (!timelockInitialized) {
-    return res.status(400).json({ error: "Timelock not configured" });
-  }
-
-  try {
-    const { operation, params } = req.body;
-
-    let result;
-    switch (operation) {
-      case "pause":
-        result = await schedulePause();
-        break;
-      case "unpause":
-        result = await scheduleUnpause();
-        break;
-      case "custom":
-        result = await scheduleOperation({
-          target: params.target,
-          value: params.value || 0,
-          data: params.data,
-          predecessor: params.predecessor,
-          salt: params.salt,
-          delay: params.delay,
-          description: params.description,
-        });
-        break;
-      default:
-        return res
-          .status(400)
-          .json({ error: `Unknown operation: ${operation}` });
-    }
-
-    logger.info(`Timelock operation scheduled: ${operation}`);
-    res.json(result);
-  } catch (err) {
-    logger.error(`timelock schedule error: ${err.message}`);
-    res.status(500).json({ error: "schedule failed", message: err.message });
-  }
-});
-
-// POST /api/timelock/execute/:operationId
-app.post("/api/timelock/execute/:operationId", async (req, res) => {
-  if (!timelockInitialized) {
-    return res.status(400).json({ error: "Timelock not configured" });
-  }
-
-  try {
-    const { target, value, data, predecessor, salt } = req.body;
-
-    const result = await executeOperation({
-      target,
-      value: value || 0,
-      data,
-      predecessor,
-      salt,
-    });
-
-    logger.info(`Timelock operation executed: ${req.params.operationId}`);
-    res.json(result);
-  } catch (err) {
-    logger.error(`timelock execute error: ${err.message}`);
-    res.status(500).json({ error: "execute failed", message: err.message });
-  }
-});
-
-// POST /api/timelock/cancel/:operationId
-app.post("/api/timelock/cancel/:operationId", async (req, res) => {
-  if (!timelockInitialized) {
-    return res.status(400).json({ error: "Timelock not configured" });
-  }
-
-  try {
-    const result = await cancelOperation(req.params.operationId);
-    logger.info(`Timelock operation cancelled: ${req.params.operationId}`);
-    res.json(result);
-  } catch (err) {
-    logger.error(`timelock cancel error: ${err.message}`);
-    res.status(500).json({ error: "cancel failed", message: err.message });
-  }
-});
+// POST /api/timelock/{schedule,execute/:id,cancel/:id}
+// Governance actions must be signed by the governance multisig. The bot process
+// holds only the hot executor key, which has no governance authority.
+const governanceSignerRequired = (_req, res) =>
+  res.status(403).json({
+    error: "governance signer required",
+    message: "Propose, execute and cancel timelock operations from the governance multisig",
+  });
+app.post("/api/timelock/schedule", governanceSignerRequired);
+app.post("/api/timelock/execute/:operationId", governanceSignerRequired);
+app.post("/api/timelock/cancel/:operationId", governanceSignerRequired);
 
 // GET /api/timelock/roles/:address
 app.get("/api/timelock/roles/:address", async (req, res) => {

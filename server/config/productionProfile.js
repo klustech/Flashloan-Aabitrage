@@ -35,9 +35,9 @@ function productionProfile(env = process.env) {
     flashloanProvider: { protocol:'aave', version:2, addressesProvider:env.AAVE_LENDING_POOL_ADDRESS_PROVIDER || network.aave.v2.lendingPoolAddressProvider, lendingPool:env.AAVE_V2_LENDING_POOL || network.aave.v2.lendingPool },
     contractAddress: env.CONTRACT_ADDRESS,
     operatorAddress: env.OPERATOR_ADDRESS,
-    expectedOwner: env.EXPECTED_CONTRACT_OWNER || env.OPERATOR_ADDRESS,
+    // Governance (multisig-controlled timelock) that administers the executor.
+    expectedAdmin: env.EXPECTED_ADMIN,
     expectedProfitRecipient: env.EXPECTED_PROFIT_RECIPIENT,
-    expectedTimelock: env.EXPECTED_TIMELOCK,
     expectedContractCodeHash: env.EXPECTED_CONTRACT_CODE_HASH,
     maxBorrowAmount: env.MAX_BORROW_AMOUNT || '50000',
     minBorrowAmount: env.MIN_BORROW_AMOUNT || '1',

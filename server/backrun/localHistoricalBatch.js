@@ -278,6 +278,11 @@ function summarizeBatch(results, { discoveredTriggers, truncated = false, finish
     byMode, profitsMustNotBeSummed: true, mutuallyExclusiveAlternatives: true,
     samePoolOpportunitiesCanOverlap: true, builderInclusionTested: false, netOptimalityProven: false };
 }
+// The local executor only accepts governance-approved routers, mirroring mainnet.
+function approvedRouters(profile, pools) {
+  return [...new Set([...Object.values(profile.routers || {}).map(r => r.router), ...pools.map(p => p.router)]
+    .filter(Boolean).map(r => r.toLowerCase()))];
+}
 async function evaluateTrigger({ profile, backend, data, trigger, pools, options, artifact, progress = () => {},
   prepare = prepareLocalExecutor, execute = executeLocalMode, context = poolContext, sizing = sizeCandidates, flashloanFactory }) {
   const result = { ...trigger, status: "EVALUATED", errors: [], executions: [], routes: 0, quoteProbes: 0 };
@@ -286,7 +291,8 @@ async function evaluateTrigger({ profile, backend, data, trigger, pools, options
   try {
     verifyTrigger(data, trigger); result.feeReference = blockFeeReference(data);
     local = await prepare({ backend, parent: data.parent, artifact, addressesProvider: profile.flashloanProvider.addressesProvider,
-      lendingPool: profile.flashloanProvider.lendingPool, wrappedNative: profile.tokens.WETH, amount: options.maximum, progress: stage });
+      lendingPool: profile.flashloanProvider.lendingPool, wrappedNative: profile.tokens.WETH, amount: options.maximum,
+      routers: approvedRouters(profile, pools), progress: stage });
     result.executorRuntimeCodeHash = local.runtimeCodeHash;
     const prefixAt = async index => {
       local.setFundingMode("CAPITAL", options.maximum); await backend.reset(data.parent);
