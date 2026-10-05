@@ -49,7 +49,8 @@ async function runBatch({ profile, archive, backend, options, pools, topologySou
   checkpoint();
   try {
     progress({ stage: "batch_discovery", startBlock: options.start, endBlock: options.end, poolCount: pools.length });
-    const triggers = await discover(archive, pools, options);
+    const triggers = await discover(archive, pools, options, { progress,
+      onDiscovery: discovery => { metadata.discovery = discovery; checkpoint(); } });
     discoveredTriggers = triggers.length; truncated = triggers.length > options.maxTriggers; checkpoint();
     progress({ stage: "batch_discovery_complete", discoveredTriggers, selectedTriggers: Math.min(triggers.length, options.maxTriggers), truncated });
     await backend.exclusive(async () => {
@@ -106,6 +107,7 @@ async function main({ progress = () => {} } = {}) {
     startBlock: report.startBlock, endBlock: report.endBlock, complete: report.complete, truncated: report.truncated,
     discoveredTriggers: report.discoveredTriggers, evaluatedTriggers: report.evaluatedTriggers,
     distinctEvaluatedBlocks: report.distinctEvaluatedBlocks, technicalErrors: report.technicalErrors,
+    discovery: report.discovery,
     byMode: Object.fromEntries(Object.entries(report.byMode).map(([mode, value]) => [mode, { ...value, bestMeasured: readableBest(value.bestMeasured) }])),
     coverage: report.coverage, selectionBias: report.selectionBias, feeAssumption: report.feeAssumption,
     usesFutureBlockInformation: true, profitsMustNotBeSummed: true, builderInclusionTested: false,

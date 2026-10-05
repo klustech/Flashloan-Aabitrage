@@ -11,6 +11,7 @@ const { verifyReceipts } = require("./historicalReplay");
 const { AaveV2 } = require("../flashloan/aaveV2");
 const { prepareLocalExecutor, executeLocalMode } = require("./localExecutorDiagnostic");
 const { replayDiagnostic } = require("../../scripts/backrun-replay-diagnostics");
+const { httpStatus } = require("../../scripts/backrun-archive-reads");
 
 function bounded(value, fallback, name, min, max) {
   const result = value === undefined ? fallback : Number(value);
@@ -67,11 +68,97 @@ function groupSwapLogs(logs, pools, start, end) {
   return [...found.values()].sort((a, b) => a.blockNumber - b.blockNumber || a.transactionIndex - b.transactionIndex)
     .map(entry => ({ ...entry, affectedPools: [...entry.affectedPools] }));
 }
-async function discoverTriggers(archive, pools, options) {
-  const logs = [];
-  for (const pool of pools) logs.push(...await archive.getLogs({ address: pool.poolAddress,
-    fromBlock: options.start, toBlock: options.end, topics: [[...SWAP_TOPICS]] }));
+function restrictedLogQuery(error) {
+  const status = httpStatus(error);
+  // Do not multiply requests after authentication, quota or transient failures.
+  if (status !== undefined) return status === 400 || status === 413;
+  for (let cause = error, depth = 0; cause && depth < 5; depth++, cause = cause.error || cause.cause || cause.serverError) {
+    if ([-32601, -32602].includes(Number(cause.code))) return true;
+    if ([-32000, -32005].includes(Number(cause.code)) &&
+        /block range|range (?:is )?too (?:large|wide)|too many (?:results|logs)|response size|query returned more/i.test(cause.message || "")) return true;
+  }
+  return false;
+}
+async function receiptDiscovery(archive, pools, options, progress, report) {
+  const logs = [], known = new Set(pools.map(pool => address(pool.poolAddress)));
+  const isHash = value => /^0x[0-9a-f]{64}$/i.test(value || "");
+  let previousHash;
+  for (let number = options.start; number <= options.end; number++) {
+    progress({ stage: "batch_discovery_receipts", blockNumber: number,
+      blocksScanned: report.blocksScanned, receiptsScanned: report.receiptsScanned });
+    // Direct bounded reads avoid the SDK's polling behaviour for a missing receipt.
+    const block = await archive.send("eth_getBlockByNumber", [utils.hexValue(number), false]);
+    if (!block || Number(block.number) !== number || !isHash(block.hash) || !isHash(block.parentHash) ||
+        (previousHash && block.parentHash.toLowerCase() !== previousHash) || !Array.isArray(block.transactions) ||
+        block.transactions.some(hash => !isHash(hash)) || new Set(block.transactions.map(hash => hash.toLowerCase())).size !== block.transactions.length)
+      throw new Error("Canonical discovery block missing or inconsistent");
+    for (let index = 0; index < block.transactions.length; index++) {
+      if (index % 50 === 0) progress({ stage: "batch_discovery_receipts", blockNumber: number,
+        transactionIndex: index, transactionCount: block.transactions.length, receiptsScanned: report.receiptsScanned });
+      const hash = block.transactions[index], receipt = await archive.send("eth_getTransactionReceipt", [hash]);
+      if (!receipt || receipt.transactionHash?.toLowerCase() !== hash.toLowerCase() ||
+          receipt.blockHash?.toLowerCase() !== block.hash.toLowerCase() || Number(receipt.blockNumber) !== number ||
+          receipt.transactionIndex == null || Number(receipt.transactionIndex) !== index || receipt.status == null ||
+          ![0, 1].includes(Number(receipt.status)) || !Array.isArray(receipt.logs) ||
+          (Number(receipt.status) === 0 && receipt.logs.length))
+        throw new Error("Canonical discovery receipt missing or inconsistent");
+      for (const log of receipt.logs) {
+        if (log.removed || log.transactionHash?.toLowerCase() !== hash.toLowerCase() ||
+            log.blockHash?.toLowerCase() !== block.hash.toLowerCase() || Number(log.blockNumber) !== number ||
+            log.transactionIndex == null || Number(log.transactionIndex) !== index || !Array.isArray(log.topics))
+          throw new Error("Canonical discovery log identity mismatch");
+        if (known.has(address(log.address)) && SWAP_TOPICS.has(log.topics[0]?.toLowerCase()))
+          logs.push({ ...log, blockNumber: number, transactionIndex: index });
+      }
+      report.receiptsScanned++;
+    }
+    previousHash = block.hash.toLowerCase(); report.blocksScanned++;
+  }
   return groupSwapLogs(logs, pools, options.start, options.end);
+}
+async function discoverTriggers(archive, pools, options, { progress = () => {}, onDiscovery = () => {} } = {}) {
+  const report = { method: "eth_getLogs", logRequests: 0, rangeSplits: 0, blocksScanned: 0,
+    receiptsScanned: 0, complete: false };
+  onDiscovery({ ...report });
+  const query = async (pool, fromBlock, toBlock) => {
+    let logs;
+    try {
+      report.logRequests++;
+      logs = await archive.getLogs({ address: pool.poolAddress, fromBlock, toBlock, topics: [[...SWAP_TOPICS]] });
+    } catch (error) {
+      if (!restrictedLogQuery(error)) throw error;
+      if (fromBlock === toBlock) {
+        const unavailable = new Error("Single-block log query unavailable");
+        unavailable.receiptDiscoveryRequired = true; unavailable.cause = error; throw unavailable;
+      }
+      report.rangeSplits++;
+      progress({ stage: "batch_discovery_split", fromBlock, toBlock, httpStatus: httpStatus(error) });
+      const middle = Math.floor((fromBlock + toBlock) / 2);
+      return [...await query(pool, fromBlock, middle), ...await query(pool, middle + 1, toBlock)];
+    }
+    // A provider response outside the requested window is a validation failure,
+    // not an excuse to continue with incomplete data or an unrelated fallback.
+    groupSwapLogs(logs, [pool], fromBlock, toBlock);
+    return logs;
+  };
+  try {
+    const logs = [];
+    for (const pool of pools) logs.push(...await query(pool, options.start, options.end));
+    const triggers = groupSwapLogs(logs, pools, options.start, options.end);
+    report.complete = true; onDiscovery({ ...report }); return triggers;
+  } catch (error) {
+    if (!error.receiptDiscoveryRequired) { onDiscovery({ ...report }); throw error; }
+    report.method = "canonical_receipts";
+    report.fallbackDiagnostic = replayDiagnostic(error.cause, { stage: "batch_discovery" });
+    onDiscovery({ ...report });
+    progress({ stage: "batch_discovery_receipt_fallback", diagnostic: report.fallbackDiagnostic });
+    try {
+      // Discard partial log-query results; scan every block and every receipt for
+      // ALL tracked pools so fallback cannot silently omit or duplicate triggers.
+      const triggers = await receiptDiscovery(archive, pools, options, progress, report);
+      report.complete = true; onDiscovery({ ...report }); return triggers;
+    } catch (failure) { onDiscovery({ ...report }); throw failure; }
+  }
 }
 function verifyTrigger(data, trigger) {
   const tx = data.block.transactions[trigger.transactionIndex], receipt = data.receipts[trigger.transactionIndex];

@@ -566,6 +566,24 @@ exits successfully; an incomplete or technically failed scan exits nonzero.
 Archive reads and cold prefix mining can take considerably longer than the
 single-fixture sweep; progress and mining heartbeats remain visible.
 
+Discovery adapts to archive providers that reject a wide `eth_getLogs` range or
+an unsupported filter. HTTP 400/413 and explicit unsupported-query errors split
+the range into smaller requests. If a single-block query is still rejected, the
+command discards partial log results and reads each block and each transaction
+receipt across the entire range for all tracked pools. It checks block ancestry,
+receipt transaction/hash/index/status, and log identities before grouping Swaps.
+This receipt fallback is slower but does not depend on the provider's log-search
+API. Direct receipt reads use the existing bounded retry/pacing policy; a missing
+receipt fails the run rather than causing indefinite SDK polling or a false
+zero-opportunity result. Authentication, exhausted quota and transient failures
+do not trigger an expanded fallback scan.
+
+Progress includes `batch_discovery_split`, `batch_discovery_receipt_fallback`
+and `batch_discovery_receipts`. The report's `discovery` field records the method,
+range splits, log requests, receipts/blocks scanned and completion. Provider
+failure diagnostics are redacted. No configuration change is required to use
+this fallback; rerun the same batch command after updating the branch.
+
 Use explicit settings to extend coverage, without changing LIVE settings:
 
 ```bash

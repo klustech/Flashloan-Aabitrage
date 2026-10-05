@@ -157,3 +157,122 @@ test("Swap log archive reads use bounded transport retries and preserve exact di
   assert.deepEqual(await provider.send("eth_getLogs", filters), [log(1)]);
   assert.equal(calls.length, 2); assert.equal(calls.every(call => call.method === "eth_getLogs" && call.params === filters), true);
 });
+
+function discoveryFixture(start = 100, end = 103) {
+  const blocks = new Map(), receipts = new Map(), logs = [];
+  for (let number = start; number <= end; number++) {
+    const blockHash = hash(number + 1000), tx = hash(number + 2000);
+    const blockLogs = [1, 2].map((pool, index) => ({ address: addr(pool), topics: [[...SWAP_TOPICS][0]], data: "0x",
+      blockNumber: utils.hexValue(number), blockHash, transactionIndex: "0x0", transactionHash: tx,
+      logIndex: utils.hexValue(index), removed: false }));
+    blocks.set(number, { number: utils.hexValue(number), hash: blockHash, parentHash: hash(number + 999), transactions: [tx] });
+    receipts.set(tx, { transactionHash: tx, blockHash, blockNumber: utils.hexValue(number), transactionIndex: "0x0",
+      status: "0x1", logs: blockLogs });
+    logs.push(...blockLogs.map(log => ({ ...log, blockNumber: number, transactionIndex: 0, logIndex: Number(log.logIndex) })));
+  }
+  const reads = [];
+  return { blocks, receipts, logs, reads, send: async (method, params) => {
+    reads.push({ method, params });
+    if (method === "eth_getBlockByNumber") return blocks.get(Number(params[0]));
+    if (method === "eth_getTransactionReceipt") return receipts.get(params[0]);
+    throw new Error("Unexpected discovery RPC method");
+  } };
+}
+test("log discovery splits rejected ranges and retains every pool and trigger without receipt fallback", async () => {
+  const { discoverTriggers } = require("../../server/backrun/localHistoricalBatch");
+  const fixture = discoveryFixture(), queries = [], reports = [], events = [];
+  const archive = { send: fixture.send, getLogs: async filter => {
+    queries.push(filter);
+    if (filter.toBlock - filter.fromBlock + 1 > 2) throw Object.assign(new Error("bad response"), { status: 400 });
+    return fixture.logs.filter(log => log.address === filter.address && log.blockNumber >= filter.fromBlock && log.blockNumber <= filter.toBlock);
+  } };
+  const triggers = await discoverTriggers(archive, pools, { start: 100, end: 103 },
+    { onDiscovery: report => reports.push(report), progress: event => events.push(event) });
+  assert.equal(triggers.length, 4); assert.ok(triggers.every(trigger => trigger.affectedPools.length === 2));
+  assert.equal(queries.length, 6); assert.equal(fixture.reads.length, 0);
+  assert.equal(reports.at(-1).method, "eth_getLogs"); assert.equal(reports.at(-1).rangeSplits, 2);
+  assert.equal(reports.at(-1).complete, true); assert.equal(events.filter(event => event.stage === "batch_discovery_split").length, 2);
+});
+
+test("single-block HTTP 400 falls back to every canonical receipt and discards partial log results", async () => {
+  const { discoverTriggers } = require("../../server/backrun/localHistoricalBatch");
+  const fixture = discoveryFixture(), reports = [], events = [];
+  const archive = { send: fixture.send, getLogs: async filter => {
+    if (filter.address === addr(1)) return fixture.logs.filter(log => log.address === addr(1));
+    throw Object.assign(new Error("bad response"), { status: 400, code: "SERVER_ERROR", body: "DO_NOT_PRINT_PROVIDER_BODY" });
+  } };
+  const triggers = await discoverTriggers(archive, pools, { start: 100, end: 103 },
+    { onDiscovery: report => reports.push(report), progress: event => events.push(event) });
+  assert.equal(triggers.length, 4); assert.deepEqual(triggers.map(trigger => trigger.blockNumber), [100, 101, 102, 103]);
+  assert.ok(triggers.every(trigger => trigger.affectedPools.length === 2));
+  assert.equal(fixture.reads.filter(read => read.method === "eth_getTransactionReceipt").length, 4);
+  const report = reports.at(-1);
+  assert.equal(report.method, "canonical_receipts"); assert.equal(report.complete, true);
+  assert.equal(report.blocksScanned, 4); assert.equal(report.receiptsScanned, 4);
+  assert.equal(report.fallbackDiagnostic.httpStatus, 400);
+  assert.ok(events.some(event => event.stage === "batch_discovery_receipt_fallback"));
+  assert.ok(!JSON.stringify(events).includes("DO_NOT_PRINT_PROVIDER_BODY"));
+});
+
+test("receipt discovery fails closed on missing data, inconsistent block chains and mismatched log identities", async () => {
+  const { discoverTriggers } = require("../../server/backrun/localHistoricalBatch");
+  for (const mutate of [fixture => fixture.receipts.delete(hash(2101)),
+    fixture => { fixture.blocks.get(101).parentHash = hash(99); },
+    fixture => { fixture.receipts.get(hash(2100)).transactionIndex = null; },
+    fixture => { fixture.receipts.get(hash(2100)).logs[0].transactionHash = hash(99); },
+    fixture => { fixture.receipts.get(hash(2100)).status = "0x0"; }]) {
+    const fixture = discoveryFixture(), reports = []; mutate(fixture);
+    const archive = { send: fixture.send, getLogs: async () => { throw Object.assign(new Error("unsupported filter"), { error: { code: -32602 } }); } };
+    await assert.rejects(discoverTriggers(archive, pools, { start: 100, end: 103 }, { onDiscovery: report => reports.push(report) }), /Canonical discovery/);
+    assert.equal(reports.at(-1).complete, false); assert.equal(reports.at(-1).method, "canonical_receipts");
+  }
+});
+
+test("authentication, quota and transient log failures never expand into receipt scans", async () => {
+  const { discoverTriggers } = require("../../server/backrun/localHistoricalBatch");
+  for (const status of [401, 402, 403, 429, 500, 503]) {
+    let calls = 0;
+    const error = Object.assign(new Error("request failed"), { status });
+    const archive = { send: async () => { assert.fail("Receipt fallback must not run"); },
+      getLogs: async () => { calls++; throw error; } };
+    await assert.rejects(discoverTriggers(archive, pools, { start: 100, end: 103 }), candidate => candidate === error);
+    assert.equal(calls, 1);
+  }
+});
+
+test("malformed successful log responses remain validation failures instead of triggering fallback", async () => {
+  const { discoverTriggers } = require("../../server/backrun/localHistoricalBatch");
+  let reads = 0;
+  const archive = { getLogs: async () => [{ ...log(0), blockNumber: 999 }], send: async () => { reads++; } };
+  await assert.rejects(discoverTriggers(archive, pools, { start: 100, end: 103 }), /Invalid historical Swap log/);
+  assert.equal(reads, 0);
+});
+
+test("real ethers HTTP 400 transport falls back to bounded raw receipt reads and records discovery evidence", async () => {
+  const http = require("http"), { providers } = require("ethers");
+  const { installArchiveReads } = require("../../scripts/backrun-archive-reads");
+  const { discoverTriggers } = require("../../server/backrun/localHistoricalBatch");
+  const fixture = discoveryFixture(100, 100), methods = [], reports = [];
+  const server = http.createServer((request, response) => {
+    let body = ""; request.on("data", chunk => { body += chunk; });
+    request.on("end", async () => {
+      const input = JSON.parse(body); methods.push(input.method);
+      if (input.method === "eth_getLogs") {
+        response.writeHead(400, { "content-type": "application/json" });
+        response.end(JSON.stringify({ error: "restricted log query" })); return;
+      }
+      const result = input.method === "eth_chainId" ? "0x1" : await fixture.send(input.method, input.params);
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ jsonrpc: "2.0", id: input.id, result }));
+    });
+  });
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const archive = installArchiveReads(new providers.StaticJsonRpcProvider({ url: `http://127.0.0.1:${server.address().port}`,
+      throttleLimit: 1, throttleCallback: async () => false }, 1), { minIntervalMs: 0 });
+    const found = await discoverTriggers(archive, pools, { start: 100, end: 100 }, { onDiscovery: report => reports.push(report) });
+    assert.equal(found.length, 1); assert.deepEqual(found[0].affectedPools, [addr(1), addr(2)]);
+    assert.equal(methods.filter(method => method === "eth_getLogs").length, 1);
+    assert.equal(reports.at(-1).method, "canonical_receipts"); assert.equal(reports.at(-1).complete, true);
+  } finally { await new Promise(resolve => server.close(resolve)); }
+});
