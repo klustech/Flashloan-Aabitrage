@@ -99,7 +99,7 @@ ALLOW_PUBLIC_MEMPOOL_FALLBACK=false
 ### Contract Deployment Parameters (.env)
 
 For Ethereum mainnet production use `npm run deploy:production`; see
-[EXECUTOR_GOVERNANCE.md](EXECUTOR_GOVERNANCE.md) for the role layout.
+[EXECUTOR_GOVERNANCE.md](security/EXECUTOR_GOVERNANCE.md) for the role layout.
 
 `scripts/deploy.js` deploys a self-administered `ArbitrageTimelock` first, then
 `ArbitrageFlashloan` with the constructor

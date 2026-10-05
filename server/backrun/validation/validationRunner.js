@@ -26,6 +26,7 @@ function steps(env = process.env) {
       gateEvidence: ["canonical-replay", "size-sweep", "gas-stress", "builder-competition", "liquidity-stress", "funding-parity"] },
     { id: "failure-injection", command: node, args: ["scripts/backrun-failure-test.js"], gateEvidence: ["failure-injection"] },
     { id: "restart-recovery", command: node, args: ["scripts/backrun-recovery-test.js"], gateEvidence: ["restart-recovery"] },
+    { id: "fresh-clone", command: node, args: ["scripts/backrun-fresh-clone-check.js"], evidence: "step-fresh-clone" },
     { id: "latency", command: node, args: ["scripts/backrun-latency-benchmark.js"], gateEvidence: ["latency"] },
   ];
 }

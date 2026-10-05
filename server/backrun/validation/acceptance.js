@@ -26,6 +26,7 @@ const ACCEPTANCE = [
   { id: "funding-parity", evidence: "funding-parity", title: "CAPITAL and FLASH_LOAN differ only by fee and gas" },
   { id: "failure-injection", evidence: "failure-injection", title: "Every injected dependency failure is fail-closed" },
   { id: "restart-recovery", evidence: "restart-recovery", title: "Crash-point journals recover without resubmission" },
+  { id: "fresh-clone", evidence: "step-fresh-clone", title: "Fresh clone builds identical executor bytecode and passes core gates" },
   { id: "latency", evidence: "latency", title: "Measured decision-latency baseline (p50/p95/p99); bounded concurrent queue" },
 ].map(g => ({ required: true, ...g }));
 

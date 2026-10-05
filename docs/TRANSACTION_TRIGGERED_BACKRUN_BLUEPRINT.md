@@ -5,7 +5,7 @@
 > **Superseded executor version.** This design record describes executor v3.
 > The operating executor is **v4** (`EXECUTOR_VERSION` in
 > `server/config/executorVersion.js`), which adds role separation and an on-chain
-> router allowlist; see [EXECUTOR_GOVERNANCE.md](EXECUTOR_GOVERNANCE.md). Readiness,
+> router allowlist; see [EXECUTOR_GOVERNANCE.md](security/EXECUTOR_GOVERNANCE.md). Readiness,
 > fork proofs, benchmarks and the commissioning report accept only v4 evidence.
 > References to v2/v3 below are kept as history.
 

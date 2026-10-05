@@ -1,6 +1,6 @@
 # Laptop mainnet PAPER commissioning
 
-This profile observes real Ethereum and performs unsigned executor calls. It never arms, signs or submits a trade. A version-4 executor must already exist on Ethereum mainnet with its operator (executor role), admin timelock, recipient and runtime code hash recorded (see [EXECUTOR_GOVERNANCE.md](EXECUTOR_GOVERNANCE.md)). Deploy it with a separate deployment environment; do not put its private key in the PAPER environment. Deployment spends gas and is an operator action outside this commissioning setup.
+This profile observes real Ethereum and performs unsigned executor calls. It never arms, signs or submits a trade. A version-4 executor must already exist on Ethereum mainnet with its operator (executor role), admin timelock, recipient and runtime code hash recorded (see [EXECUTOR_GOVERNANCE.md](security/EXECUTOR_GOVERNANCE.md)). Deploy it with a separate deployment environment; do not put its private key in the PAPER environment. Deployment spends gas and is an operator action outside this commissioning setup.
 
 ## What the hardening implements
 

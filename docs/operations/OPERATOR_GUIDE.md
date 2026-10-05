@@ -1,5 +1,9 @@
 # Flashloan Arbitrage Bot - Operator Guide
 
+> Commissioning, monitoring and incident procedures for the backrun engine live in
+> [MONITORING.md](MONITORING.md), [INCIDENT_RESPONSE.md](INCIDENT_RESPONSE.md), [RECOVERY.md](RECOVERY.md)
+> and [../commissioning/PAPER_PHASE.md](../commissioning/PAPER_PHASE.md).
+
 This guide covers day-to-day operation of the Flashloan Arbitrage Bot, including monitoring, troubleshooting, and configuration.
 
 ## Table of Contents
@@ -249,7 +253,7 @@ curl -X POST http://localhost:3001/api/connext/monitoring/stop
 The executor's admin is `ArbitrageTimelock`, and its only proposer/executor is
 the governance multisig. The bot holds no governance key, so the bot API is
 read-only for governance: schedule/execute/cancel return 403. See
-[EXECUTOR_GOVERNANCE.md](EXECUTOR_GOVERNANCE.md).
+[EXECUTOR_GOVERNANCE.md](../security/EXECUTOR_GOVERNANCE.md).
 
 ### Check Status
 

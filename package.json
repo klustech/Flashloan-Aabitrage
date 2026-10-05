@@ -53,7 +53,8 @@
     "backrun:validate:latency": "node scripts/backrun-latency-benchmark.js",
     "backrun:validate:failure": "node scripts/backrun-failure-test.js",
     "backrun:validate:recovery": "node scripts/backrun-recovery-test.js",
-    "backrun:projection": "node scripts/backrun-economic-projection.js"
+    "backrun:projection": "node scripts/backrun-economic-projection.js",
+    "backrun:validate:fresh-clone": "node scripts/backrun-fresh-clone-check.js"
   },
   "keywords": [],
   "author": "",
