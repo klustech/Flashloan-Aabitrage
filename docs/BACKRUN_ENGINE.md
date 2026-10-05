@@ -456,3 +456,54 @@ and never writes the production capital/flash-loan proof paths or overwrites the
 canonical replay proof. Do not treat it as proof of realized profit or live
 capture. If it fails, share its sanitized CLI diagnostic rather than private
 node logs or environment contents.
+
+### Sweep local executor sizes and priority fees
+
+```bash
+PAPER_ENV_FILE=.env.backrun-paper npm run backrun:executor-sweep
+```
+
+No other terminal/node is required. The command compiles and deploys only on the
+local Anvil fork, using the same archive environment and diagnostic safeguards
+as `backrun:executor-fork`. It does not deploy to mainnet or sign a trade.
+
+Default sizes are 0.01, 0.03, 0.06, 0.1, 0.2, 0.5 and 1 WETH plus the original
+fixture size (0.06080858030334331 WETH). Defaults above `BACKRUN_MAX_AMOUNT_WETH`
+are excluded. Each size tests CAPITAL and FLASH_LOAN at 0%, 25%, 50% and 100% of
+the original arbitrage's priority fee. The canonical base fee stays unchanged.
+Every executed combination starts with a reset to the same parent, identical
+canonical prefix and header, verified original receipt/status/gas/logs, clean
+executor constructor state and a fresh synthetic gas budget. CAPITAL starts with
+exactly the selected amount; FLASH_LOAN starts with zero executor WETH. Profits,
+Aave premiums, actual gas and priority payments are verified from execution.
+The selected priority is included exactly once in effective gas cost.
+
+Each size gets an exact post-trigger quote, including actual pool price impact.
+A nonpositive quote after funding fees or insufficient Aave liquidity is recorded
+as `QUOTE_REJECTED`; it is not an executed trade or a technical failure. Successful
+executions can have negative net after gas. RPC, canonical receipt and executor
+failures are separately recorded as `ERROR`, and prevent a clean-completion claim.
+An unknown mining outcome stops the sweep without further node mutations.
+
+The CLI prints a WETH/ETH table and compact final summary. The full report and
+incremental checkpoints are saved to `runtime/backrun/local-executor-sweep.json`.
+A partial report is marked incomplete. Best results at the original historical
+priority fee are reported separately from best results at hypothetical lower
+bids. Zero/lower bids do not establish builder inclusion or competitive capture.
+All combinations describe alternatives for ONE historical trigger; never add
+these profits together or extrapolate them as daily income. Deployment,
+infrastructure and additional direct builder payments remain excluded. This
+report is diagnostic only and cannot satisfy production commissioning gates.
+
+Optional private environment settings:
+
+```dotenv
+BACKRUN_SWEEP_AMOUNTS_WETH=0.01,0.03,0.06,0.1,0.2,0.5,1
+BACKRUN_SWEEP_PRIORITY_BPS=0,2500,5000,10000
+```
+
+Custom sizes must be positive, at most 12 values, and stay inside the configured
+WETH cap. Fee multipliers are integers from 0 to 20000, at most four distinct
+values, and must include 10000 so the historical fee comparator is retained.
+These settings affect only the local diagnostic and do not increase LIVE limits.
+A complete sweep with no positive net combinations is a valid result.

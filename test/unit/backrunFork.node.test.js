@@ -177,7 +177,7 @@ test("local executor diagnostic preserves historical prefix and settles both fun
     const canonical=utils.parseTransaction(raw),header={...parent,number:parent.number+1,timestamp:parent.timestamp+12,
       baseFeePerGas:require("../../server/backrun/forkBackend").nextBaseFee(parent)};
     await backend.reset(parent);const prefix=await backend.mine([raw],header,{canonicalTransactions:[canonical]});
-    const data={parent,block:{...header,transactions:[canonical]},raw:[raw],receipts:[prefix.receipts[0],{effectiveGasPrice:header.baseFeePerGas.add(1)}]};
+    const data={parent,block:{...header,transactions:[canonical]},raw:[raw],receipts:[prefix.receipts[0],{effectiveGasPrice:header.baseFeePerGas.add(utils.parseUnits("1","gwei"))}]};
     const local=await prepareLocalExecutor({backend,parent,artifact:artifact("ArbitrageFlashloan"),addressesProvider:ap.address,
       lendingPool:pool.address,wrappedNative:weth.address,amount});
     const step={dexType:0,router:r1.address,tokenIn:weth.address,tokenOut:other.address,minAmountOut:1,v3Fee:0,
@@ -186,22 +186,33 @@ test("local executor diagnostic preserves historical prefix and settles both fun
       minProfit:1,route:"controlled diagnostic integration"};
     try{
       const results=[];
-      for(const fundingMode of ["CAPITAL","FLASH_LOAN"]){
-        const result=await executeLocalMode({backend,data,endIndex:0,local,quoteData,fundingMode,minimumProfit:utils.parseEther("1")});
+      for(const selected of [amount.div(2),amount])for(const priorityFeeBps of [10000,0,5000])for(const fundingMode of ["CAPITAL","FLASH_LOAN"]){
+        const selectedData={...quoteData,borrowAmount:selected};
+        const result=await executeLocalMode({backend,data,endIndex:0,local,quoteData:selectedData,fundingMode,
+          priorityFeeBps,minimumProfit:utils.parseEther("1")});
         assert.equal(result.executionSucceeded,true);assert.equal(result.canonicalReceiptsVerified,true);
         assert.equal(result.sameBlock,true);assert.equal(result.transactionIndex,1);assert.equal(result.unsigned,true);
         assert.equal(result.principalPreserved,true);assert.equal(result.routerAllowancesCleared,true);
-        assert.equal(result.startingExecutorWeth,fundingMode==="CAPITAL"?amount.toString():"0");
+        assert.equal(result.startingExecutorWeth,fundingMode==="CAPITAL"?selected.toString():"0");
         assert.equal(result.syntheticCapital,fundingMode==="CAPITAL");
         assert.equal(result.aaveAllowanceCleared,true);assert.equal(result.netPositive,true);
-        assert.equal(result.grossBeforeFundingFee,amount.div(10).toString());
-        assert.equal(result.flashloanFee,fundingMode==="CAPITAL"?"0":amount.mul(9).div(10000).toString());
+        assert.equal(result.grossBeforeFundingFee,selected.div(10).toString());
+        assert.equal(result.flashloanFee,fundingMode==="CAPITAL"?"0":selected.mul(9).div(10000).toString());
         assert.equal(require("ethers").BigNumber.from(result.profitWithdrawn).sub(result.gasCostNative).toString(),result.netAfterGasNative);
+        assert.equal(result.amountIn,selected.toString());assert.equal(result.priorityFeeBps,priorityFeeBps);
+        const expectedPriority=utils.parseUnits("1","gwei").mul(priorityFeeBps).div(10000);
+        assert.equal(result.priorityFeePerGas,expectedPriority.toString());
+        assert.equal(result.effectiveGasPrice,header.baseFeePerGas.add(expectedPriority).toString());
+        assert.equal(result.builderPriorityPaymentNative,require("ethers").BigNumber.from(result.gasUsed).mul(expectedPriority).toString());
+        assert.equal((await weth.balanceOf(pool.address)).toString(),amount.mul(10).add(fundingMode==="FLASH_LOAN"?selected.mul(9).div(10000):0).toString());
         results.push(result);
       }
       assert.equal(await local.executor.owner(),local.owner);
       assert.equal((await weth.balanceOf(local.executor.address)).toString(),"0");
       assert.equal((await weth.balanceOf(pool.address)).toString(),amount.mul(10).add(amount.mul(9).div(10000)).toString());
+      assert.equal(results.length,12);
+      assert.throws(()=>local.setFundingMode("CAPITAL",amount.add(1)),/maximum/);
+      await assert.rejects(executeLocalMode({backend,data,endIndex:0,local,quoteData,fundingMode:"CAPITAL",priorityFeeBps:-1}),/multiplier/);
       await assert.rejects(backend.reset({...parent,hash:utils.hexZeroPad("0x1234",32)}),/pinned/);
     }finally{local.restoreReset();await provider.send("evm_setAutomine",[true]);}
   });

@@ -17,7 +17,7 @@ async function compile() {
   const code = await new Promise((resolve, reject) => { child.once("error", reject); child.once("close", resolve); });
   if (code !== 0) throw new Error("Local executor compilation failed");
 }
-async function fixtureQuote(profile, provider, fixture, block) {
+async function fixtureQuote(profile, provider, fixture, block, amountIn = fixture.amountIn) {
   // Read only the fixture's exact pools; an unrelated topology-cache file must
   // neither change this route nor require broad pool discovery.
   const tokens = new TokenRegistry(provider, 1);
@@ -29,7 +29,7 @@ async function fixtureQuote(profile, provider, fixture, block) {
   }
   const route = routeFromFixture(fixture, { registry }, profile, block.number), quoter = new QuoteEngine(adapters);
   quoter.beginBlock(block.hash);
-  const quote = await quoter.quoteRoute(route, fixture.amountIn, block.number);
+  const quote = await quoter.quoteRoute(route, amountIn, block.number);
   // This is a measurement run, so allow execution above one wei of contract
   // profit. Report the configured net floor separately; a losing diagnostic
   // must never become production readiness evidence.
@@ -122,4 +122,4 @@ async function cli() {
   }
 }
 if (require.main === module) cli();
-module.exports = { main, cli, fixtureQuote };
+module.exports = { main, cli, fixtureQuote, compile };

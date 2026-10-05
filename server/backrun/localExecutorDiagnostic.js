@@ -87,9 +87,9 @@ async function prepareLocalExecutor({ backend, parent, artifact, addressesProvid
   }
   if (changed.length !== 1 || !bn(changed[0][2]).isZero() || !bn(changed[0][1]).eq(amount))
     throw new Error("WETH setup changed unexpected historical storage");
-  let capitalEnabled = true;
+  let capitalEnabled = true, capitalAmount = bn(amount);
   const overlay = async () => {
-    const capital = capitalEnabled ? amount : bn(0);
+    const capital = capitalEnabled ? capitalAmount : bn(0);
     backend.assertMiningSettled();
     await provider.send("hardhat_setCode", [executor.address, executorState.code]);
     await provider.send("hardhat_setNonce", [executor.address, utils.hexValue(executorState.nonce)]);
@@ -110,9 +110,12 @@ async function prepareLocalExecutor({ backend, parent, artifact, addressesProvid
   try { await overlay(); } catch (error) { backend.reset = originalReset; throw error; }
   return { executor: executor.connect(provider), token, owner, gasBalance, deploymentReceipt,
     runtimeCodeHash: utils.keccak256(executorState.code),
-    setFundingMode(mode) {
+    setFundingMode(mode, selectedAmount = amount) {
+      backend.assertMiningSettled();
       if (!["CAPITAL", "FLASH_LOAN"].includes(mode)) throw new Error("Unsupported local funding method");
-      capitalEnabled = mode === "CAPITAL";
+      const selected = bn(selectedAmount);
+      if (selected.lte(0) || selected.gt(amount)) throw new Error("Local capital amount exceeds prepared maximum");
+      capitalAmount = selected; capitalEnabled = mode === "CAPITAL";
     }, restoreReset() { backend.reset = originalReset; } };
 }
 
@@ -156,10 +159,12 @@ function measureSettlement({ receipt, executor, tokenAddress, recipient, recipie
     netPositive: net.gt(0), meetsConfiguredMinimum: net.gte(minimumProfit) });
 }
 
-async function executeLocalMode({ backend, data, endIndex, local, quoteData, fundingMode, minimumProfit, progress = () => {} }) {
+async function executeLocalMode({ backend, data, endIndex, local, quoteData, fundingMode, minimumProfit, priorityFeeBps = 10000, progress = () => {} }) {
   const raw = data.raw.slice(0, endIndex + 1), canonical = data.block.transactions.slice(0, endIndex + 1);
   const provider = backend.provider, { executor, token, owner, gasBalance } = local;
-  local.setFundingMode(fundingMode);
+  if (!Number.isSafeInteger(priorityFeeBps) || priorityFeeBps < 0 || priorityFeeBps > 20000)
+    throw new Error("Local priority multiplier must be an integer from 0 to 20000 bps");
+  local.setFundingMode(fundingMode, quoteData.borrowAmount);
   progress({ stage: "executor_prefix", fundingMode, blockNumber: data.block.number, endIndex });
   await backend.reset(data.parent);
   const prefix = await backend.mine(raw, data.block, { canonicalTransactions: canonical });
@@ -168,8 +173,9 @@ async function executeLocalMode({ backend, data, endIndex, local, quoteData, fun
   const lendingPool = await executor.lendingPool();
   const historicalReceipt = data.receipts[endIndex + 1];
   if (!historicalReceipt?.effectiveGasPrice) throw new Error("Historical arbitrage fee evidence missing");
-  const priority = bn(historicalReceipt.effectiveGasPrice).sub(data.block.baseFeePerGas);
-  if (priority.lt(0)) throw new Error("Historical arbitrage priority fee is negative");
+  const historicalPriority = bn(historicalReceipt.effectiveGasPrice).sub(data.block.baseFeePerGas);
+  if (historicalPriority.lt(0)) throw new Error("Historical arbitrage priority fee is negative");
+  const priority = historicalPriority.mul(priorityFeeBps).div(10000), effectiveGasPrice = bn(data.block.baseFeePerGas).add(priority);
   const transaction = { from: owner, to: executor.address,
     data: executor.interface.encodeFunctionData(fundingMode === "CAPITAL" ? "executeCapitalArbitrage" : "initiateFlashLoan", [quoteData]),
     gasLimit: 1500000, maxFeePerGas: bn(data.block.baseFeePerGas).add(priority), maxPriorityFeePerGas: priority };
@@ -178,7 +184,7 @@ async function executeLocalMode({ backend, data, endIndex, local, quoteData, fun
     parent: data.parent, header: data.block, transaction });
   verifyReceipts(sim.prefixReceipts, data.receipts.slice(0, endIndex + 1));
   if (sim.backrunReceipt.transactionIndex !== endIndex + 1 || sim.backrunReceipt.blockNumber !== data.block.number ||
-      !bn(sim.backrunReceipt.effectiveGasPrice).eq(historicalReceipt.effectiveGasPrice))
+      !bn(sim.backrunReceipt.effectiveGasPrice).eq(effectiveGasPrice))
     throw new Error("Local executor index/block/gas price mismatch");
   const settlement = measureSettlement({ receipt: sim.backrunReceipt, executor, tokenAddress: quoteData.borrowToken,
     recipient: owner, recipientBefore: recipient, recipientAfter: await token.balanceOf(owner),
@@ -195,7 +201,10 @@ async function executeLocalMode({ backend, data, endIndex, local, quoteData, fun
     sameBlock: sim.targetBlock === data.block.number, unsigned: true, mainnetSubmitted: false,
     canonicalReceiptsVerified: true, routerAllowancesCleared: true, aaveAllowanceCleared: true,
     directCoinbasePayment: sim.directCoinbasePayment,
+    priorityFeeBps, historicalPriorityFeePerGas: historicalPriority.toString(),
     priorityFeePerGas: priority.toString(), builderPriorityPaymentNative: priority.mul(sim.gasUsed).toString(),
-    feeAssumption: "historical arbitrage effective gas price; no additional direct builder payment modelled" };
+    feeAssumption: priorityFeeBps === 10000 ? "historical arbitrage effective gas price; no additional direct builder payment modelled" :
+      "hypothetical priority multiplier; unchanged historical base fee; inclusion not tested",
+    inclusionTested: false };
 }
 module.exports = { prepareLocalExecutor, executeLocalMode, measureSettlement, decodeState };

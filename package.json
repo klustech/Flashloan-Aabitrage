@@ -42,7 +42,8 @@
     "backrun:smoke": "node scripts/backrun-smoke.js",
     "backrun:commission": "node scripts/backrun-commissioning-report.js",
     "backrun:install-anvil": "node scripts/install-backrun-anvil.js",
-    "backrun:executor-fork": "node scripts/backrun-executor-fork.js"
+    "backrun:executor-fork": "node scripts/backrun-executor-fork.js",
+    "backrun:executor-sweep": "node scripts/backrun-executor-sweep.js"
   },
   "keywords": [],
   "author": "",
