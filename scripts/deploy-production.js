@@ -2,6 +2,7 @@ require('dotenv').config();
 const {ethers}=require('hardhat');
 const fs=require('fs');
 const {productionProfile}=require('../server/config/productionProfile');
+const {EXECUTOR_VERSION}=require('../server/config/executorVersion');
 
 // Authority layout:
 //   GOVERNANCE_ADDRESS (multisig) -> sole proposer/executor of ArbitrageTimelock
@@ -33,7 +34,7 @@ async function main(){
   const Executor=await ethers.getContractFactory('ArbitrageFlashloan',deployer);
   const contract=await Executor.deploy(profile.flashloanProvider.addressesProvider,recipient,timelock.address,operator,routers);await contract.deployed();
   const code=await ethers.provider.getCode(contract.address);
-  const manifest={CONTRACT_ADDRESS:contract.address,OPERATOR_ADDRESS:operator,EXPECTED_ADMIN:timelock.address,GOVERNANCE_ADDRESS:governance,EXPECTED_PROFIT_RECIPIENT:recipient,EXPECTED_CONTRACT_CODE_HASH:ethers.utils.keccak256(code),AAVE_LENDING_POOL_ADDRESS_PROVIDER:profile.flashloanProvider.addressesProvider,AAVE_V2_LENDING_POOL:profile.flashloanProvider.lendingPool,approvedRouters:routers,executorVersion:4};
+  const manifest={CONTRACT_ADDRESS:contract.address,OPERATOR_ADDRESS:operator,EXPECTED_ADMIN:timelock.address,GOVERNANCE_ADDRESS:governance,EXPECTED_PROFIT_RECIPIENT:recipient,EXPECTED_CONTRACT_CODE_HASH:ethers.utils.keccak256(code),AAVE_LENDING_POOL_ADDRESS_PROVIDER:profile.flashloanProvider.addressesProvider,AAVE_V2_LENDING_POOL:profile.flashloanProvider.lendingPool,approvedRouters:routers,executorVersion:EXECUTOR_VERSION};
   fs.mkdirSync('runtime',{recursive:true,mode:0o700});fs.writeFileSync('runtime/deployment.json',JSON.stringify(manifest,null,2),{mode:0o600});console.log(JSON.stringify(manifest,null,2));
 }
 if(require.main===module)main().catch(err=>{console.error(err.message);process.exitCode=1;});

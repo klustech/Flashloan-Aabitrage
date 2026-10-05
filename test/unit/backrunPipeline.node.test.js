@@ -169,7 +169,7 @@ test("commissioning requires matching full evidence, recent unsigned PAPER and e
     benchmark:{...proof,durationMs:7*86400000,coverageComplete:true,sameBlockBundleVerified:true,
       distinctProfitableTriggers:3,fullExecutorSimulations:true,latency:{p95Ms:1000},opportunityFrequencyPerDay:3,netNative:"700"},
     paper:{...proof,continuousMs:7*86400000,profitable:3,signatures:0,submissions:0,lastHeartbeat:now},
-    capitalForkProof:{...proof,mode:"CAPITAL",executorVersion:3},flashForkProof:{...proof,mode:"FLASH_LOAN",executorVersion:3},
+    capitalForkProof:{...proof,mode:"CAPITAL",executorVersion:4},flashForkProof:{...proof,mode:"FLASH_LOAN",executorVersion:4},
     riskReview:{reviewed:true,profileFingerprint:fingerprint,minimumOpportunitiesPerDay:2,minimumNetNativePerDay:"50",
       capitalPlan:"bounded",drawdownPlan:"stop",competitionAssumptions:"reviewed"}
   };
@@ -179,6 +179,8 @@ test("commissioning requires matching full evidence, recent unsigned PAPER and e
     {...evidence,paper:{...evidence.paper,signatures:1}},
     {...evidence,paper:{...evidence.paper,lastHeartbeat:now-31000}},
     {...evidence,flashForkProof:{...evidence.flashForkProof,profileFingerprint:"other"}},
+    {...evidence,capitalForkProof:{...evidence.capitalForkProof,executorVersion:3}},
+    {...evidence,flashForkProof:{...evidence.flashForkProof,executorVersion:3}},
     {...evidence,benchmark:{...evidence.benchmark,netNative:"1"}},
     {...evidence,riskReview:{...evidence.riskReview,reviewed:false}}
   ])assert.equal(buildReport(p,changed,now).passed,false);

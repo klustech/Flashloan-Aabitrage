@@ -1,4 +1,5 @@
 const fs = require("fs"), path = require("path"), { spawn } = require("child_process");
+const { EXECUTOR_VERSION } = require("../server/config/executorVersion");
 const { utils } = require("ethers");
 const { environment, save, routeFromFixture, QuoteEngine } = require("./backrun-context");
 const { withLocalFork } = require("./backrun-local-fork");
@@ -86,7 +87,7 @@ async function main({ progress = () => {} } = {}) {
       }
       const report = { kind: "LOCAL_EXECUTOR_HISTORICAL_DIAGNOSTIC", fixture: fixture.name, chainId: 1,
         blockNumber: data.block.number, blockHash: data.block.hash, parentHash: data.parent.hash,
-        triggerHash: fixture.triggerTransaction, replayBackend: "anvil", executorVersion: 3,
+        triggerHash: fixture.triggerTransaction, replayBackend: "anvil", executorVersion: EXECUTOR_VERSION,
         executorAddress: address(local.executor.address), executorRuntimeCodeHash: local.runtimeCodeHash,
         deployedOnlyLocally: true, unsigned: true, mainnetSubmitted: false, commissioningEvidence: false,
         syntheticCapital: true, syntheticGasFunds: true, historicalPoolAndAaveSetupUnmodified: true,

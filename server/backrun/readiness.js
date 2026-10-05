@@ -1,6 +1,7 @@
 const fs = require("fs");
 const { utils } = require("ethers");
 const { serialize } = require("../bot/units");
+const { EXECUTOR_VERSION } = require("../config/executorVersion");
 function evidenceFingerprint(profile) {
   const { fingerprint, paperOnly, ...config } = serialize(profile);
   return utils.keccak256(utils.toUtf8Bytes(JSON.stringify(config)));
@@ -23,6 +24,8 @@ function commissioningChecks(profile, env = process.env) {
       throw new Error("Completed recent backrun PAPER evidence missing");
     if (!evidence.capitalForkProof?.passed || !evidence.flashForkProof?.passed)
       throw new Error("Both executor funding paths require mainnet-fork proof");
+    if (evidence.capitalForkProof.executorVersion !== EXECUTOR_VERSION || evidence.flashForkProof.executorVersion !== EXECUTOR_VERSION)
+      throw new Error(`Fork proofs must come from executor version ${EXECUTOR_VERSION}`);
     for(const proof of [evidence.replay,evidence.benchmark,evidence.paper,evidence.capitalForkProof,evidence.flashForkProof])
       if(proof.profileFingerprint!==evidenceFingerprint(profile))throw new Error("Individual backrun evidence configuration mismatch");
     if (!evidence.economicAcceptance?.passed || !evidence.economicAcceptance?.riskReview)
