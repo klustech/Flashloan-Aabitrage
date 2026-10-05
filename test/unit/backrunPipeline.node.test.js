@@ -174,7 +174,8 @@ test("commissioning requires matching full evidence, recent unsigned PAPER and e
     capitalForkProof:{...proof,mode:"CAPITAL",executorVersion:4},flashForkProof:{...proof,mode:"FLASH_LOAN",executorVersion:4},
     riskReview:{reviewed:true,profileFingerprint:fingerprint,minimumOpportunitiesPerDay:2,minimumNetNativePerDay:"50",
       capitalPlan:"bounded",drawdownPlan:"stop",competitionAssumptions:"reviewed"},
-    localValidation:{kind:"BACKRUN_LOCAL_VALIDATION",localValidationPassed:true,readyForPaper:true,profileFingerprint:fingerprint,executorVersion:4}
+    localValidation:{kind:"BACKRUN_LOCAL_VALIDATION",localValidationPassed:true,readyForPaper:true,profileFingerprint:fingerprint,executorVersion:4},
+    projection:{economicallyReady:true,profileFingerprint:fingerprint}
   };
   assert.equal(buildReport(p,evidence,now).passed,true);
   // LIVE readiness accepts the issued report only with local validation recorded in it.
@@ -195,6 +196,8 @@ test("commissioning requires matching full evidence, recent unsigned PAPER and e
     {...evidence,benchmark:{...evidence.benchmark,netNative:"1"}},
     {...evidence,riskReview:{...evidence.riskReview,reviewed:false}},
     {...evidence,localValidation:null},
+    {...evidence,projection:{...evidence.projection,economicallyReady:false}},
+    {...evidence,projection:null},
     {...evidence,localValidation:{...evidence.localValidation,readyForPaper:false}},
     {...evidence,localValidation:{...evidence.localValidation,profileFingerprint:"other"}}
   ])assert.equal(buildReport(p,changed,now).passed,false);

@@ -21,3 +21,18 @@ test("observer preserves settlement-token decimals and distinguishes unsigned fo
   expect(screen.getByText("Observing")).toBeInTheDocument();
   expect(screen.queryByText("Private relay")).not.toBeInTheDocument();
 });
+test("PAPER dashboard shows continuity, zero signatures and canonical rejection codes",()=>{
+  useTradingStatus.mockReturnValue({status:{safety:{paperOnly:true},profile:{backrun:{}},backrun:{enabled:true,running:true,source:{connected:true},
+    activity:{signatures:0,submissions:0},recent:[],dashboard:{mode:"PAPER",executorVersion:4,currentHead:{number:123},source:{name:"mev_share",connected:true},
+      triggersPerMinute:12,evaluatedPerMinute:4,profitablePerDay:3,capitalOpportunities:2,flashloanOpportunities:1,
+      bestHypotheticalNetNative:"2000000000000000",medianHypotheticalNetNative:"1000000000000000",totalHypotheticalNetNative:"3000000000000000",
+      latency:{p50Ms:120,p95Ms:400,p99Ms:900},topRejections:[{code:"NO_ROUTE",count:9}],health:{rpc:true,fork:true,database:true,relay:true},
+      signatures:0,submissions:0,continuity:{day:3,of:7,lastReset:{reason:"process_stopped"}},paperPassed:false}}}});
+  render(<BackrunPanel/>);
+  expect(screen.getByText("Day 3 / 7")).toBeInTheDocument();
+  expect(screen.getByText("NO_ROUTE: 9")).toBeInTheDocument();
+  expect(screen.getByText("v4")).toBeInTheDocument();
+  expect(screen.getByText("120 / 400 / 900 ms")).toBeInTheDocument();
+  expect(screen.getByText("process_stopped")).toBeInTheDocument();
+  expect(screen.queryByText(/must be 0 during PAPER/)).not.toBeInTheDocument();
+});

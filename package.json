@@ -52,7 +52,8 @@
     "backrun:validate:gas": "node scripts/backrun-gas-stress.js",
     "backrun:validate:latency": "node scripts/backrun-latency-benchmark.js",
     "backrun:validate:failure": "node scripts/backrun-failure-test.js",
-    "backrun:validate:recovery": "node scripts/backrun-recovery-test.js"
+    "backrun:validate:recovery": "node scripts/backrun-recovery-test.js",
+    "backrun:projection": "node scripts/backrun-economic-projection.js"
   },
   "keywords": [],
   "author": "",
