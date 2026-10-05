@@ -8,33 +8,17 @@ on:
     branches: [main, master]
 
 jobs:
-  security:
+  gates:
+    uses: ./.github/workflows/security-gates.yml
+
+  solhint:
+    # Style lint only (no repository config yet); security findings are gated above.
+    name: Solhint (advisory lint)
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run Slither static analysis (advisory)
-        uses: crytic/slither-action@v0.3.0
-        continue-on-error: true
-        with:
-          target: "contracts/"
-          slither-args: "--exclude-dependencies"
-
-      - name: Lint Solidity with Solhint (advisory)
-        # solhint is not a project dependency; run via npx and keep advisory so a
-        # missing config / install hiccup does not block the pipeline.
-        continue-on-error: true
-        run: npx --yes solhint "contracts/**/*.sol" || true
-
-      - name: Audit npm dependencies (advisory)
-        continue-on-error: true
-        run: npm audit --audit-level=moderate || true
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm}
+      - run: npm ci --ignore-scripts --legacy-peer-deps
+      - run: npx --yes solhint "contracts/**/*.sol"

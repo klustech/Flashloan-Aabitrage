@@ -1,0 +1,37 @@
+# .github/workflows/security-gates.yml
+# Blocking security gates, reused by CI, Security Checks and production deploys.
+#  - Slither fails on any High-impact finding outside test mocks. Reviewed
+#    false positives carry an inline `slither-disable-next-line` with a reason.
+#  - Dependency audit fails on any high/critical production advisory that is
+#    not a reviewed, unexpired entry in security/audit-exceptions.json.
+name: Security gates
+
+on:
+  workflow_call:
+
+jobs:
+  slither:
+    name: Slither (fail on High)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - run: npm ci --ignore-scripts --legacy-peer-deps
+      - run: npx hardhat compile --force
+      - run: pip install slither-analyzer==0.11.6
+      - name: Slither
+        run: >-
+          slither . --compile-force-framework hardhat --hardhat-ignore-compile
+          --exclude-dependencies --filter-paths "contracts/mocks" --fail-high
+
+  dependency-audit:
+    name: Dependency audit (reviewed exceptions only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node scripts/audit-gate.js

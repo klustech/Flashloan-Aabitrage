@@ -44,8 +44,8 @@ jobs:
 
       - name: Run backend tests
         run: |
-          cd server
-          npm test || true
+          (cd server && npm ci --ignore-scripts --legacy-peer-deps)
+          npm run test:core
 
   build-and-push:
     needs: test
