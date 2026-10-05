@@ -10,7 +10,13 @@ class BackrunExecutionEngine {
   constructor(context) { Object.assign(this, context); this.activity = { signatures: 0, submissions: 0 }; }
   async execute(prepared, { signal, revision }) {
     assertLiveAllowed(this.profile);
-    const triggerTx = validateRaw(prepared.trigger.rawTx, prepared.trigger.hash);
+    // MEV-Share hints carry no signed trigger: the bundle references the victim
+    // by its matchmaker hash and no relay can simulate it beforehand.
+    const mevShare = !prepared.trigger.rawTx;
+    if (mevShare && prepared.trigger.source !== "mev_share") throw new Error("Raw trigger required outside MEV-Share");
+    if (mevShare && prepared.simulation?.kind !== "UNSIGNED_FORK_LOG_DERIVED_STATE")
+      throw new Error("MEV-Share backrun requires a local log-derived bundle simulation");
+    const triggerTx = mevShare ? null : validateRaw(prepared.trigger.rawTx, prepared.trigger.hash);
     const guard = async () => {
       assertLiveAllowed(this.profile); checkSignal(signal);
       if (!this.state.canSign(revision)) throw abortError("Backrun disarmed");
@@ -19,11 +25,13 @@ class BackrunExecutionEngine {
       if (Date.now() - prepared.trigger.receivedAt > this.profile.backrun.maxTriggerAgeMs) throw abortError("Trigger expired");
       executionGuard({ route: prepared.route, quote: prepared.quote, economics: prepared.economics,
         profile: this.profile, head: head.number, signal });
-      const current = await this.provider.getTransaction(prepared.trigger.hash);
-      if (!current || current.blockNumber !== null) throw abortError("Trigger disappeared/landed");
-      if (await this.provider.getTransactionCount(triggerTx.from, "latest") !== triggerTx.nonce)
-        throw abortError("Trigger nonce replaced");
-      if (!this.wallet || triggerTx.from === this.wallet.address.toLowerCase()) throw new Error("Independent funded backrun signer required");
+      if (!mevShare) {
+        const current = await this.provider.getTransaction(prepared.trigger.hash);
+        if (!current || current.blockNumber !== null) throw abortError("Trigger disappeared/landed");
+        if (await this.provider.getTransactionCount(triggerTx.from, "latest") !== triggerTx.nonce)
+          throw abortError("Trigger nonce replaced");
+      }
+      if (!this.wallet || triggerTx?.from === this.wallet.address.toLowerCase()) throw new Error("Independent funded backrun signer required");
       if ((await this.provider.getBalance(this.wallet.address)).lt(bn(prepared.transaction.gasLimit).mul(prepared.tip.maxFeePerGas)))
         throw new Error("Backrun signer gas unavailable");
       if (await this.contract.paused()) throw new Error("Executor paused");
@@ -39,6 +47,7 @@ class BackrunExecutionEngine {
     const signed = await this.wallet.signTransaction({ ...prepared.transaction, nonce, chainId: 1, type: 2 });
     this.activity.signatures++;
     await guard();
+    if (mevShare) return this.submitMevShare(prepared, signed, nonce, guard);
     const bundle = [prepared.trigger.rawTx, signed], targetBlock = prepared.block.number + 1;
     const results = await this.relays.simulate(bundle, targetBlock, prepared.block.number), approved = [];
     for (const item of results) {
@@ -70,6 +79,30 @@ class BackrunExecutionEngine {
       await guard();
       if (Date.now() - simulatedAt > this.profile.backrun.maxSimulationAgeMs) throw abortError("Backrun simulation expired");
     });
+    await this.ledger.write({ ...record, submissions });
+    return { status: "SUBMITTED", txHash, targetBlock, submissions };
+  }
+  async submitMevShare(prepared, signed, nonce, guard) {
+    const txHash = utils.keccak256(signed), targetBlock = prepared.block.number + 1, simulatedAt = prepared.simulation.simulatedAt;
+    const token = this.tokens.get(prepared.route.borrowToken);
+    let record = await this.ledger.write({ id: prepared.executionId, status: "DISCOVERED", mode: "LIVE",
+      strategy: "TRANSACTION_TRIGGERED_BACKRUN", candidateId: prepared.route.id,
+      triggerHash: prepared.trigger.hash, triggerSource: "mev_share", fundingMode: prepared.funding.mode,
+      borrowToken: prepared.route.borrowToken, token, borrowAmount: prepared.quote.borrowAmount, route: prepared.route,
+      profileFingerprint: this.profile.fingerprint, economics: prepared.economics, weth: this.profile.tokens.WETH,
+      profitRecipient: await this.contract.profitRecipient(), stateBlock: prepared.block.number,
+      stateBlockHash: prepared.block.hash, txHash, targetBlock, nonce });
+    // Pre-submission evidence is the local fork simulation against log-derived
+    // post-trigger state. On chain, the executor's profit floor and
+    // canRevert:false keep a mispredicted bundle from landing.
+    record = await this.ledger.write({ ...record, status: "SIMULATED", simulation: { bundle: true, ordered: true,
+      mevShare: true, relaySimulation: false, stateSource: prepared.simulation.kind, simulatedAt } });
+    await guard();
+    if (Date.now() - simulatedAt > this.profile.backrun.maxSimulationAgeMs) throw abortError("Backrun simulation expired");
+    record = await this.ledger.write({ ...record, status: "SUBMITTED" });
+    this.activity.submissions++;
+    const submissions = await this.relays.sendMevShareBundle({ url: this.profile.backrun.mevShareRelayUrl,
+      hash: prepared.trigger.hash, signedTx: signed, targetBlock, builders: this.profile.backrun.mevShareBuilders });
     await this.ledger.write({ ...record, submissions });
     return { status: "SUBMITTED", txHash, targetBlock, submissions };
   }

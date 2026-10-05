@@ -122,16 +122,24 @@ test('bundle plan is unsigned in PAPER and requires trigger+backrun raw transact
 });
 
 
-test('trigger decoder accepts only tracked swap-log hints',()=>{
+test('trigger decoder accepts only hints whose logs determine tracked pool state',()=>{
   const {r}=registry();
-  const topic=utils.id('Swap(address,address,int256,int256,uint160,uint128,int24)');
+  const swap=utils.id('Swap(address,uint256,uint256,uint256,uint256,address)'),sync=utils.id('Sync(uint112,uint112)');
+  const enc=(types,values)=>utils.defaultAbiCoder.encode(types,values);
+  const withheld=decodeTriggerHint({hash:'0xabc',logs:[{address:P,topics:[swap]}]},r);
+  assert.equal(withheld.usable,false);assert.equal(withheld.reason,'mev_share_log_data_withheld');
+  const foreign=decodeTriggerHint({hash:'0xabc',logs:[{address:Q,topics:['0x'+'00'.repeat(32)],data:'0x01'}]},r);
+  assert.equal(foreign.usable,false);assert.equal(foreign.reason,'mev_share_unsupported_pool_event');
   const decoded=decodeTriggerHint({hash:'0xabc',logs:[
-    {address:P,topics:[topic]},
-    {address:a(999),topics:[topic]},
-    {address:Q,topics:['0x'+'00'.repeat(32)]},
+    {address:a(999),topics:[swap],data:'0x'},
+    {address:P,topics:[sync],data:enc(['uint112','uint112'],[1100,910])},
+    {address:P,topics:[swap],data:enc(['uint256','uint256','uint256','uint256'],[100,0,0,90])},
   ]},r);
-  assert.equal(decoded.usable,true);
+  assert.equal(decoded.usable,true);assert.equal(decoded.predictionMode,'MEV_SHARE_LOG_DERIVED');
   assert.deepEqual(decoded.affectedPools,[P]);
+  assert.deepEqual(decoded.poolEffects[0].reserves.map(String),['1100','910']);
+  assert.deepEqual([decoded.poolEffects[0].delta0.toString(),decoded.poolEffects[0].delta1.toString()],['100','-90']);
+  assert.equal(decodeTriggerHint({hash:'0xabc',rawTx:'0x02'},r).predictionMode,'RAW_TRIGGER_REPLAY');
 });
 
 test('backrun bundle validation charges only our transaction gas and verifies order',()=>{

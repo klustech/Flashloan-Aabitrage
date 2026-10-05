@@ -73,6 +73,8 @@ function productionProfile(env = process.env) {
       maxCandidates: integer(env.BACKRUN_MAX_CANDIDATES || 32,'BACKRUN_MAX_CANDIDATES',1,128),
       orderflowSource: String(env.BACKRUN_ORDERFLOW_SOURCE || 'disabled').toLowerCase(),
       mevShareStreamUrl: env.BACKRUN_MEV_SHARE_STREAM_URL || 'https://mev-share.flashbots.net',
+      mevShareRelayUrl: env.BACKRUN_MEV_SHARE_RELAY_URL || 'https://relay.flashbots.net',
+      mevShareBuilders: (env.BACKRUN_MEV_SHARE_BUILDERS || '').split(',').map(s=>s.trim()).filter(Boolean),
       forkRpcUrl: env.BACKRUN_FORK_RPC_URL || 'http://127.0.0.1:8547',
       maxTriggerAgeMs: integer(env.BACKRUN_MAX_TRIGGER_AGE_MS || 8000,'BACKRUN_MAX_TRIGGER_AGE_MS',100,60000),
       simulationTimeoutMs: integer(env.BACKRUN_SIMULATION_TIMEOUT_MS || 8000,'BACKRUN_SIMULATION_TIMEOUT_MS',100,60000),
@@ -96,6 +98,7 @@ function productionProfile(env = process.env) {
       if (!profile.backrun.maxAmountBySymbol[symbol]) throw new Error(`BACKRUN_MAX_AMOUNT_${symbol} required when BACKRUN_ENABLED=true`);
     }
     if (profile.backrun.orderflowSource==='mev_share' && new URL(profile.backrun.mevShareStreamUrl).protocol!=='https:') throw new Error('BACKRUN_MEV_SHARE_STREAM_URL must use HTTPS');
+    if (profile.backrun.orderflowSource==='mev_share' && new URL(profile.backrun.mevShareRelayUrl).protocol!=='https:') throw new Error('BACKRUN_MEV_SHARE_RELAY_URL must use HTTPS');
     if(profile.backrun.orderflowSource==='disabled')throw new Error('Enabled backrun requires an order-flow source');
     require('../backrun/forkBackend').assertLocalForkUrl(profile.backrun.forkRpcUrl);
   }
