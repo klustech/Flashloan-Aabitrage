@@ -2,6 +2,7 @@
 require("dotenv").config({ override: true });
 const { expect } = require("chai");
 const { ethers, network } = require("hardhat");
+const { deployExecutor } = require("../helpers/executor");
 
 // This is a mainnet-fork smoke test. It only runs when forking is enabled
 // (npm run test:fork sets ENABLE_MAINNET_FORK=true + MAINNET_RPC_URL).
@@ -33,17 +34,11 @@ describeFork("ArbitrageFlashloan - fork smoke test", function () {
 
     const [deployer] = await ethers.getSigners();
 
-    // New constructor: (provider, profitRecipient, timelock).
-    const Factory = await ethers.getContractFactory("ArbitrageFlashloan");
-    const arb = await Factory.deploy(
-      providerAddr,
-      deployer.address,
-      ethers.constants.AddressZero
-    );
-    await arb.deployed();
+    const { arb, governance } = await deployExecutor(ethers, providerAddr, deployer.address);
 
     // The provider must resolve to a non-zero, code-bearing lending pool.
-    expect(await arb.owner()).to.equal(deployer.address);
+    expect(await arb.executors(deployer.address)).to.equal(true);
+    expect(await arb.admin()).to.equal(governance.address);
     expect(await arb.profitRecipient()).to.equal(deployer.address);
     expect(await arb.lendingPool()).to.not.equal(ethers.constants.AddressZero);
     expect(await arb.canExecute()).to.equal(true);

@@ -8,7 +8,8 @@ export default function ScannerPanel() {
   const { status } = useTradingStatus(),
     latency = status?.latency,
     cache = latency?.cache,
-    scanner = status?.scanner;
+    scanner = status?.scanner,
+    backrun = status?.profile?.backrun;
   const stages = [
     ["Cached pools", cache?.pools, latency?.stageTimes?.cacheMs],
     ["Exact screens", latency?.screened, latency?.stageTimes?.screeningMs],
@@ -139,6 +140,31 @@ export default function ScannerPanel() {
               </Typography>
             ))}
           </Box>
+          {backrun && (
+            <Box
+              sx={{
+                mt: 2,
+                p: 1.5,
+                borderRadius: 2,
+                bgcolor: "background.default",
+                display: "flex",
+                gap: 1,
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
+            >
+              <Chip
+                size="small"
+                variant={backrun.enabled ? "filled" : "outlined"}
+                label={backrun.enabled ? "Backrun configured" : "Backrun disabled"}
+              />
+              <Typography variant="caption" color="text.secondary">
+                Order flow: {backrun.orderflowSource || "disabled"} · Funding:{" "}
+                {backrun.fundingMode || "adaptive"} · Priority:{" "}
+                {(backrun.borrowSymbols || []).join(" → ") || "WETH"}
+              </Typography>
+            </Box>
+          )}
           {cache?.lastLogError && (
             <Typography variant="body2" color="warning.main" sx={{ mt: 2 }}>
               Pool refresh fallback: {cache.lastLogError}

@@ -12,7 +12,7 @@ require("solidity-coverage");
 require("hardhat-gas-reporter");
 require("hardhat-deploy");
 require("hardhat-contract-sizer");
-require("dotenv").config({ override: true });
+require("dotenv").config({ override: false });
 
 const {
   PRIVATE_KEY,
@@ -203,4 +203,3 @@ module.exports = {
     skipFiles: ["mocks/", "interfaces/"],
   },
 };
-

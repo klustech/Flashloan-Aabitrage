@@ -29,6 +29,11 @@ spec:
                 secretKeyRef:
                   name: arb-secrets
                   key: PRIVATE_KEY
+            - name: RELAY_AUTH_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: arb-secrets
+                  key: RELAY_AUTH_PRIVATE_KEY
             - name: MAINNET_WEBSOCKET
               valueFrom:
                 secretKeyRef:

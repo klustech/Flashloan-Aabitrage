@@ -1,0 +1,38 @@
+{
+  "kind": "USER_SUPPLIED_HISTORICAL_AUDIT_TRANSCRIPT",
+  "verifiedByThisImplementation": false,
+  "startBlock": 26114228,
+  "endBlock": 26117228,
+  "blocks": 3001,
+  "trackedPools": 77,
+  "trackedSwapLogs": 22136,
+  "transactionsWithTrackedSwaps": 19974,
+  "positiveClosedCycles": 32,
+  "settlementTokens": {"WETH": 32, "DAI": 0},
+  "twoHop": 28,
+  "threeHop": 4,
+  "sameBlockTriggerClues": 30,
+  "coversHistoricalAavePremium": 1,
+  "coversHistoricalAavePremiumAndObservedGas": 0,
+  "caseStudy": {
+    "block": 26115902,
+    "earlierPoolChangingTransactionIndex": 84,
+    "triggerTransactionIndex": 143,
+    "arbitrageTransactionIndex": 144,
+    "triggerTo": "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5",
+    "triggerSelector": "0xe21fd0e9",
+    "triggerGasUsed": 1249416,
+    "arbitrageGasUsed": 168402,
+    "grossWethBaseUnits": "74466910089523",
+    "historicalAaveFeeWethBaseUnits": "54727722273009",
+    "observedGasEthBaseUnits": "41679441616566",
+    "afterAaveAndObservedGasWethBaseUnits": "-21940253800052",
+    "transaction143CausalityProven": false
+  },
+  "limitations": [
+    "The audit contains executed-cycle observations, not a seven-day strategy benchmark.",
+    "No quote immediately after transaction 142 is present in the supplied transcript.",
+    "Owned-capital profit before builder transfers does not prove our executor has positive net economics.",
+    "The trigger is aggregator calldata; simulated tracked-pool logs determine exact impact."
+  ]
+}

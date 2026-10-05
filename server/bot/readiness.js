@@ -31,8 +31,9 @@ async function startupChecks({
       utils.keccak256(code) !== profile.expectedContractCodeHash
     )
       throw new Error("EXPECTED_CONTRACT_CODE_HASH missing/mismatched");
-    if ((await contract.executorVersion()).toString() !== "2")
-      throw new Error("hardened executor version required");
+    const version=(await contract.executorVersion()).toString();
+    if (profile.backrun?.enabled ? version !== "3" : !["2","3"].includes(version))
+      throw new Error("backrun-capable hardened executor version required");
   });
   if (requireSignerGas)
     await check("signer gas", async () => {
@@ -42,28 +43,35 @@ async function startupChecks({
       if ((await provider.getBalance(operatorAddress)).lt(required))
         throw new Error("insufficient ETH for maximum trade gas");
     });
-  await check("owner", async () => {
-    if (
-      !profile.expectedOwner ||
-      address(await contract.owner()) !== address(profile.expectedOwner) ||
-      address(await contract.owner()) !== address(operatorAddress)
-    )
-      throw new Error("owner/operator mismatch");
+  await check("executor role", async () => {
+    if (!operatorAddress || !(await contract.executors(operatorAddress)))
+      throw new Error("operator lacks the executor role");
+  });
+  await check("governance", async () => {
+    const admin = address(await contract.admin());
+    if (!profile.expectedAdmin || admin !== address(profile.expectedAdmin))
+      throw new Error("EXPECTED_ADMIN missing/mismatched");
+    if (operatorAddress && admin === address(operatorAddress))
+      throw new Error("hot operator must not be the executor admin");
+    // An EOA admin has no delay and no co-signers; require a contract
+    // (timelock controlled by a multisig).
+    if ((await provider.getCode(admin)) === "0x")
+      throw new Error("executor admin must be a timelock/multisig contract");
   });
   await check("recipient", async () => {
+    const recipient = address(await contract.profitRecipient());
     if (
       !profile.expectedProfitRecipient ||
-      address(await contract.profitRecipient()) !==
-        address(profile.expectedProfitRecipient)
+      recipient !== address(profile.expectedProfitRecipient)
     )
       throw new Error("EXPECTED_PROFIT_RECIPIENT missing/mismatched");
+    if (operatorAddress && recipient === address(operatorAddress))
+      throw new Error("profit recipient must not be the hot operator");
   });
-  await check("timelock", async () => {
-    if (
-      !profile.expectedTimelock ||
-      address(await contract.timelock()) !== address(profile.expectedTimelock)
-    )
-      throw new Error("EXPECTED_TIMELOCK missing/mismatched");
+  await check("routers", async () => {
+    for (const [dex, config] of Object.entries(profile.routers || {}))
+      if (!config.router || !(await contract.approvedRouters(config.router)))
+        throw new Error(`${dex} router not approved on-chain`);
   });
   await check("pause", async () => {
     if (await contract.paused()) throw new Error("contract paused");

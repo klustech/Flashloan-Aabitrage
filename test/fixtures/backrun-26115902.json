@@ -1,0 +1,34 @@
+{
+  "name": "mainnet-backrun-26115902",
+  "chainId": 1,
+  "preBlock": 26115901,
+  "targetBlock": 26115902,
+  "triggerTransaction": "0x45b3f5812ff2cb833fc6b3addd7176e5327d35da4e54780604d307289ea4109d",
+  "triggerTransactionIndex": 143,
+  "arbitrageTransaction": "0x4f09b8061b26552e7f87826f0d09b2336f4237389395178d1211d148ad326f17",
+  "arbitrageTransactionIndex": 144,
+  "borrowSymbol": "WETH",
+  "amountIn": "60808580303343310",
+  "actualFinalAmount": "60883047213432833",
+  "preBlockExpectedFinalAmount": "60769637908677413",
+  "historicalAavePremiumBps": 9,
+  "observedGasCostWei": "41679441616566",
+  "routePools": [
+    {
+      "dex": "uniswap_v3",
+      "feeTier": 100,
+      "address": "0xc7bbec68d12a0d1830360f8ec58fa599ba1b0e9b"
+    },
+    {
+      "dex": "pancake_v3",
+      "feeTier": 100,
+      "address": "0xacdb27b266142223e1e676841c1e809255fc6d07"
+    }
+  ],
+  "expected": {
+    "preBlockGrossProfitable": false,
+    "executedGrossProfitable": true,
+    "triggerImmediatelyPrecedesArbitrage": true,
+    "flashloanAfterObservedGasProfitable": false
+  }
+}

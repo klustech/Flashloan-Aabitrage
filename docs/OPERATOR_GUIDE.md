@@ -246,52 +246,24 @@ curl -X POST http://localhost:3001/api/connext/monitoring/stop
 
 ## Timelock Governance
 
-Timelock protects critical parameter changes with a delay period.
+The executor's admin is `ArbitrageTimelock`, and its only proposer/executor is
+the governance multisig. The bot holds no governance key, so the bot API is
+read-only for governance: schedule/execute/cancel return 403. See
+[EXECUTOR_GOVERNANCE.md](EXECUTOR_GOVERNANCE.md).
 
 ### Check Status
 
 ```bash
 curl http://localhost:3001/api/timelock/status
-```
-
-### Schedule Operations
-
-```bash
-# Schedule a profit-recipient change (the timelock-protected parameter on the
-# contract). Note: there is no max-loss-cap parameter anymore — the contract is
-# profit-or-revert, so there is nothing to "loosen" that could let a trade lose.
-curl -X POST http://localhost:3001/api/timelock/schedule \
-  -H "Content-Type: application/json" \
-  -H "x-api-key: $API_KEY" \
-  -d '{
-    "operation": "setProfitRecipient",
-    "params": {"newRecipient": "0xYourTreasuryAddress"}
-  }'
-
-# Schedule pause
-curl -X POST http://localhost:3001/api/timelock/schedule \
-  -H "Content-Type: application/json" \
-  -H "x-api-key: $API_KEY" \
-  -d '{"operation": "pause"}'
-```
-
-### Execute After Delay
-
-```bash
-# Check if operation is ready
 curl http://localhost:3001/api/timelock/operations/0xOPERATION_ID
-
-# Execute when ready
-curl -X POST http://localhost:3001/api/timelock/execute/0xOPERATION_ID \
-  -H "Content-Type: application/json" \
-  -d '{...operation parameters...}'
+curl http://localhost:3001/api/timelock/roles/0xADDRESS
 ```
 
-### Cancel Scheduled Operation
+### Schedule, Execute, Cancel
 
-```bash
-curl -X POST http://localhost:3001/api/timelock/cancel/0xOPERATION_ID
-```
+Propose `unpause()`, `setExecutor`, `setRouter`, `rescueToken` or a recipient
+change from the multisig to the timelock, wait the delay, then execute from the
+multisig.
 
 ---
 
@@ -350,7 +322,7 @@ grep "2024-01-15" bot.log
 
 1. Identify what triggered the pause
 2. Verify contract state on-chain
-3. Schedule unpause via timelock
+3. Propose `unpause()` from the governance multisig via the timelock
 4. Test with small amounts first
 
 #### After Timeout
@@ -401,16 +373,13 @@ pm2 stop flashloan-bot
 
 ### Contract Emergency Pause
 
-If you have admin access:
+`pause()` is immediate for the executor key or governance:
 
 ```bash
-# Via Timelock (scheduled)
-curl -X POST http://localhost:3001/api/timelock/schedule \
-  -d '{"operation": "pause"}'
-
-# Direct (if owner and no timelock)
-cast send $CONTRACT_ADDRESS "pause()" --private-key $ADMIN_KEY
+cast send $CONTRACT_ADDRESS "pause()" --private-key $PRIVATE_KEY
 ```
+
+Unpausing requires governance via the timelock.
 
 ### Revoke Approvals
 

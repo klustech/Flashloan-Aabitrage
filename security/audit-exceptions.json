@@ -69,17 +69,6 @@
     "reviewBy": "2026-11-04"
   },
   {
-    "advisory": "https://github.com/advisories/GHSA-7c78-jf6q-g5cm",
-    "package": "tmp",
-    "severity": "high",
-    "title": "tmp: Type-confusion bypass of _assertPath allows path traversal via non-string prefix/postfix/template",
-    "projects": [
-      "."
-    ],
-    "reason": "Pre-existing when the gate was introduced; triage required (upgrade, replace or document why unreachable).",
-    "reviewBy": "2026-11-04"
-  },
-  {
     "advisory": "https://github.com/advisories/GHSA-86w9-cpqp-85rv",
     "package": "node-forge",
     "severity": "high",

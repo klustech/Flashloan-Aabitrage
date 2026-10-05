@@ -1,0 +1,22 @@
+[Unit]
+Description=Disposable backrun simulation fork
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=arbitrage
+WorkingDirectory=/opt/Flashloan-Aabitrage
+Environment=PAPER_ENV_FILE=/etc/arbitrage/backrun-paper.env
+EnvironmentFile=/etc/arbitrage/backrun-paper.env
+ExecStart=/usr/bin/node scripts/backrun-fork-node.js
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/Flashloan-Aabitrage/runtime /opt/Flashloan-Aabitrage/cache
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

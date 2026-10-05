@@ -24,6 +24,7 @@
 
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
+const { deployExecutor } = require("../helpers/executor");
 
 const RUN_FORK = process.env.ENABLE_MAINNET_FORK === "true";
 const suite = RUN_FORK ? describe : describe.skip;
@@ -53,7 +54,7 @@ const DEX = {
   BALANCER: 3,
   CURVE: 4,
 };
-const { HashZero, AddressZero } = ethers.constants;
+const { HashZero } = ethers.constants;
 
 const mkStep = (dexType, router, tokenIn, tokenOut, minAmountOut) => ({
   dexType,
@@ -94,14 +95,9 @@ suite(
       dai = new ethers.Contract(DAI, ERC20_ABI, deployer);
       weth = new ethers.Contract(WETH, WETH_ABI, whale);
 
-      const Arb = await ethers.getContractFactory(
-        "ArbitrageFlashloan",
-        deployer
-      );
-      // (provider, profitRecipient, timelock) — recipient is a fresh account so we
-      // can measure its DAI balance delta cleanly.
-      arb = await Arb.deploy(AAVE_V2_PROVIDER, recipient.address, AddressZero);
-      await arb.deployed();
+      // recipient is a fresh account so we can measure its DAI balance delta
+      // cleanly; deployer is the executor and governance approves both routers.
+      ({ arb } = await deployExecutor(ethers, AAVE_V2_PROVIDER, recipient.address, [UNI_ROUTER, SUSHI_ROUTER]));
     });
 
     it("borrows DAI, captures a manufactured Uni->Sushi spread, repays, and profits", async function () {

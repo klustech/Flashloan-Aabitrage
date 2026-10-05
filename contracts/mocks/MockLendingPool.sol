@@ -8,6 +8,8 @@ import {IFlashLoanReceiver} from "../interfaces/IFlashLoanReceiver.sol";
 /// @notice Minimal lending pool stub that simulates an Aave flash-loan for testing.
 contract MockLendingPool {
     uint16 public premiumBps;
+    event FlashLoan(address indexed target, address indexed initiator, address indexed asset,
+        uint256 amount, uint256 premium, uint16 referralCode);
 
     constructor(uint16 _premiumBps) {
         premiumBps = _premiumBps;
@@ -51,5 +53,6 @@ contract MockLendingPool {
             IERC20(asset).transferFrom(receiver, address(this), amount + premium),
             "repay failed"
         );
+        emit FlashLoan(receiver, receiver, asset, amount, premium, 0);
     }
 }

@@ -33,6 +33,7 @@ import { formatUnits, number, time } from "../ui/format";
 import TradingControl from "./TradingControl";
 import ExecutionHistory from "./ExecutionHistory";
 import ScannerPanel from "./ScannerPanel";
+import BackrunPanel from "./BackrunPanel";
 import ProfitChart from "./ProfitChart";
 import BotStatus from "./BotStatus";
 import RouteVisualization from "./RouteVisualization";
@@ -40,6 +41,8 @@ import RealTimeOpportunities from "./RealTimeOpportunities";
 import MLStatistics from "./MLStatistics";
 import ProfitSimulator from "./ProfitSimulator";
 const PAGES = [
+  { id:"backrun",label:"Backrun observer",icon:BoltRounded,title:"Backrun observer",
+    description:"Inspect transaction-triggered candidates, adaptive funding and ordered bundle evidence." },
   {
     id: "overview",
     label: "Overview",
@@ -410,6 +413,7 @@ function Workspace({ adminMode }) {
           {active === "executions" && <ExecutionHistory />}
           {active === "routes" && <RouteVisualization />}
           {active === "opportunities" && <RealTimeOpportunities />}
+          {active === "backrun" && <BackrunPanel />}
           {active === "simulator" && <ProfitSimulator />}
           {active === "analytics" && <MLStatistics />}
           {active === "system" && (

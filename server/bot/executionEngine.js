@@ -16,8 +16,8 @@ class ExecutionEngine {
     const head=await this.provider.getBlockNumber();
     for(const record of this.ledger.pending()){
       const receipt=await this.provider.getTransactionReceipt(record.txHash);
-      if(receipt && head-receipt.blockNumber+1>=this.profile.confirmations)await this.settle(record,receipt);
-      else if(!receipt && head>record.targetBlock+this.profile.confirmations)await this.ledger.write({...record,status:'DROPPED',reason:'private_bundle_not_included'});
+      if(receipt && head-receipt.blockNumber+1>=this.profile.confirmations){const settled=await this.settle(record,receipt);this.relays?.recordOutcome?.(record.submissions,settled.status);}
+      else if(!receipt && head>record.targetBlock+this.profile.confirmations){await this.ledger.write({...record,status:'DROPPED',reason:'private_bundle_not_included'});this.relays?.recordOutcome?.(record.submissions,'DROPPED');}
     }
     return this.ledger.pending().length;
   }
@@ -51,8 +51,8 @@ class ExecutionEngine {
       const economics=await abortable(this.calculateEconomics(prepared.quote,validation.gasUsed,prepared.tip,prepared.terms,prepared.block.number),signal);
       executionGuard({route:prepared.quote.route,quote:prepared.quote,economics,profile:this.profile,head:prepared.block.number,signal});
       if(validation.gasUsed.gt(prepared.transaction.gasLimit))throw new Error('Simulation gas exceeds signed limit');
-      approved.push({...item,validation,economics});
-    }catch(err){if(err.name==='AbortError')throw err;this.emit('bundle_rejected',{id:record.id,relay:item.url,reason:err.message});}}
+      approved.push({...item,validation,economics});this.relays.recordValidation?.(item.url,true);
+    }catch(err){if(err.name==='AbortError')throw err;this.relays.recordValidation?.(item.url,false);this.emit('bundle_rejected',{id:record.id,relay:item.url,reason:err.message});}}
     if(!approved.length)throw new Error('No successful profitable private bundle simulation');
     await guard();
     const txHash=utils.keccak256(signedTx),targetBlock=prepared.block.number+1;

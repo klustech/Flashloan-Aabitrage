@@ -157,13 +157,14 @@ describe("New API Endpoints", function () {
       });
     });
 
-    describe("POST /api/timelock/schedule", () => {
-      it("returns error when timelock not configured", async () => {
-        const res = await request(app).post("/api/timelock/schedule").set("x-api-key", "test-api-key")
-          .send({ operation: "setMaxLossBps", params: { newMaxLossBps: 100 } });
-
-        expect(res.status).to.equal(400);
-        expect(res.body.error).to.include("not configured");
+    describe("POST /api/timelock mutations", () => {
+      it("never signs governance operations with the bot key", async () => {
+        for (const path of ["/api/timelock/schedule", "/api/timelock/execute/0x123", "/api/timelock/cancel/0x123"]) {
+          const res = await request(app).post(path).set("x-api-key", "test-api-key")
+            .send({ operation: "unpause" });
+          expect(res.status).to.equal(403);
+          expect(res.body.error).to.include("governance signer required");
+        }
       });
     });
   });

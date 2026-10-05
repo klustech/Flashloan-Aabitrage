@@ -52,10 +52,12 @@ async function runBot({
     const { getCoordinator } = require("../server/bot/coordinator");
     const { BlockScheduler } = require("../server/bot/blockScheduler");
     const c = getCoordinator();
+    await c.startBackrun();
     let lastResult = { executed: false };
     return new Promise(resolve => {
       const stop = () => {
         c.scheduler.stop();
+        c.stopBackrun();
         process.removeListener("SIGINT", stop);
         process.removeListener("SIGTERM", stop);
         resolve(lastResult);
@@ -106,4 +108,3 @@ if (require.main === module) {
 }
 
 module.exports = { runBot };
-

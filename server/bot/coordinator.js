@@ -15,6 +15,7 @@ const {profitability}=require('./profitabilityEngine');
 const {priceMovementBps,CandidateIndex}=require('./opportunityEngine');
 const {builderTip}=require('../execution/builderTip');
 const {PrivateRelays}=require('../execution/privateRelays');
+const {relayIdentityChecks}=require('../execution/relayReadiness');
 const {TradeLedger}=require('./tradeLedger');
 const {PaperBurnIn}=require('./paperBurnIn');
 const {ExecutionEngine}=require('./executionEngine');
@@ -34,7 +35,7 @@ class Coordinator {
     this.marketCache=new PoolStateCache({provider:this.provider,adapters:this.adapters,tokens:this.tokens,profile:this.profile});
     this.termsCache=new Map();this.candidateIndex=new CandidateIndex();this.latency=null;
     this.ledger=ledger||new TradeLedger({persist:async row=>{const db=require('../dbClient');if(db.isDbEnabled())await db.upsertExecution(row);else if(process.env.NODE_ENV==='production')throw new Error('Execution database unavailable');}});
-    this.relays=new PrivateRelays(this.provider,this.profile.relays,process.env.FLASHBOTS_AUTH_KEY);
+    this.relays=new PrivateRelays(this.provider,this.profile.relays,undefined,{executionAddress:this.wallet?.address});
     this.burnIn=new PaperBurnIn(this.profile);
     this.busy=false;this.initialized=false;this.lastCycle=null;this.readiness=null;this.overrides={};
     this.execution=new ExecutionEngine({provider:this.provider,profile:this.profile,contract:this.contract,wallet:this.wallet,state:this.state,ledger:this.ledger,relays:this.relays,emit:this.emit.bind(this),converter:this.converter.bind(this),calculateEconomics:this.calculateEconomics.bind(this)});
@@ -44,10 +45,13 @@ class Coordinator {
     const row={id:crypto.randomUUID(),candidateId:candidate.id,mode:this.state.snapshot().mode,status:'DROPPED',reason,route:candidate,borrowToken:candidate.borrowToken,token:this.tokens.get(candidate.borrowToken),discoveredAt:Date.now()};
     await this.ledger.write(row);this.emit('opportunity_rejected',row);
   }
-  async initialize(){if(this.initialized)return;const net=await this.provider.getNetwork();if(net.chainId!==this.profile.chainId)throw new Error('Ethereum mainnet RPC required');const block=await pinnedBlock(this.provider);await this.tokens.load(Object.fromEntries(this.profile.tokenSymbols.map(s=>[s,this.profile.tokens[s]])),block.number);this.operatorAddress=this.wallet?.address||this.profile.operatorAddress||await this.contract.owner();
+  async initialize(){if(this.initialized)return;const net=await this.provider.getNetwork();if(net.chainId!==this.profile.chainId)throw new Error('Ethereum mainnet RPC required');const block=await pinnedBlock(this.provider);await this.tokens.load(Object.fromEntries(this.profile.tokenSymbols.map(s=>[s,this.profile.tokens[s]])),block.number);this.operatorAddress=this.wallet?.address||this.profile.operatorAddress;if(!this.operatorAddress)throw new Error('OPERATOR_ADDRESS (executor role holder) required');
     const db=require('../dbClient');if(db.isDbEnabled())for(const record of await db.getExecutions(10000)){const local=this.ledger.records.get(record.id);if(!local||local.updatedAt<record.updatedAt)this.ledger.records.set(record.id,record);}
     this.initialized=true;}
-  async checkReadiness(){await this.initialize();const chain=await startupChecks({provider:this.provider,contract:this.contract,profile:this.profile,operatorAddress:this.operatorAddress});const evidence=commissioningChecks(this.profile);const errors=[...chain.errors,...evidence.errors];
+  async startBackrun(){if(!this.profile.backrun?.enabled)return null;await this.initialize();if(!this.backrun){this.backrun=require('../backrun/createService').createBackrunService(this);this.backrunBlockListener=number=>this.provider.getBlock(number).then(block=>{if(block)this.backrun.headChanged(block);}).catch(()=>{});this.provider.on('block',this.backrunBlockListener);}await this.backrun.start();return this.backrun;}
+  stopBackrun(){this.backrun?.stop();if(this.backrunBlockListener)this.provider.removeListener('block',this.backrunBlockListener);}
+  async checkReadiness(){await this.initialize();const chain=await startupChecks({provider:this.provider,contract:this.contract,profile:this.profile,operatorAddress:this.operatorAddress});const evidence=this.profile.backrun?.enabled?require('../backrun/readiness').commissioningChecks(this.profile):commissioningChecks(this.profile);const errors=[...chain.errors,...evidence.errors,...await relayIdentityChecks(this.relays,this.provider)];
+    if(this.profile.backrun?.enabled)errors.push(...await require('../backrun/readiness').runtimeChecks(this.backrun));
     if(process.env.NODE_ENV==='production'){const db=require('../dbClient');try{await db.getExecutions(1);}catch(err){errors.push('Execution persistence: '+err.message);}}if(this.ledger.pending().length)errors.push('Unsettled private submissions');this.readiness={...chain,ready:errors.length===0,errors,evidence:evidence.evidence};return this.readiness;}
   async arm(){assertLiveAllowed(this.profile);const revision=this.state.revision;const report=await this.checkReadiness();if(revision!==this.state.revision)throw new Error('Trading state changed during readiness check');return this.state.arm(report);}
   converter(token){
@@ -169,6 +173,7 @@ class Coordinator {
     return screened.sort((a,b)=>a.netNative.gt(b.netNative)?-1:a.netNative.lt(b.netNative)?1:0);
   }
   async cycle({signal}={}){
+    if(this.backrunBusy)return {executed:false,reason:'backrun_evaluation_running'};
     if(this.busy)return {executed:false,reason:'cycle_already_running'};
     const scanning=['PAPER','LIVE_RUNNING'].includes(this.state.state);
     if(!scanning&&!this.ledger.pending().length)return {executed:false,reason:'scanner_stopped_or_paused'};
@@ -183,8 +188,9 @@ class Coordinator {
       const found=await this.discover(signal),block=found.block||await abortable(pinnedBlock(this.provider),signal);
       this.scanStats.stageTimes.cacheMs=Date.now()-startedAt;
       this.quoter?.beginBlock(block.hash);this.termsCache?.clear();
-      if(await this.execution.reconcile())return {executed:false,reason:'pending_receipt'};
+      const pending=await this.execution.reconcile();await this.backrun?.reconcile();if(pending)return {executed:false,reason:'pending_receipt'};
       if(!scanning)return {executed:false,reason:'receipts_reconciled_while_paused'};
+      if(this.profile.backrun?.enabled){this.backrun?.headChanged(block);this.lastCycle={at:Date.now(),mode:this.state.snapshot().mode,candidates:found.candidates.length,reason:'canonical_state_refreshed_for_backrun'};return {executed:false,...this.lastCycle};}
       const screeningStarted=Date.now();
       const ranked=await this.screenCandidates(found.candidates,block,revision,signal,cycleDeadline);
       this.scanStats.stageTimes.screeningMs=Date.now()-screeningStarted;
@@ -216,7 +222,7 @@ class Coordinator {
       return {executed:false,reason:err.message};
     }finally{clearTimeout(timer);externalSignal?.removeEventListener('abort',cancel);this.latency={durationMs:Date.now()-startedAt,...this.scanStats,quotes:this.quoter?.stats,cache:this.marketCache?.status(),candidates:this.candidateIndex?.stats};if(this.lastCycle)this.lastCycle.latency=this.latency;this.emit('scan_completed',this.latency);if(this.state.state==='PAPER' && revision===this.state.revision)this.burnIn.record(this.lastCycle);this.busy=false;}
   }
-  status(){return {trading:this.state.snapshot(),busy:this.busy,lastCycle:this.lastCycle,latency:this.latency,scanner:this.scheduler?.status(),readiness:this.readiness,safety:{paperOnly:this.profile.paperOnly,hasPrivateKey:Boolean(process.env.PRIVATE_KEY?.trim()),activity:{...this.execution.activity}},profile:{paperOnly:this.profile.paperOnly,chain:this.profile.chain,chainId:this.profile.chainId,flashloanProvider:this.profile.flashloanProvider,strategies:['CROSS_DEX_TWO_LEG','TRIANGULAR_THREE_LEG'],fingerprint:this.profile.fingerprint},paperBurnIn:this.burnIn.data,summary:this.ledger.summary(),executions:this.ledger.recent(100)};}
+  status(){const a=this.backrun?.execution.activity||{signatures:0,submissions:0};return {trading:this.state.snapshot(),busy:this.busy,lastCycle:this.lastCycle,latency:this.latency,scanner:this.scheduler?.status(),backrun:this.backrun?.status()||{enabled:this.profile.backrun?.enabled||false,running:false,reason:this.backrunStartError||'not_started'},readiness:this.readiness,relays:this.relays.status(),safety:{paperOnly:this.profile.paperOnly,hasPrivateKey:Boolean(process.env.PRIVATE_KEY?.trim()),activity:{signatures:this.execution.activity.signatures+a.signatures,submissions:this.execution.activity.submissions+a.submissions}},profile:{paperOnly:this.profile.paperOnly,chain:this.profile.chain,chainId:this.profile.chainId,flashloanProvider:this.profile.flashloanProvider,strategies:['CROSS_DEX_TWO_LEG','TRIANGULAR_THREE_LEG'],backrun:this.profile.backrun,fingerprint:this.profile.fingerprint},paperBurnIn:this.burnIn.data,summary:this.ledger.summary(),executions:this.ledger.recent(100)};}
 }
 let instance;
 function getCoordinator(){if(!instance)instance=new Coordinator();return instance;}

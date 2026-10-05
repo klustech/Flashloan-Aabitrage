@@ -2,9 +2,18 @@ const { getNetworkConfig } = require('./networkConfig');
 const { integer, address, serialize } = require('../bot/units');
 const { utils } = require('ethers');
 const {paperOnly,assertPaperConfiguration}=require('./paperPolicy');
+function optionalPositiveDecimal(value,name){
+  if(value===undefined||value===null||String(value).trim()==='')return null;
+  const text=String(value).trim();
+  if(!/^\d+(?:\.\d+)?$/.test(text)||Number(text)<=0)throw new Error(`${name} must be a positive decimal`);
+  return text;
+}
 function productionProfile(env = process.env) {
   assertPaperConfiguration(env);
   const network = getNetworkConfig('ethereum');
+  const backrunBorrowSymbols=(env.BACKRUN_BORROW_TOKENS || 'WETH,DAI,USDC').split(',').map(s=>s.trim()).filter(Boolean);
+  const backrunMinimumProfitBySymbol=Object.fromEntries(backrunBorrowSymbols.map(symbol=>[symbol,optionalPositiveDecimal(env[`BACKRUN_MIN_PROFIT_${symbol}`],`BACKRUN_MIN_PROFIT_${symbol}`)]));
+  const backrunMaxAmountBySymbol=Object.fromEntries(backrunBorrowSymbols.map(symbol=>[symbol,optionalPositiveDecimal(env[`BACKRUN_MAX_AMOUNT_${symbol}`],`BACKRUN_MAX_AMOUNT_${symbol}`)]));
   const tokens = { ...network.tokens };
   if (env.TOKENS_DAI) tokens.DAI = env.TOKENS_DAI;
   if (env.TOKENS_WETH) tokens.WETH = env.TOKENS_WETH;
@@ -26,9 +35,9 @@ function productionProfile(env = process.env) {
     flashloanProvider: { protocol:'aave', version:2, addressesProvider:env.AAVE_LENDING_POOL_ADDRESS_PROVIDER || network.aave.v2.lendingPoolAddressProvider, lendingPool:env.AAVE_V2_LENDING_POOL || network.aave.v2.lendingPool },
     contractAddress: env.CONTRACT_ADDRESS,
     operatorAddress: env.OPERATOR_ADDRESS,
-    expectedOwner: env.EXPECTED_CONTRACT_OWNER || env.OPERATOR_ADDRESS,
+    // Governance (multisig-controlled timelock) that administers the executor.
+    expectedAdmin: env.EXPECTED_ADMIN,
     expectedProfitRecipient: env.EXPECTED_PROFIT_RECIPIENT,
-    expectedTimelock: env.EXPECTED_TIMELOCK,
     expectedContractCodeHash: env.EXPECTED_CONTRACT_CODE_HASH,
     maxBorrowAmount: env.MAX_BORROW_AMOUNT || '50000',
     minBorrowAmount: env.MIN_BORROW_AMOUNT || '1',
@@ -54,9 +63,45 @@ function productionProfile(env = process.env) {
     relays: (env.APPROVED_PRIVATE_RELAYS || 'https://relay.flashbots.net').split(',').map(s=>s.trim()),
     confirmations: integer(env.RECEIPT_CONFIRMATIONS || 2,'RECEIPT_CONFIRMATIONS',1,32),
     maxDailyLossNative: env.MAX_DAILY_LOSS_ETH || '0.02',
+    backrun: {
+      enabled: String(env.BACKRUN_ENABLED || 'false').toLowerCase() === 'true',
+      borrowSymbols: backrunBorrowSymbols,
+      minimumProfitBySymbol: backrunMinimumProfitBySymbol,
+      maxAmountBySymbol: backrunMaxAmountBySymbol,
+      fundingMode: String(env.BACKRUN_FUNDING_MODE || 'adaptive').toLowerCase(),
+      capitalReserveBps: integer(env.BACKRUN_CAPITAL_RESERVE_BPS || 1000,'BACKRUN_CAPITAL_RESERVE_BPS',0,9900),
+      maxCandidates: integer(env.BACKRUN_MAX_CANDIDATES || 32,'BACKRUN_MAX_CANDIDATES',1,128),
+      orderflowSource: String(env.BACKRUN_ORDERFLOW_SOURCE || 'disabled').toLowerCase(),
+      mevShareStreamUrl: env.BACKRUN_MEV_SHARE_STREAM_URL || 'https://mev-share.flashbots.net',
+      mevShareRelayUrl: env.BACKRUN_MEV_SHARE_RELAY_URL || 'https://relay.flashbots.net',
+      mevShareBuilders: (env.BACKRUN_MEV_SHARE_BUILDERS || '').split(',').map(s=>s.trim()).filter(Boolean),
+      forkRpcUrl: env.BACKRUN_FORK_RPC_URL || 'http://127.0.0.1:8547',
+      maxTriggerAgeMs: integer(env.BACKRUN_MAX_TRIGGER_AGE_MS || 8000,'BACKRUN_MAX_TRIGGER_AGE_MS',100,60000),
+      simulationTimeoutMs: integer(env.BACKRUN_SIMULATION_TIMEOUT_MS || 8000,'BACKRUN_SIMULATION_TIMEOUT_MS',100,60000),
+      maxSimulationAgeMs: integer(env.BACKRUN_MAX_SIMULATION_AGE_MS || 1500,'BACKRUN_MAX_SIMULATION_AGE_MS',100,10000),
+      maxPending: integer(env.BACKRUN_MAX_PENDING || 64,'BACKRUN_MAX_PENDING',1,2048),
+      latencyBudgetMs: integer(env.BACKRUN_LATENCY_BUDGET_MS || 2500,'BACKRUN_LATENCY_BUDGET_MS',100,10000),
+      benchmarkPath: env.BACKRUN_BENCHMARK_PATH || 'runtime/backrun/benchmark.json',
+      replayProofPath: env.BACKRUN_REPLAY_PROOF_PATH || 'runtime/backrun/replay-proof.json',
+      commissioningPath: env.BACKRUN_COMMISSIONING_PATH || 'runtime/backrun/commissioning.json',
+    },
   };
   if (env.DEFAULT_CHAIN && env.DEFAULT_CHAIN !== 'ethereum') throw new Error('Production profile supports Ethereum only');
-  for (const symbol of [...profile.tokenSymbols,...profile.borrowSymbols]) if (!tokens[symbol] || !profile.tokenSymbols.includes(symbol)) throw new Error(`Unknown/unscanned token ${symbol}`);
+  if(!['true','false'].includes(String(env.BACKRUN_ENABLED||'false').toLowerCase()))throw new Error('BACKRUN_ENABLED must be true or false');
+  for (const symbol of [...profile.tokenSymbols,...profile.borrowSymbols,...(profile.backrun.enabled?profile.backrun.borrowSymbols:[])]) if (!tokens[symbol] || !profile.tokenSymbols.includes(symbol)) throw new Error(`Unknown/unscanned token ${symbol}`);
+  if(!profile.backrun.borrowSymbols.length||new Set(profile.backrun.borrowSymbols).size!==profile.backrun.borrowSymbols.length)throw new Error('Distinct backrun settlement tokens required');
+  if (!['adaptive','capital','flashloan'].includes(profile.backrun.fundingMode)) throw new Error('BACKRUN_FUNDING_MODE must be adaptive, capital or flashloan');
+  if (!['disabled','public_pending','mev_share','custom'].includes(profile.backrun.orderflowSource)) throw new Error('Unsupported BACKRUN_ORDERFLOW_SOURCE');
+  if (profile.backrun.enabled) {
+    for (const symbol of profile.backrun.borrowSymbols) {
+      if (!profile.backrun.minimumProfitBySymbol[symbol]) throw new Error(`BACKRUN_MIN_PROFIT_${symbol} required when BACKRUN_ENABLED=true`);
+      if (!profile.backrun.maxAmountBySymbol[symbol]) throw new Error(`BACKRUN_MAX_AMOUNT_${symbol} required when BACKRUN_ENABLED=true`);
+    }
+    if (profile.backrun.orderflowSource==='mev_share' && new URL(profile.backrun.mevShareStreamUrl).protocol!=='https:') throw new Error('BACKRUN_MEV_SHARE_STREAM_URL must use HTTPS');
+    if (profile.backrun.orderflowSource==='mev_share' && new URL(profile.backrun.mevShareRelayUrl).protocol!=='https:') throw new Error('BACKRUN_MEV_SHARE_RELAY_URL must use HTTPS');
+    if(profile.backrun.orderflowSource==='disabled')throw new Error('Enabled backrun requires an order-flow source');
+    require('../backrun/forkBackend').assertLocalForkUrl(profile.backrun.forkRpcUrl);
+  }
   for (const url of profile.relays) if (new URL(url).protocol !== 'https:') throw new Error('Private relay must use HTTPS');
   profile.fingerprint = utils.keccak256(utils.toUtf8Bytes(JSON.stringify(serialize(profile))));
   return Object.freeze(profile);

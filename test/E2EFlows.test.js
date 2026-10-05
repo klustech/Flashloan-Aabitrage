@@ -12,6 +12,7 @@ const { ethers } = require("hardhat");
 
 const { simulateRoute } = require("../utils/profitDetermination");
 const { buildStepsFromHops } = require("../utils/buildStepsFromHops");
+const { deployExecutor } = require("./helpers/executor");
 
 // DexType.UNISWAP_V2 == 0
 const DEX_UNISWAP_V2 = 0;
@@ -26,7 +27,7 @@ describe("E2E Arbitrage flow (off-chain sim -> on-chain execution)", function ()
   let routerB;
   let lendingPool;
   let provider;
-  let contract;
+  let contract, governance;
 
   const PREMIUM_BPS = 9; // 0.09%
   const FLASH_AMOUNT = ethers.utils.parseEther("100");
@@ -50,13 +51,7 @@ describe("E2E Arbitrage flow (off-chain sim -> on-chain execution)", function ()
     provider = await Provider.deploy(lendingPool.address);
 
     // New 3-arg constructor: (provider, profitRecipient, timelock).
-    const Arb = await ethers.getContractFactory("ArbitrageFlashloan");
-    contract = await Arb.deploy(
-      provider.address,
-      deployer.address,
-      ethers.constants.AddressZero
-    );
-    await contract.deployed();
+    ({ arb: contract, governance } = await deployExecutor(ethers, provider.address, deployer.address, [routerA.address, routerB.address]));
 
     // Seed liquidity. routerB returns 1.1 DAI per WETH -> profitable cycle.
     await dai.mint(lendingPool.address, FLASH_AMOUNT.mul(100));

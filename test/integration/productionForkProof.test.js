@@ -8,12 +8,13 @@ const {Coordinator}=require('../../server/bot/coordinator');
 const {TradingStateMachine}=require('../../server/bot/stateMachine');
 const {TradeLedger}=require('../../server/bot/tradeLedger');
 const {serialize}=require('../../server/bot/units');
+const {deployExecutor}=require('../helpers/executor');
 const enabled=process.env.ENABLE_MAINNET_FORK==='true'&&Boolean(process.env.MAINNET_RPC_URL)&&Boolean(process.env.FORK_BLOCK_NUMBER);
 (enabled?describe:describe.skip)('Production mainnet-fork proof',function(){
   this.timeout(600000);
   it('discovers real exact pools, repays real Aave V2 and increases recipient balance',async()=>{
     const original=productionProfile();const [operator]=await ethers.getSigners();
-    const contract=await(await ethers.getContractFactory('ArbitrageFlashloan')).deploy(original.flashloanProvider.addressesProvider,operator.address,ethers.constants.AddressZero);await contract.deployed();
+    const {arb:contract}=await deployExecutor(ethers,original.flashloanProvider.addressesProvider,operator.address,Object.values(original.routers).map(r=>r.router));
     const profile={...original,chainId:(await ethers.provider.getNetwork()).chainId,contractAddress:contract.address,operatorAddress:operator.address,maxQuoteAgeMs:60000,maxPoolStateAgeMs:60000};
     const state=new TradingStateMachine();state.paper();
     const coordinator=new Coordinator({provider:ethers.provider,profile,state,wallet:operator,ledger:new TradeLedger({file:null})});

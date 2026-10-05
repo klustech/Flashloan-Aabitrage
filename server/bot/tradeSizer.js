@@ -5,9 +5,10 @@ function sizingSeed(route,upper,premiumBps){
   const hops=route.legs.map(l=>{if(l.protocolVersion===2)return {reserveIn:l.reserveIn,reserveOut:l.reserveOut,feeBps:l.feeBps};const r=v3VirtualReserves(l.sqrtPriceX96,l.liquidity);const forward=l.tokenIn===l.token0;return {reserveIn:forward?r.reserve0:r.reserve1,reserveOut:forward?r.reserve1:r.reserve0,feeBps:l.feeBps};});
   return findOptimalInput({hops,maxInput:upper,premiumBps}).input;
 }
-async function sizeTrade({route,minInput,maxInput,premiumBps,evaluate,samples=10,refinements=5,signal}) {
+async function sizeTrade({route,minInput,maxInput,premiumBps,evaluate,samples=10,refinements=5,signal,extraInputs=[]}) {
   const lower=bn(minInput),upper=bn(maxInput);if(lower.lte(0)||upper.lt(lower))throw new Error('Invalid sizing bounds');
   const points=new Map(),cache=new Map();const add=x=>{const p=bn(x);if(p.gte(lower)&&p.lte(upper))points.set(p.toString(),p);};add(lower);add(upper);
+  for(const amount of extraInputs)add(amount);
   // Geometric sweep plus a reserve-math seed. V3 virtual reserves only seed the search.
   for(let i=1;i<samples;i++)add(upper.mul(i*i).div(samples*samples));
   try {add(sizingSeed(route,upper,premiumBps));}catch(_){/* exact search still runs */}

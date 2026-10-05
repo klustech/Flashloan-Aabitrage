@@ -1,5 +1,6 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
+const { deployExecutor } = require("./helpers/executor");
 
 // DexType enum from the contract: UNISWAP_V2 = 0
 const DEX_UNISWAP_V2 = 0;
@@ -12,7 +13,7 @@ describe("ArbitrageFlashloan", function () {
   let routerB;
   let lendingPool;
   let provider;
-  let arbitrage;
+  let arbitrage, governance;
 
   const flashloanPremiumBps = 9; // 0.09%
   const flashAmount = ethers.utils.parseEther("100");
@@ -38,13 +39,7 @@ describe("ArbitrageFlashloan", function () {
 
     // New constructor: (provider, profitRecipient, timelock).
     // profitRecipient = deployer so we can assert PnL lands on the owner.
-    const Arb = await ethers.getContractFactory("ArbitrageFlashloan");
-    arbitrage = await Arb.deploy(
-      provider.address,
-      deployer.address,
-      ethers.constants.AddressZero
-    );
-    await arbitrage.deployed();
+    ({ arb: arbitrage, governance } = await deployExecutor(ethers, provider.address, deployer.address, [routerA.address, routerB.address]));
 
     // Seed liquidity for the flash loan and routers.
     await dai.mint(lendingPool.address, flashAmount.mul(10));
@@ -99,18 +94,22 @@ describe("ArbitrageFlashloan", function () {
     );
   }
 
-  it("assigns deployer as owner", async () => {
-    expect(await arbitrage.owner()).to.equal(deployer.address);
+  it("makes the deployer an executor and a separate signer the admin", async () => {
+    expect(await arbitrage.executors(deployer.address)).to.equal(true);
+    expect(await arbitrage.admin()).to.equal(governance.address);
   });
 
   it("sets the profit recipient from the constructor", async () => {
     expect(await arbitrage.profitRecipient()).to.equal(deployer.address);
   });
 
-  it("rejects flash loans from non-owners", async () => {
+  it("rejects flash loans from non-executors, including governance", async () => {
     const [, attacker] = await ethers.getSigners();
     await expect(
       arbitrage.connect(attacker).initiateFlashLoan(buildArbData())
+    ).to.be.revertedWith("unauthorized");
+    await expect(
+      arbitrage.connect(governance).initiateFlashLoan(buildArbData())
     ).to.be.revertedWith("unauthorized");
   });
 
@@ -172,6 +171,38 @@ describe("ArbitrageFlashloan", function () {
     expect(poolBalance).to.equal(flashAmount.mul(10).add(premium));
   });
 
+  it("executes a profitable cycle with owned capital and preserves principal", async () => {
+    await dai.mint(arbitrage.address, flashAmount);
+    const beforeRecipient = await dai.balanceOf(deployer.address);
+    const arbData = buildArbData();
+
+    const expectedProfit = flashAmount.mul(11).div(10).sub(flashAmount);
+    const tx = await arbitrage.executeCapitalArbitrage(arbData);
+
+    await expect(tx)
+      .to.emit(arbitrage, "ArbitrageExecuted")
+      .withArgs(flashAmount, expectedProfit, routeString);
+
+    expect(await dai.balanceOf(arbitrage.address)).to.equal(flashAmount);
+    expect((await dai.balanceOf(deployer.address)).sub(beforeRecipient)).to.equal(expectedProfit);
+  });
+
+  it("rejects owned-capital execution from non-executors and cannot subsidize a losing route", async () => {
+    const [, attacker] = await ethers.getSigners();
+    await dai.mint(arbitrage.address, flashAmount);
+    await expect(
+      arbitrage.connect(attacker).executeCapitalArbitrage(buildArbData())
+    ).to.be.revertedWith("unauthorized");
+
+    await routerB.setRate(weth.address, dai.address, 1, 1);
+    const data = buildArbData({ minProfit: 1 });
+    data.steps[1].minAmountOut = 1;
+    await expect(arbitrage.executeCapitalArbitrage(data)).to.be.revertedWith(
+      "profit<minProfit"
+    );
+    expect(await dai.balanceOf(arbitrage.address)).to.equal(flashAmount);
+  });
+
   it("reverts a non-profitable cycle (profit < minProfit)", async () => {
     // Make routerB return only 1:1, so the cycle returns 100 DAI < 100.09 + 1.
     await routerB.setRate(weth.address, dai.address, 1, 1);
@@ -186,4 +217,3 @@ describe("ArbitrageFlashloan", function () {
     );
   });
 });
-

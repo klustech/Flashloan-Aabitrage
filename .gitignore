@@ -80,3 +80,4 @@ server/circuit_breaker_state.json
 
 # Mainnet PAPER operator credentials
 .env.mainnet-paper
+.env.backrun-paper

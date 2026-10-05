@@ -1,0 +1,22 @@
+[Unit]
+Description=Transaction-triggered backrun PAPER observer
+After=network-online.target backrun-fork.service
+Requires=backrun-fork.service
+
+[Service]
+Type=simple
+User=arbitrage
+WorkingDirectory=/opt/Flashloan-Aabitrage
+Environment=PAPER_ENV_FILE=/etc/arbitrage/backrun-paper.env
+EnvironmentFile=/etc/arbitrage/backrun-paper.env
+ExecStart=/usr/bin/node server/scripts/server.js
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/Flashloan-Aabitrage/runtime
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

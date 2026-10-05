@@ -9,6 +9,7 @@ services:
       - postgres-production:/var/lib/postgresql/data
       - ./database/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
       - ./database/migrations/0001_execution_ledger.sql:/docker-entrypoint-initdb.d/002-executions.sql:ro
+      - ./database/migrations/0002_backrun_ledger.sql:/docker-entrypoint-initdb.d/003-backruns.sql:ro
     healthcheck:
       test: [CMD-SHELL, 'pg_isready -U ${PG_USER} -d ${PG_DB}']
       interval: 10s
