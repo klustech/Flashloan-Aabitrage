@@ -2,6 +2,7 @@ const { providers, utils } = require("ethers");
 const { bn, address } = require("../bot/units");
 const { checkSignal } = require("../bot/asyncControl");
 const { validateRaw, validateCanonicalRaw } = require("./rawTransaction");
+const { ForkStateWriter } = require("./mevShareHints");
 const fs=require("fs"),path=require("path"),{randomUUID}=require("crypto");
 const instrumentedProviders = new WeakSet();
 function instrumentForkRpc(provider) {
@@ -55,6 +56,7 @@ class ForkBackend {
     // Historical mining alone gets a longer deadline; mutations are never retried.
     this.miningProvider = instrumentForkRpc(miningProvider || (miningTimeoutMs === undefined ? this.provider :
       new providers.StaticJsonRpcProvider(connection(this.miningTimeoutMs), 1)));
+    this.stateWriter = new ForkStateWriter(this.provider);
     this.tail = Promise.resolve();
     this.lockFile=path.resolve(process.env.BACKRUN_LOCK_DIR||"runtime/backrun","fork-"+new URL(url).port+".lock");
   }
@@ -208,10 +210,23 @@ class ForkBackend {
     if (result.receipts[0]?.status !== 1) throw new Error("Trigger transaction reverted");
     return { ...result, header, triggerReceipt: result.receipts[0] };
   }
+  // MEV-Share: no signed trigger exists. Write the log-derived post-trigger pool
+  // state onto the parent and mine an empty block N+1 to quote against.
+  async applyHint(trigger, parent, signal) {
+    await this.reset(parent, signal);
+    const pools = await this.stateWriter.apply(trigger.poolEffects);
+    checkSignal(signal);
+    const header = { ...parent, number: parent.number + 1, timestamp: parent.timestamp + 12,
+      baseFeePerGas: nextBaseFee(parent), miner: parent.miner };
+    const result = await this.mine([], header, { signal });
+    return { ...result, header, triggerReceipt: null, hintedPools: pools };
+  }
   async simulateUnsignedBundle({ trigger, parent, header, transaction, signal }) {
+    if (!trigger.rawTx) return this.simulateUnsignedPrefix({ rawTransactions: [], parent, header, transaction, signal,
+      prepareState: () => this.stateWriter.apply(trigger.poolEffects) });
     return this.simulateUnsignedPrefix({ rawTransactions:[trigger.rawTx],parent,header,transaction,signal });
   }
-  async simulateUnsignedPrefix({rawTransactions,parent,header,transaction,signal,canonicalTransactions}) {
+  async simulateUnsignedPrefix({rawTransactions,parent,header,transaction,signal,canonicalTransactions,prepareState}) {
     if (canonicalTransactions !== undefined && (!Array.isArray(canonicalTransactions) || canonicalTransactions.length !== rawTransactions.length))
       throw new Error("Canonical prefix transaction count mismatch");
     const prefix=await latestBlock(this.provider),expectedPrefix=rawTransactions.map(utils.keccak256);
@@ -221,14 +236,16 @@ class ForkBackend {
     const coinbaseBeforeBackrun=await this.provider.getBalance(header.miner,prefix.number);
     // Use the unsigned operator call only on this isolated fork. No wallet,
     // eth_sign or signTransaction is involved, and no mainnet RPC is mutated.
-    await this.reset(parent, signal); await this.configureBlock(header);
+    await this.reset(parent, signal);
+    if (prepareState) { await prepareState(); checkSignal(signal); }
+    await this.configureBlock(header);
     const expected=[];
     try {
       for(const raw of rawTransactions){
         checkSignal(signal);
         expected.push(await this.submitRaw(raw, header, expected.length, canonicalTransactions?.[expected.length]));
       }
-      const triggerHash=expected.at(-1);
+      const triggerHash=expected.at(-1)||null;
       const from = address(transaction.from);
       await this.provider.send("hardhat_impersonateAccount", [from]);
       try {
@@ -243,17 +260,17 @@ class ForkBackend {
             block.transactions.at(-1).toLowerCase() !== backrunHash.toLowerCase())
           throw new Error("Unsigned fork bundle order mismatch");
         const [triggerReceipt, backrunReceipt] = await Promise.all([
-          this.provider.getTransactionReceipt(triggerHash), this.provider.getTransactionReceipt(backrunHash)]);
-        if (triggerReceipt.status !== 1 || backrunReceipt.status !== 1) throw new Error("Ordered fork bundle reverted");
+          triggerHash ? this.provider.getTransactionReceipt(triggerHash) : null, this.provider.getTransactionReceipt(backrunHash)]);
+        if ((triggerReceipt && triggerReceipt.status !== 1) || backrunReceipt.status !== 1) throw new Error("Ordered fork bundle reverted");
         const coinbaseAfter=await this.provider.getBalance(header.miner,block.number);
         const priority=bn(backrunReceipt.effectiveGasPrice).sub(block.baseFeePerGas).mul(backrunReceipt.gasUsed);
         const directCoinbaseDelta=coinbaseAfter.sub(coinbaseBeforeBackrun).sub(priority);
         if(!directCoinbaseDelta.isZero())throw new Error("Unexpected net direct coinbase payment");
         const prefixReceipts=[];
         for(const hash of expected)prefixReceipts.push(await this.provider.getTransactionReceipt(hash));
-        return { kind: "UNSIGNED_FORK_BUNDLE", signed: false, submitted: false, parentBlock: parent.number,
-          parentHash: parent.hash, targetBlock: header.number, triggerHash, backrunHash,
-          gasUsed: backrunReceipt.gasUsed, triggerGasUsed: triggerReceipt.gasUsed, backrunReceipt,prefixReceipts,
+        return { kind: prepareState ? "UNSIGNED_FORK_LOG_DERIVED_STATE" : "UNSIGNED_FORK_BUNDLE", signed: false, submitted: false,
+          parentBlock: parent.number, parentHash: parent.hash, targetBlock: header.number, triggerHash, backrunHash,
+          gasUsed: backrunReceipt.gasUsed, triggerGasUsed: triggerReceipt?.gasUsed ?? null, backrunReceipt,prefixReceipts,
           simulatedAt: this.clock(), directCoinbasePayment:directCoinbaseDelta.toString(),
           directCoinbaseAccounting:"same-header prefix/bundle native balance delta minus backrun priority fee" };
       } finally {

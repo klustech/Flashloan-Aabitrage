@@ -11,7 +11,47 @@ Public pending transactions, MEV-Share hints or authenticated custom raw
 transactions enter a bounded, deduplicated queue. Direct V2/V3 router calldata
 resolves exact tracked pool identities. Unknown aggregator calldata can proceed
 only with a signed raw transaction; its actual execution logs determine tracked
-impact. Hash-only hints are recorded/rejected when exact prediction is impossible.
+impact. MEV-Share hints follow a separate path (below); hints whose shared logs do
+not determine the post-trigger state are recorded and rejected.
+
+### MEV-Share
+
+MEV-Share does not disclose the signed transaction, and the event `hash` is a
+matchmaker double hash that cannot be looked up on chain. The two order-flow paths
+therefore differ end to end:
+
+| | Public pending / custom | MEV-Share |
+|---|---|---|
+| Trigger | Authentic signed raw transaction | Hint: double hash + shared logs |
+| Post-trigger state | Trigger mined on the fork; its receipt logs pick touched pools | Shared Swap/Sync log data written into pool storage on the fork, each write read back through the pool's getters |
+| Freshness checks | Trigger still pending, not landed, sender nonce unchanged | Not possible; the bundle can only land with the trigger |
+| Pre-submission simulation | Local ordered fork bundle and relay `eth_callBundle` of `[trigger, backrun]` | Local fork simulation of the backrun on the derived state. Relays cannot simulate `{hash}` bundles (`mev_simBundle` accepts only matched, fully signed bundles) |
+| Submission | `eth_sendBundle [rawTrigger, backrun]` | `mev_sendBundle {body:[{hash},{tx, canRevert:false}]}`, one backrun, `inclusion.block = maxBlock = N+1` |
+
+A hint is usable only if every log emitted by a tracked pool is one of:
+
+- V2 `Sync`: absolute reserves.
+- V2 `Swap`: exact deltas against the parent reserves.
+- Uniswap/Pancake V3 `Swap`: absolute `sqrtPriceX96`, `liquidity` and `tick`, plus balance deltas.
+
+Withheld log data, any other tracked-pool event (Mint, Burn, LP transfers), an
+unrecognised storage layout, a delta the parent state cannot absorb, or a token
+whose balance slot cannot be confirmed rejects the hint. Pool token balances move
+with the derived state so the backrun's own swap accounting matches. Untracked
+pools are never on a route.
+
+The derived state is exact only if the trigger executes against the same parent
+state the matchmaker saw. If it doesn't, the executor's on-chain profit floor
+(`minProfit` including the gas budget) reverts the backrun, and `canRevert:false`
+stops the bundle from landing. A misprediction costs a missed opportunity, not
+funds. The builder payment is the measured priority fee. MEV-Share refunds part
+of it to the trigger's sender, which changes how competitive the bid is, not our
+cost.
+
+Settings: `BACKRUN_ORDERFLOW_SOURCE=mev_share`, `BACKRUN_MEV_SHARE_STREAM_URL`,
+`BACKRUN_MEV_SHARE_RELAY_URL` (default `https://relay.flashbots.net`, HTTPS
+required), and optionally `BACKRUN_MEV_SHARE_BUILDERS` (comma-separated). Bundles
+are signed with the relay-auth identity (`RELAY_AUTH_PRIVATE_KEY`).
 
 A dedicated chain-1 Hardhat node forks the pinned parent, applies the authentic
 trigger and reads touched pools. Its overlay never replaces the confirmed
@@ -283,7 +323,8 @@ Those are explicit outstanding acceptance items until real evidence is collected
 Protocol references:
 [Hardhat fork/mining RPC](https://v2.hardhat.org/hardhat-network/docs/reference),
 [Flashbots bundle RPC](https://docs.flashbots.net/flashbots-auction/advanced/rpc-endpoint),
-[MEV-Share event stream](https://docs.flashbots.net/flashbots-mev-share/searchers/event-stream).
+[MEV-Share event stream](https://docs.flashbots.net/flashbots-mev-share/searchers/event-stream),
+[MEV-Share bundles](https://docs.flashbots.net/flashbots-mev-share/searchers/sending-bundles).
 
 ## Replay diagnostics and local node lifecycle
 

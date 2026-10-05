@@ -1,4 +1,4 @@
-const {Wallet}=require('ethers');
+const {Wallet,utils}=require('ethers');
 const {FlashbotsBundleProvider}=require('@flashbots/ethers-provider-bundle');
 
 // RELAY_AUTH_PRIVATE_KEY only signs X-Flashbots-Signature headers. Relays and
@@ -98,6 +98,34 @@ class PrivateRelays {
     }
     if(!results.length)throw new Error('No simulated private relay accepted bundle');
     return results;
+  }
+
+  // MEV-Share backrun: the victim is referenced by its matchmaker hash, so only
+  // our signed backrun is sent. Next block only (no maxBlock range), never
+  // revertible, at most one backrun transaction per bundle.
+  async sendMevShareBundle({url,hash,signedTx,targetBlock,builders,fetchImpl=globalThis.fetch,timeoutMs=5000}){
+    if(!/^0x[0-9a-fA-F]{64}$/.test(String(hash)))throw new Error('MEV-Share hint hash required');
+    const [tx]=this.normalizeBundle([signedTx]);
+    if(!Number.isSafeInteger(targetBlock)||targetBlock<=0)throw new Error('MEV-Share target block required');
+    const block=utils.hexValue(targetBlock);
+    const params={version:'v0.1',inclusion:{block,maxBlock:block},body:[{hash},{tx,canRevert:false}]};
+    if(builders?.length)params.privacy={builders};
+    const body=JSON.stringify({jsonrpc:'2.0',id:1,method:'mev_sendBundle',params:[params]});
+    const signature=`${this.authSigner.address}:${await this.authSigner.signMessage(utils.id(body))}`;
+    const startedAt=Date.now();let response;
+    try{
+      const res=await fetchImpl(url,{method:'POST',headers:{'content-type':'application/json','X-Flashbots-Signature':signature},
+        body,signal:AbortSignal.timeout(timeoutMs)});
+      response=await res.json().catch(()=>({error:{message:`HTTP ${res.status}`}}));
+      if(!res.ok&&!response.error)response={error:{message:`HTTP ${res.status}`}};
+    }catch(error){this.fail(url,'submissionErrors',error);throw new Error('MEV-Share relay unavailable');}
+    this.latency(url,'submissionLatencyMs',startedAt);
+    if(response.error||!response.result?.bundleHash){
+      this.fail(url,'submissionErrors',response.error?.message||'missing bundleHash');
+      throw new Error('MEV-Share relay rejected bundle');
+    }
+    const s=this.stat(url);s.submissions++;s.lastSubmittedAt=Date.now();
+    return [{url,bundleHash:response.result.bundleHash,protocol:'mev_sendBundle'}];
   }
 
   // A settled bundle is credited to every relay that accepted it; relays do

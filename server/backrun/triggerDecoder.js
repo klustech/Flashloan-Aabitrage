@@ -1,5 +1,6 @@
 const { utils } = require("ethers");
 const { address, bn } = require("../bot/units");
+const { parsePoolEffects } = require("./mevShareHints");
 const SWAP_TOPICS = new Set([
   utils.id("Swap(address,uint256,uint256,uint256,uint256,address)").toLowerCase(),
   utils.id("Swap(address,address,int256,int256,uint160,uint128,int24)").toLowerCase(),
@@ -94,12 +95,20 @@ function decodeTriggerHint(hint, registry) {
     swaps = decodeRouter(hint.transaction || hint, registry);
     if (swaps.length) { decodingMethod = "router_calldata"; for (const s of swaps) affected.add(s.poolAddress); }
   } catch (_) { decodingMethod = "simulation_required"; }
-  // A fully signed transaction may be resolved by its actual simulated logs.
-  // Hints alone do not establish a post-trigger state.
-  const usable = affected.size > 0 || Boolean(hint.rawTx);
-  return { ...hint, hash: hint.hash || null, rawTx: hint.rawTx || null, swaps,
+  // A fully signed transaction is resolved by its actual simulated logs.
+  // Without one (MEV-Share), only shared Swap/Sync log data that determines the
+  // complete post-trigger state of every touched tracked pool is usable.
+  let poolEffects = null, reason = null;
+  if (!hint.rawTx) {
+    try { poolEffects = parsePoolEffects(hint.logs, registry); } catch (error) { reason = error.code || "mev_share_hint_unparseable"; }
+    if (!reason && !poolEffects.length) reason = affected.size ? "mev_share_hint_lacks_swap_state" : "no_tracked_pool_impact_hint";
+  }
+  const usable = !reason;
+  if (poolEffects) for (const e of poolEffects) affected.add(e.pool);
+  return { ...hint, hash: hint.hash || null, rawTx: hint.rawTx || null, swaps, poolEffects,
+    predictionMode: hint.rawTx ? "RAW_TRIGGER_REPLAY" : usable ? "MEV_SHARE_LOG_DERIVED" : null,
     affectedPools: [...affected], affectedTokens: [...new Set(swaps.flatMap(s => [s.tokenIn, s.tokenOut]))],
-    receivedAt: hint.receivedAt || Date.now(), decodingMethod, usable,
-    reason: usable ? null : "no_tracked_pool_impact_hint" };
+    receivedAt: hint.receivedAt || Date.now(), decodingMethod: poolEffects?.length ? "mev_share_logs" : decodingMethod, usable,
+    reason };
 }
 module.exports = { decodeTriggerHint, decodeRouter, v3Path, SWAP_TOPICS, V2, V3, V3_02 };

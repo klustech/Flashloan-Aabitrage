@@ -77,7 +77,8 @@ class BackrunService {
     this.stats.decoded++;
     if (!this.intake.push(trigger)) return { accepted: false, reason: "duplicate_trigger" };
     const id = randomUUID(), row = await this.ledger.write({ id, triggerHash: trigger.hash, triggerSource: trigger.source || "unknown",
-      triggerReceivedAt: trigger.receivedAt, affectedPools: trigger.affectedPools, mode: c.state.snapshot().mode, status: "DETECTED" });
+      triggerReceivedAt: trigger.receivedAt, affectedPools: trigger.affectedPools, predictionMode: trigger.predictionMode,
+      mode: c.state.snapshot().mode, status: "DETECTED" });
     this.queue.push({ trigger, row });
     while (this.queue.length > this.intake.maxPending) {
       const dropped = this.queue.shift(); this.intake.take(dropped.trigger.hash);
@@ -114,8 +115,12 @@ class BackrunService {
       c.backrunBusy = true; locked = true;
       const revision = c.state.revision, block = await c.provider.getBlock("latest");
       if (block.hash !== c.marketCache.head.hash) throw abortError("Canonical cache parent mismatch");
-      const freshTrigger = await c.provider.getTransaction(trigger.hash);
-      if (freshTrigger?.blockNumber != null) throw abortError("Trigger already landed");
+      // A MEV-Share hint hash is a matchmaker double hash: it cannot be looked up
+      // on chain. The bundle references it and only lands if the trigger does.
+      if (trigger.rawTx) {
+        const freshTrigger = await c.provider.getTransaction(trigger.hash);
+        if (freshTrigger?.blockNumber != null) throw abortError("Trigger already landed");
+      }
       saved = await this.ledger.write({ ...saved, parentBlock: block.number, parentHash: block.hash, targetBlock: block.number + 1 });
       await this.engine.inspect({ trigger, registry: c.poolRegistry, block, signal }, async ({ opportunities, rejections, context, stages }) => {
         for (const r of rejections) this.reason(r.reason);
@@ -152,7 +157,7 @@ class BackrunService {
         const pair = best.route.legs.map(l => l.dex).join(" → "); this.stats.dexPairs[pair] = (this.stats.dexPairs[pair] || 0) + 1;
         this.evidence.record(saved); this.emit("backrun_simulated", saved);
         if (c.state.state === "LIVE_RUNNING") {
-          const result = await this.execution.execute(best, { signal, revision });
+          const result = await this.execution.execute({ ...best, simulation: sim }, { signal, revision });
           saved = await this.ledger.write({ ...saved, status: result.status, txHash: result.txHash, executionId: best.executionId });
         }
       });
