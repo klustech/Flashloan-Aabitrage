@@ -12,6 +12,24 @@ upload and Solhint style lint, which have no security role.
 | Production deploy | `deploy-production.yml` | Run from any ref other than `main`; production core or security gates fail on the deployed commit |
 | Production rollout | `deploy-production.yml` | Never runs in the same run as a contract deployment. Apply the uploaded `runtime/deployment.json` to production config, then dispatch again with `skip_contract_deploy=true` |
 
+## Separate test runners
+
+Run both suites; neither result substitutes for the other:
+
+```bash
+npm run test:core
+npx hardhat test
+```
+
+`test:core` runs `test/unit/*.node.test.js` with Node's test runner. Hardhat
+runs the Mocha tests and excludes `*.node.test.js` from automatic discovery.
+Passing a Node test explicitly to Hardhat fails with instructions to use the
+correct runner. For a single Node test, use `node --test <path.node.test.js>`.
+
+Previously Hardhat also imported Node tests, whose failures were not included
+in Mocha's final passing count. Treat any failure in those older mixed logs as
+unresolved until the separate suites pass and both commands exit zero.
+
 ## Reviewed exceptions
 
 - **Slither:** a false positive gets an inline `// slither-disable-next-line <detector>`
