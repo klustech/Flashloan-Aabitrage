@@ -20,7 +20,7 @@ class BackrunService {
       else if (process.env.NODE_ENV === "production") throw new Error("Backrun database unavailable");
     } });
     this.evidence = evidence || new BackrunEvidence(profile);
-    this.latencies = []; this.queue = []; this.errors = []; this.closed = true; this.processing = false;
+    this.latencies = []; this.stageClocks = []; this.queue = []; this.errors = []; this.closed = true; this.processing = false;
     this.stats = { received: 0, decoded: 0, processed: 0, rejected: 0, simulations: 0, profitable: 0, predictionFailures: 0,
       funding: { CAPITAL: 0, FLASH_LOAN: 0 }, expectedByToken: {}, dexPairs: {}, reasons: {}, lastTriggerAt: null };
     this.onHint = hint => this.ingest(hint).catch(() => this.trip("backrun_persistence_or_ingress_failed"));
@@ -105,7 +105,13 @@ class BackrunService {
     const c = this.coordinator, controller = new AbortController(), signal = controller.signal;
     this.active = controller;
     const timer = setTimeout(() => controller.abort(), this.profile.backrun.simulationTimeoutMs);
-    let saved = row, started = Date.now(), locked = false, executed = null;
+    let saved = row, started = Date.now(), locked = false, executed = null, outcome = "REJECTED", fundingMode = null;
+    // Stage clock, ms since the trigger was received (T0): T1 dequeued, T2 parent
+    // verified, T3 state predicted, T4 routes quoted and sized, T5 funding
+    // selected, T6 bundle simulated, T7 decision recorded, T8 execution
+    // started, T9 execution returned (LIVE only).
+    const clock = { T0: 0 }, mark = stage => { clock[stage] = Date.now() - trigger.receivedAt; };
+    mark("T1");
     try {
       if (!["PAPER", "LIVE_RUNNING"].includes(c.state.state)) throw abortError("Trading stopped");
       if (Date.now() - trigger.receivedAt > this.profile.backrun.maxTriggerAgeMs) throw abortError("Trigger expired in queue");
@@ -120,8 +126,10 @@ class BackrunService {
         const freshTrigger = await c.provider.getTransaction(trigger.hash);
         if (freshTrigger?.blockNumber != null) throw abortError("Trigger already landed");
       }
+      mark("T2");
       saved = await this.ledger.write({ ...saved, parentBlock: block.number, parentHash: block.hash, targetBlock: block.number + 1 });
       await this.engine.inspect({ trigger, registry: c.poolRegistry, block, signal }, async ({ opportunities, rejections, context, stages }) => {
+        clock.T3 = clock.T2 + (context?.predictionMs || 0); mark("T4");
         for (const r of rejections) this.reason(r.reason);
         if (!opportunities.length) throw new Error("No viable exact post-trigger route");
         const best = opportunities[0]; best.executionId = randomUUID();
@@ -131,9 +139,10 @@ class BackrunService {
         saved = await this.ledger.write({ ...saved, status: "FUNDING_SELECTED", fundingMode: best.funding.mode,
           funding: best.funding, fundingComparisons:best.fundingComparisons, economics: best.economics, capitalAvailable: best.funding.capitalAvailable,
           flashPremium: best.funding.flashFee, gasEstimate: best.transaction.gasLimit, builderAllowance: best.tip.builderPaymentNativeWei });
+        mark("T5"); fundingMode = best.funding.mode;
         const simulationStarted = Date.now(); this.stats.simulations++;
         const sim = await this.backend.simulateUnsignedBundle({ trigger, parent: block, header: context.header, transaction: best.transaction, signal });
-        checkSignal(signal);
+        checkSignal(signal); mark("T6");
         if ((await c.provider.getBlock("latest")).hash !== block.hash || revision !== c.state.revision)
           throw abortError("Backrun parent/mode changed during simulation");
         if (Date.now() - trigger.receivedAt > this.profile.backrun.maxTriggerAgeMs) throw abortError("Trigger expired before decision");
@@ -145,7 +154,8 @@ class BackrunService {
           .reduce((s, log) => s.add(log.args.amount), bn(0));
         if (profit.lt(best.economics.minimumRequiredProfit.add(best.costBudgetBorrow)))
           throw new Error("Ordered bundle settlement does not meet profit floor");
-        saved = await this.ledger.write({ ...saved, status: "SIMULATED", latencyMs: Date.now() - trigger.receivedAt,
+        mark("T7");
+        saved = await this.ledger.write({ ...saved, status: "SIMULATED", latencyMs: clock.T7, stageClock: { ...clock },
           stages: { ...stages, quoteSizePrepareMs: simulationStarted - started - context.predictionMs, bundleSimulationMs: Date.now() - simulationStarted },
           simulation: { ordered: true, kind: sim.kind, signed: false, submitted: false, gasUsed: sim.gasUsed,
             triggerGasUsed: sim.triggerGasUsed, parentHash: sim.parentHash, simulatedAt: sim.simulatedAt,
@@ -154,11 +164,12 @@ class BackrunService {
         const symbol = c.tokens.get(best.route.borrowToken).symbol;
         this.stats.expectedByToken[symbol] = bn(this.stats.expectedByToken[symbol] || 0).add(best.economics.expectedNetProfit).toString();
         const pair = best.route.legs.map(l => l.dex).join(" → "); this.stats.dexPairs[pair] = (this.stats.dexPairs[pair] || 0) + 1;
-        this.evidence.record(saved); this.emit("backrun_simulated", saved);
+        outcome = "SIMULATED"; this.evidence.record(saved); this.emit("backrun_simulated", saved);
         if (c.state.state === "LIVE_RUNNING") {
+          mark("T8");
           const result = await this.execution.execute({ ...best, simulation: sim }, { signal, revision });
-          executed = result.status;
-          saved = await this.ledger.write({ ...saved, status: result.status, txHash: result.txHash, executionId: best.executionId });
+          executed = result.status; mark("T9"); outcome = result.status;
+          saved = await this.ledger.write({ ...saved, status: result.status, txHash: result.txHash, executionId: best.executionId, stageClock: { ...clock } });
         }
       });
       this.stats.processed++;
@@ -179,13 +190,17 @@ class BackrunService {
       clearTimeout(timer); this.active = null;
       if (locked) c.backrunBusy = false;
       this.latencies.push(Date.now() - trigger.receivedAt); this.latencies = this.latencies.slice(-2000);
+      this.stageClocks.push({ source: trigger.source || "unknown", fundingMode, outcome, clock });
+      if (this.stageClocks.length > 2000) this.stageClocks.shift();
     }
   }
   status() {
     return serialize({ enabled: this.enabled(), running: !this.closed, processing: this.processing,
       orderflowSource: this.profile.backrun.orderflowSource, source: this.source?.status(), circuitReason: this.circuitReason,
       ...this.stats, intake: this.intake.snapshot(), engine: this.engine.status(),
-      latency: { samples: this.latencies.length, medianMs: percentile(this.latencies, .5), p95Ms: percentile(this.latencies, .95) },
+      latency: { samples: this.latencies.length, medianMs: percentile(this.latencies, .5), p95Ms: percentile(this.latencies, .95),
+        p99Ms: percentile(this.latencies, .99), budgetMs: this.profile.backrun.latencyBudgetMs,
+        decisionP95Ms: percentile(this.stageClocks.map(s => s.clock.T7).filter(Number.isFinite), .95) },
       activity: this.execution.activity, burnIn: this.evidence.report(), recent: this.ledger.recent(20) });
   }
   // Pre-submission rows cannot resume after a restart: the trigger, parent and
