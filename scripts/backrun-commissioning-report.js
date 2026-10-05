@@ -1,6 +1,7 @@
 const fs=require("fs");
 const {environment,save}=require("./backrun-context");
 const {evidenceFingerprint}=require("../server/backrun/readiness");
+const {EXECUTOR_VERSION}=require("../server/config/executorVersion");
 function read(file){return JSON.parse(fs.readFileSync(file,"utf8"));}
 function buildReport(profile,{replay,benchmark,paper,capitalForkProof,flashForkProof,riskReview},now=Date.now()){
   const fingerprint=evidenceFingerprint(profile),checks=[];
@@ -12,8 +13,8 @@ function buildReport(profile,{replay,benchmark,paper,capitalForkProof,flashForkP
     benchmark.coverageComplete&&benchmark.sameBlockBundleVerified&&benchmark.distinctProfitableTriggers>=2&&benchmark.fullExecutorSimulations);
   check("Continuous recent PAPER evidence",paper?.passed&&paper.continuousMs>=7*86400000&&paper.profitable>0&&
     paper.signatures===0&&paper.submissions===0&&now-paper.lastHeartbeat<=30000);
-  check("Capital fork execution",capitalForkProof?.passed&&capitalForkProof.mode==="CAPITAL"&&capitalForkProof.executorVersion===3);
-  check("Flash fork execution",flashForkProof?.passed&&flashForkProof.mode==="FLASH_LOAN"&&flashForkProof.executorVersion===3);
+  check("Capital fork execution",capitalForkProof?.passed&&capitalForkProof.mode==="CAPITAL"&&capitalForkProof.executorVersion===EXECUTOR_VERSION);
+  check("Flash fork execution",flashForkProof?.passed&&flashForkProof.mode==="FLASH_LOAN"&&flashForkProof.executorVersion===EXECUTOR_VERSION);
   const minimumFrequency=Number(riskReview?.minimumOpportunitiesPerDay);
   const minimumNet=riskReview?.minimumNetNativePerDay;
   check("Explicit economic risk review",riskReview?.reviewed===true&&riskReview.profileFingerprint===fingerprint&&

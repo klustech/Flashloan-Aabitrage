@@ -1,4 +1,5 @@
 const { Contract, utils } = require("ethers");
+const { EXECUTOR_VERSION } = require("../server/config/executorVersion");
 const { HistoricalReplay,verifyReceipts } = require("../server/backrun/historicalReplay");
 const { HistoricalBenchmark } = require("../server/backrun/benchmark");
 const { BackrunEngine } = require("../server/backrun/backrunEngine");
@@ -12,6 +13,9 @@ async function main() {
   const report = new HistoricalBenchmark(profile), replay = new HistoricalReplay({ archive, backend });
   const first = await archive.getBlock(start), last = await archive.getBlock(end);
   const contract = new Contract(profile.contractAddress, require("../server/abis/ArbitrageFlashloan.json"), backend.provider);
+  // Proofs are labelled with the version actually executed, never assumed.
+  const deployedVersion = Number((await contract.executorVersion()).toString());
+  if (deployedVersion !== EXECUTOR_VERSION) throw new Error(`Benchmark requires executor version ${EXECUTOR_VERSION} (found ${deployedVersion})`);
   let evaluated = 0, tracked = 0,failedExactEvaluations=0;
   const proofs={};
   for (let number = start; number <= end; number++) {
@@ -63,7 +67,7 @@ async function main() {
               if(!(await token.balanceOf(contract.address)).eq(principal))throw new Error("Historical executor principal mismatch");
               measured[option.funding.mode]={net:option.economics.expectedNetProfit,gasUsed:execution.gasUsed,profit};
               proofs[option.funding.mode]??={profileFingerprint:require("../server/backrun/readiness").evidenceFingerprint(profile),
-                passed:true,mode:option.funding.mode,executorVersion:3,blockNumber:number,parentHash:data.parent.hash,
+                passed:true,mode:option.funding.mode,executorVersion:EXECUTOR_VERSION,blockNumber:number,parentHash:data.parent.hash,
                 triggerHash:trigger.hash,txHash:execution.transactionHash,principalPreserved:true,
                 canonicalReceiptsVerified:true,unsigned:true,gasUsed:execution.gasUsed.toString(),profit:profit.toString()};
             }

@@ -1,6 +1,7 @@
 const fs = require("fs");
 const { Contract, utils } = require("ethers");
 const { address } = require("./units");
+const { EXECUTOR_VERSION } = require("../config/executorVersion");
 async function startupChecks({
   provider,
   contract,
@@ -31,9 +32,10 @@ async function startupChecks({
       utils.keccak256(code) !== profile.expectedContractCodeHash
     )
       throw new Error("EXPECTED_CONTRACT_CODE_HASH missing/mismatched");
-    const version=(await contract.executorVersion()).toString();
-    if (profile.backrun?.enabled ? version !== "3" : !["2","3"].includes(version))
-      throw new Error("backrun-capable hardened executor version required");
+    // Readiness also checks v4-only roles; any other version is not operable.
+    const version=Number((await contract.executorVersion()).toString());
+    if (version !== EXECUTOR_VERSION)
+      throw new Error(`executor version ${EXECUTOR_VERSION} required (found ${version})`);
   });
   if (requireSignerGas)
     await check("signer gas", async () => {

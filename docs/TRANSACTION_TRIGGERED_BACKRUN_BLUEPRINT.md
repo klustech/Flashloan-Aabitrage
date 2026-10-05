@@ -2,6 +2,13 @@
 
 ## Status
 
+> **Superseded executor version.** This design record describes executor v3.
+> The operating executor is **v4** (`EXECUTOR_VERSION` in
+> `server/config/executorVersion.js`), which adds role separation and an on-chain
+> router allowlist; see [EXECUTOR_GOVERNANCE.md](EXECUTOR_GOVERNANCE.md). Readiness,
+> fork proofs, benchmarks and the commissioning report accept only v4 evidence.
+> References to v2/v3 below are kept as history.
+
 This blueprint defines the architectural change from the current post-block, flash-loan-first arbitrage scanner to a transaction-triggered, WETH-first, adaptive-funding backrun system.
 
 It is based on the production baseline at `4c9ef5a192f1386e0e5d65140fe44b449ccb182f` and the empirical mainnet audit performed against the existing 77-pool universe.

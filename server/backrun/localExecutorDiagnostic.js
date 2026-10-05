@@ -1,4 +1,5 @@
 const zlib = require("zlib");
+const { EXECUTOR_VERSION } = require("../config/executorVersion");
 const { Contract, ContractFactory, Wallet, utils } = require("ethers");
 const { bn, address, serialize } = require("../bot/units");
 const { verifyReceipts } = require("./historicalReplay");
@@ -62,7 +63,7 @@ async function prepareLocalExecutor({ backend, parent, artifact, addressesProvid
     deploymentReceipt = await sendLocal(deployment.data);
     executor = new Contract(deploymentReceipt.contractAddress, artifact.abi, provider);
     if (address(executor.address) !== address(executorAddress) || deploymentReceipt.status !== 1 ||
-        !(await executor.executorVersion()).eq(4) || !(await executor.executors(owner)) ||
+        !(await executor.executorVersion()).eq(EXECUTOR_VERSION) || !(await executor.executors(owner)) ||
         address(await executor.admin()) !== address(governance) ||
         address(await executor.profitRecipient()) !== address(owner) ||
         address(await executor.lendingPool()) !== address(lendingPool)) throw new Error("Local executor identity mismatch");
