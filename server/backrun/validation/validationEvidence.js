@@ -102,4 +102,4 @@ function readEvidence(name, { manifest, maxAgeMs, env = process.env, now = Date.
 }
 
 module.exports = { buildManifest, manifestId, manifestProblems, writeManifest, writeEvidence, readEvidence,
-  validationDir, redactedHost, REQUIRED_SOLC, IDENTITY_KEYS, atomicWrite };
+  validationDir, redactedHost, REQUIRED_SOLC, IDENTITY_KEYS, atomicWrite, executorCodeHash };

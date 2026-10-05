@@ -6,6 +6,8 @@ const { withLocalFork } = require("./backrun-local-fork");
 const { HistoricalReplay } = require("../server/backrun/historicalReplay");
 const { batchOptions, poolReferences, discoverTriggers, evaluateTrigger, summarizeBatch } = require("../server/backrun/localHistoricalBatch");
 const { replayDiagnostic } = require("./backrun-replay-diagnostics");
+const { EXECUTOR_VERSION } = require("../server/config/executorVersion");
+const { executorCodeHash } = require("../server/backrun/validation/validationEvidence");
 const OUTPUT = "runtime/backrun/local-executor-batch.json";
 function configuration(profile) {
   const fixture = require("../test/fixtures/backrun-26115902.json"), options = batchOptions(profile, fixture);
@@ -25,7 +27,7 @@ async function runBatch({ profile, archive, backend, options, pools, topologySou
   replay = new HistoricalReplay({ archive, backend, progress }) }) {
   const results = [], blockErrors = [];
   let discoveredTriggers = null, truncated = false;
-  const metadata = { kind: "LOCAL_EXECUTOR_HISTORICAL_BATCH", chainId: 1, replayBackend: "anvil",
+  const metadata = { kind: "LOCAL_EXECUTOR_HISTORICAL_BATCH", executorVersion: EXECUTOR_VERSION, executorArtifactHash: executorCodeHash(), chainId: 1, replayBackend: "anvil",
     startBlock: options.start, endBlock: options.end, topologySource,
     pools: pools.map(pool => ({ dex: pool.dex, address: pool.poolAddress, feeTier: pool.feeTier })),
     coverage: "tracked pools, WETH two-leg cycles only; historical Swap transactions; no whole-market coverage claim",

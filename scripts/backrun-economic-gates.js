@@ -2,7 +2,7 @@
 // Inputs are the reports written by backrun:executor-sweep and
 // backrun:executor-batch (Anvil, canonical replay, v4 executor deployed
 // locally). Output: runtime/backrun/validation/<gate>.json bound to the
-// evidence manifest. Usage: node scripts/backrun-economic-gates.js [size|gas|builder|liquidity|parity|all]
+// evidence manifest. Usage: node scripts/backrun-economic-gates.js [replay|size|gas|builder|liquidity|parity|all]
 const fs = require("fs");
 const { utils } = require("ethers");
 const { productionProfile } = require("../server/config/productionProfile");
@@ -15,8 +15,8 @@ const { fundingParity } = require("../server/backrun/validation/fundingParity");
 const { outputHaircut } = require("../server/backrun/validation/slippageStress");
 const { buildManifest, writeEvidence, writeManifest } = require("../server/backrun/validation/validationEvidence");
 
-const GATES = ["size", "gas", "builder", "liquidity", "parity"];
-const EVIDENCE = { size: "size-sweep", gas: "gas-stress", builder: "builder-competition", liquidity: "liquidity-stress", parity: "funding-parity" };
+const GATES = ["replay", "size", "gas", "builder", "liquidity", "parity"];
+const EVIDENCE = { replay: "canonical-replay", size: "size-sweep", gas: "gas-stress", builder: "builder-competition", liquidity: "liquidity-stress", parity: "funding-parity" };
 
 function readReport(file) {
   if (!fs.existsSync(file)) return null;
@@ -41,8 +41,27 @@ function engineSelection(batch, triggerHash, fundingMode) {
   return execution ? execution.amountIn : null;
 }
 
-async function runGate(gate, { profile, data, minimumWei }) {
+// Every measured execution must come from this executor build, replay the
+// canonical prefix receipts in the same historical block and preserve principal.
+function replayGate(data, manifest) {
+  const reports = [data.sweep, data.batch].filter(Boolean), problems = [];
+  for (const report of reports) {
+    if (report.executorVersion !== manifest.executorVersion) problems.push(`${report.kind}: executor version ${report.executorVersion ?? "unrecorded"}`);
+    if (report.executorArtifactHash !== manifest.executorCodeHash) problems.push(`${report.kind}: produced by a different executor build`);
+  }
+  const executions = reports.flatMap(r => (r.results || []).flatMap(item => Array.isArray(item.executions) ? item.executions : [item]))
+    .filter(e => e?.executionSucceeded);
+  const violations = executions.filter(e => e.principalPreserved !== true || e.canonicalReceiptsVerified !== true || e.sameBlock !== true);
+  if (violations.length) problems.push(`${violations.length} successful execution(s) without verified receipts, same block or preserved principal`);
+  if (!data.rows.length) problems.push("no measured canonical executions");
+  return { reports: reports.map(r => ({ kind: r.kind, status: r.status, executorVersion: r.executorVersion ?? null,
+    blocks: r.blockNumber ?? [r.startBlock, r.endBlock] })), succeededExecutions: executions.length, measuredRows: data.rows.length,
+    violations: violations.length, problems, passed: !problems.length, reason: problems[0] || null };
+}
+
+async function runGate(gate, { profile, data, minimumWei, manifest }) {
   const options = { minimumWei, profile };
+  if (gate === "replay") return replayGate(data, manifest);
   if (gate === "size") {
     if (!data.sweep) return { passed: false, reason: "size sweep report missing" };
     const sweepRows = measuredRows(data.sweep), modes = ["CAPITAL", "FLASH_LOAN"];
@@ -78,7 +97,7 @@ async function main(args = process.argv.slice(2), env = process.env) {
   const minimumWei = utils.parseEther(profile.backrun.minimumProfitBySymbol.WETH || "0.00001");
   const data = inputs(env), summary = {};
   for (const gate of gates) {
-    const result = await runGate(gate, { profile, data, minimumWei });
+    const result = await runGate(gate, { profile, data, minimumWei, manifest });
     writeEvidence(EVIDENCE[gate], { ...result, sources: data.sources, minimumWei: minimumWei.toString() }, manifest, { env });
     summary[gate] = { passed: result.passed, reason: result.reason || null };
   }
@@ -88,4 +107,4 @@ async function main(args = process.argv.slice(2), env = process.env) {
 
 if (require.main === module) main().then(s => { process.exitCode = Object.values(s).every(g => g.passed) ? 0 : 1; })
   .catch(error => { console.error(error.message); process.exitCode = 1; });
-module.exports = { main, runGate, inputs, engineSelection, GATES, EVIDENCE };
+module.exports = { main, runGate, replayGate, inputs, engineSelection, GATES, EVIDENCE };
