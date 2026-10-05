@@ -47,10 +47,11 @@ class BackrunService {
         const c = this.coordinator, state = c.state.snapshot();
         // Components, not one flag: the continuity rules in evidence.js decide
         // which conditions reset the PAPER window and which have a grace period.
+        this.dbHealthy = process.env.NODE_ENV !== "production" || db.isDbEnabled();
         this.evidence.heartbeat({ running: !this.closed, circuitReason: this.circuitReason || null,
           sourceConnected: Boolean(this.source.status().connected),
           headAgeMs: c.marketCache.head && this.lastHeadAt ? Date.now() - this.lastHeadAt : Infinity,
-          dbHealthy: process.env.NODE_ENV !== "production" || db.isDbEnabled(),
+          dbHealthy: this.dbHealthy,
           paper: state.state === "PAPER",
           signatures: this.execution.activity.signatures + c.execution.activity.signatures,
           submissions: this.execution.activity.submissions + c.execution.activity.submissions });
@@ -219,8 +220,9 @@ class BackrunService {
     const r = this.evidence.report(), c = this.coordinator, now = Date.now();
     const minutes = Math.max(1, (r.continuousMs || 0) / 60000), days = Math.max(1 / 1440, (r.continuousMs || 0) / 86400000);
     const relays = Object.values(c.relays?.status?.().relays || {});
-    let dbHealthy = true;
-    try { dbHealthy = process.env.NODE_ENV !== "production" || require("../dbClient").isDbEnabled(); } catch (_) { dbHealthy = false; }
+    // Status reads never open connections: database health is the value the
+    // running heartbeat last observed (null before the observer started).
+    const dbHealthy = this.dbHealthy ?? null;
     const per = (n, d) => (Number.isFinite(n) ? Math.round(n / d * 100) / 100 : null);
     return { mode: c.state.snapshot().mode, executorVersion: EXECUTOR_VERSION,
       currentHead: c.marketCache?.head ? { number: c.marketCache.head.number, hash: c.marketCache.head.hash } : null,

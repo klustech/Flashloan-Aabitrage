@@ -17,7 +17,7 @@ test("runner records step evidence, strips PRIVATE_KEY and stops at the first re
   const { env, done } = sandbox(), seen = [];
   try {
     const exec = (command, args, { env: child }) => { seen.push({ args, key: child.PRIVATE_KEY, rpc: child.LOCAL_BACKRUN_TEST_RPC });
-      return args.includes("test:core") ? { status: 1, stdout: "fail at https://rpc.example/v2/SECRETKEY", stderr: "" } : { status: 0, stdout: "", stderr: "" }; };
+      return args[0] === "scripts/run-core-tests.js" && args.length === 1 ? { status: 1, stdout: "fail at https://rpc.example/v2/SECRETKEY", stderr: "" } : { status: 0, stdout: "", stderr: "" }; };
     const r = await runValidation({ env: { ...env, PRIVATE_KEY: "0xabc", LOCAL_BACKRUN_TEST_RPC: "http://127.0.0.1:8548" }, exec, manifestFor: () => manifest, log: () => {} });
     assert.deepEqual(r.results.map(x => [x.id, x.passed]), [["compiler", true], ["core-tests", false]]);
     assert.equal(r.passed, false);
@@ -40,6 +40,35 @@ test("fork tests require a local fork and refuse skipped tests; gate CLIs need t
     r = await runValidation({ env, exec: ok, manifestFor: () => manifest, only: ["latency"], log: () => {} });
     assert.equal(r.results[0].passed, false);
     assert.match(r.results[0].reason, /evidence missing/);
+  } finally { done(); }
+});
+
+test("static analysis names a missing Slither and spawn failures instead of reporting exit null", async () => {
+  const { env, done } = sandbox();
+  try {
+    const missing = command => (/slither|python3/.test(command) ? { status: null, error: "ENOENT", stdout: "", stderr: "" } : { status: 0, stdout: "", stderr: "" });
+    let r = await runValidation({ env, exec: missing, manifestFor: () => manifest, only: ["static-analysis"], log: () => {} });
+    assert.match(r.results[0].reason, /slither not found: install it with `pip install slither-analyzer==0\.11\.6` or set SLITHER_BIN/);
+    const seen = [];
+    const custom = (command, args) => { seen.push([command, ...args].join(" "));
+      if (command === "/opt/venv/bin/slither" && args[0] === "--version") return { status: 0, stdout: "0.11.6\n", stderr: "" };
+      if (command === "/opt/venv/bin/slither") return { status: null, signal: "SIGKILL", stdout: "", stderr: "" };
+      return { status: 0, stdout: "", stderr: "" }; };
+    r = await runValidation({ env: { ...env, SLITHER_BIN: "/opt/venv/bin/slither" }, exec: custom, manifestFor: () => manifest, only: ["static-analysis"], log: () => {} });
+    assert.equal(r.results[0].reason, "slither: killed by SIGKILL");
+    assert.ok(seen.some(c => c.startsWith("/opt/venv/bin/slither . --compile-force-framework hardhat")));
+    const { record } = readEvidence("step-static-analysis", { manifest, env });
+    assert.equal(record.runs[0].toolVersion, "0.11.6");
+    assert.equal(record.runs[0].signal, "SIGKILL");
+  } finally { done(); }
+});
+
+test("a failing gate CLI reports the gate's own reason, not its exit status", async () => {
+  const { env, done } = sandbox();
+  try {
+    writeEvidence("latency", { passed: false, reason: "insufficient_measured_samples" }, manifest, { env });
+    const r = await runValidation({ env, exec: () => ({ status: 1, stdout: "", stderr: "" }), manifestFor: () => manifest, only: ["latency"], log: () => {} });
+    assert.equal(r.results[0].reason, "latency: insufficient_measured_samples");
   } finally { done(); }
 });
 

@@ -28,7 +28,7 @@
     "mythx": "sh scripts/mythx.sh",
     "audit": "npm run slither && npm run mythx",
     "fuzz": "forge test -vvv",
-    "test:core": "node --test test/unit/*.node.test.js",
+    "test:core": "node scripts/run-core-tests.js",
     "db:migrate:executions": "node scripts/migrate-executions.js",
     "commission:report": "node scripts/commissioning-report.js",
     "test:fork:proof": "node scripts/run-fork-proof.js",
@@ -54,7 +54,10 @@
     "backrun:validate:failure": "node scripts/backrun-failure-test.js",
     "backrun:validate:recovery": "node scripts/backrun-recovery-test.js",
     "backrun:projection": "node scripts/backrun-economic-projection.js",
-    "backrun:validate:fresh-clone": "node scripts/backrun-fresh-clone-check.js"
+    "backrun:validate:fresh-clone": "node scripts/backrun-fresh-clone-check.js",
+    "test:fork:local": "node scripts/run-core-tests.js --fork",
+    "test:contracts": "node scripts/run-core-tests.js --hardhat",
+    "backrun:executor-code-hash": "node scripts/backrun-executor-code-hash.js"
   },
   "keywords": [],
   "author": "",

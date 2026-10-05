@@ -66,10 +66,10 @@ LOCAL_BACKRUN_TEST_RPC=http://127.0.0.1:8548 npm run backrun:validate-local
 | Step | Command | Evidence |
 |---|---|---|
 | compiler | `npx hardhat compile --force` | `step-compiler.json` |
-| core-tests | `npm run test:core` | `step-core-tests.json` |
-| contract-tests | `npx hardhat test` (includes `test/security` adversarial suite) | `step-contract-tests.json` |
+| core-tests | `npm run test:core` (isolated, fork tests excluded) | `step-core-tests.json` |
+| contract-tests | `npm run test:contracts` (isolated `hardhat test`, includes the `test/security` adversarial suite) | `step-contract-tests.json` |
 | static-analysis | Slither `--fail-high` + `scripts/audit-gate.js` | `step-static-analysis.json` |
-| fork-tests | Anvil fork tests, serial, no skips | `step-fork-tests.json` |
+| fork-tests | `npm run test:fork:local`: Anvil fork tests, serial, no skips | `step-fork-tests.json` |
 | economic-gates | replay, size, gas, builder, liquidity, parity | `canonical-replay.json`, `size-sweep.json`, … |
 | failure-injection | `npm run backrun:validate:failure` | `failure-injection.json` |
 | restart-recovery | `npm run backrun:validate:recovery` | `restart-recovery.json` |
@@ -79,6 +79,19 @@ LOCAL_BACKRUN_TEST_RPC=http://127.0.0.1:8548 npm run backrun:validate-local
 
 Evidence lives in `runtime/backrun/validation/` (gitignored), next to
 `runtime/backrun/evidence-manifest.json`.
+
+## Test isolation
+
+Tests never inherit the operator environment. `scripts/run-core-tests.js`
+(behind `test:core`, `test:contracts` and `test:fork:local`) starts each suite
+with an allow-listed environment (PATH, HOME, proxy and locale settings) and
+pre-sets every key from your local `.env*` files to empty, so `PAPER_ONLY=true`,
+PostgreSQL settings or a fork RPC in your shell or dotenv files cannot change
+test outcomes. Fork tests run only through `test:fork:local`, serially, and fail
+instead of skipping when `LOCAL_BACKRUN_TEST_RPC` is unset. Failure-injection and
+restart-recovery harnesses (which drive the LIVE path against stubs) run in an
+isolated child process for the same reason; the operator process keeps
+`PAPER_ONLY=true`.
 
 ## Evidence identity
 
@@ -113,4 +126,7 @@ PAPER**.
 | `uncommitted source changes` | Commit before generating evidence |
 | `canonical-replay: produced by a different executor build` | Sweep/batch reports predate the current contract: re-run them |
 | `latency: insufficient_measured_samples` | Fewer than `BACKRUN_LATENCY_MIN_SAMPLES` (20) measured decisions: run `backrun:executor-batch` over more triggers (each evaluated trigger records its decision time) |
-| Hangs in `test:core` | Do not export `LOCAL_BACKRUN_TEST_RPC` for `test:core`; the runner scopes it to the fork step |
+| `static-analysis: slither not found` | `pip install slither-analyzer==0.11.6`, or set `SLITHER_BIN` (for example a virtualenv's `bin/slither`) |
+| `static-analysis: slither: killed by …` / `could not start …` | The process was killed or could not start; the evidence file records the tool version, signal and output tail |
+| `fresh-clone: <stage>: …` | The named stage failed in a clean clone (install, compile, identical bytecode, tests); its output tail is in `step-fresh-clone.json` |
+| `EXPECTED_CONTRACT_CODE_HASH not configured` | Run `npm run backrun:executor-code-hash` (read-only), add the printed line to the PAPER env file, then re-run validation: the value is part of the profile fingerprint |

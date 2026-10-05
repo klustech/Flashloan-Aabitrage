@@ -1,5 +1,9 @@
-// Gate 8: failure injection over the real LIVE execution path (no network,
-// no funded key). Writes runtime/backrun/validation/failure-injection.json.
-const { runFailureInjection } = require("../server/backrun/validation/failureInjection");
+// Gate 8: failure injection over the real LIVE execution path (stub network,
+// no funded key), run in an isolated child process. Writes
+// runtime/backrun/validation/failure-injection.json.
+const path = require("path");
 const { cli } = require("./lib/validationGate");
-if (require.main === module) cli("failure-injection", () => runFailureInjection());
+const { runIsolated } = require("./lib/isolatedHarness");
+const run = ({ env }) => runIsolated(path.join(__dirname, "../server/backrun/validation/failureInjection.js"), "runFailureInjection", { env });
+if (require.main === module) cli("failure-injection", run);
+module.exports = { run };
