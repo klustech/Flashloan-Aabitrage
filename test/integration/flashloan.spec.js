@@ -1,5 +1,5 @@
 // test/integration/flashloan.spec.js
-require("dotenv").config({ override: true });
+require("dotenv").config({ override: false }); // never overwrite the test environment
 const { expect } = require("chai");
 const { ethers, network } = require("hardhat");
 const { deployExecutor } = require("../helpers/executor");

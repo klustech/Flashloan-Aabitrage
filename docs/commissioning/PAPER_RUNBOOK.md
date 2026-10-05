@@ -10,6 +10,8 @@ commissioning steps.
    node scripts/backrun-fork-node.js --anvil &
    LOCAL_BACKRUN_TEST_RPC=http://127.0.0.1:8548 npm run backrun:validate-local
    ```
+   Before the first run, set `EXPECTED_CONTRACT_CODE_HASH` from the deployed
+   executor: `npm run backrun:executor-code-hash` (read-only) prints the line.
    The report must say `Ready for PAPER: YES`. Freeze configuration now:
    any profile change after this point invalidates the report and resets PAPER.
 2. **Preflight**: `npm run backrun:preflight` (includes `paper:preflight` and the

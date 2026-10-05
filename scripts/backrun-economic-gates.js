@@ -46,8 +46,9 @@ function engineSelection(batch, triggerHash, fundingMode) {
 function replayGate(data, manifest) {
   const reports = [data.sweep, data.batch].filter(Boolean), problems = [];
   for (const report of reports) {
-    if (report.executorVersion !== manifest.executorVersion) problems.push(`${report.kind}: executor version ${report.executorVersion ?? "unrecorded"}`);
-    if (report.executorArtifactHash !== manifest.executorCodeHash) problems.push(`${report.kind}: produced by a different executor build`);
+    const label = report.kind || (report === data.sweep ? "sweep report" : "batch report");
+    if (report.executorVersion !== manifest.executorVersion) problems.push(`${label}: executor version ${report.executorVersion ?? "unrecorded"}`);
+    if (report.executorArtifactHash !== manifest.executorCodeHash) problems.push(`${label}: produced by a different executor build`);
   }
   const executions = reports.flatMap(r => (r.results || []).flatMap(item => Array.isArray(item.executions) ? item.executions : [item]))
     .filter(e => e?.executionSucceeded);
@@ -69,12 +70,24 @@ async function runGate(gate, { profile, data, minimumWei, manifest }) {
   if (gate === "replay") return replayGate(data, manifest);
   if (gate === "size") {
     if (!data.sweep) return { passed: false, reason: "size sweep report missing" };
-    const sweepRows = measuredRows(data.sweep), modes = ["CAPITAL", "FLASH_LOAN"];
-    const curves = modes.map(mode => analyzeSizeCurve(sweepRows, { fundingMode: mode,
-      selectedAmount: engineSelection(data.batch, data.sweep.triggerHash, mode) }));
-    const evaluated = curves.filter(c => c.reason !== "no_measured_sizes");
+    const sweepRows = measuredRows(data.sweep), curves = [];
+    const fees = [...new Set((data.sweep.results || []).map(r => r.priorityFeeBps).filter(Number.isFinite))].sort((a, b) => a - b);
+    for (const mode of ["CAPITAL", "FLASH_LOAN"]) {
+      const selectedAmount = engineSelection(data.batch, data.sweep.triggerHash, mode);
+      for (const priorityFeeBps of fees.length ? fees : [10000]) {
+        const rejectedAmounts = (data.sweep.results || []).filter(r => r.status === "QUOTE_REJECTED" && r.fundingMode === mode &&
+          r.priorityFeeBps === priorityFeeBps && r.reason === "no_positive_profit_before_gas").map(r => r.amountIn);
+        const curve = analyzeSizeCurve(sweepRows, { fundingMode: mode, priorityFeeBps, selectedAmount, rejectedAmounts });
+        if (curve.reason !== "no_measured_sizes") curves.push(curve);
+      }
+    }
+    // Judged wherever some size is profitable; at least one such curve is required.
+    const applicable = curves.filter(c => c.applicable);
+    const failing = applicable.find(c => !c.passed);
     return { kind: "SIZE_OPTIMISATION", triggerHash: data.sweep.triggerHash, blockNumber: data.sweep.blockNumber, curves,
-      passed: evaluated.length > 0 && evaluated.every(c => c.passed) };
+      applicableCurves: applicable.length, passed: applicable.length > 0 && !failing,
+      reason: !applicable.length ? "no_profitable_size_measured_in_sweep"
+        : failing ? `${failing.fundingMode}@${failing.priorityFeeBps}bps: ${failing.reason}` : null };
   }
   if (gate === "gas") return gasStress(data.rows, options);
   if (gate === "builder") return builderCompetition(data.rows, options);

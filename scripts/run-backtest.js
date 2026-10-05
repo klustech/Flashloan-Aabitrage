@@ -5,7 +5,7 @@
  *   node scripts/run-backtest.js
  */
 
-require("dotenv").config({ override: true });
+require("dotenv").config({ override: false }); // injected environment takes precedence over .env
 const { ethers } = require("ethers");
 const { backtestArbitrage } = require("../server/scripts/backtestArbitrage");
 const { getAllRoutes, DEFAULT_CHAIN } = require("../server/botLogic");

@@ -12,7 +12,7 @@ Source of truth: `server/backrun/validation/acceptance.js`. Every one of the
 | static-analysis | `step-static-analysis` | Slither has no High finding outside mocks; dependency audit has no unreviewed high/critical advisory |
 | fork-tests | `step-fork-tests` | Anvil fork tests pass with zero skipped |
 | canonical-replay | `canonical-replay` | Sweep/batch reports come from this executor version and artifact hash; ≥1 measured CAPITAL and ≥1 measured FLASH_LOAN execution; every successful execution receipt-verified, same-block, principal preserved; no unresolved technical replay errors |
-| size-sweep | `size-sweep` | For each funding mode the engine's selected size is in the measured grid and nets ≥ 95% of the best measured size, and the optimum is not at the grid edge |
+| size-sweep | `size-sweep` | At every funding mode and priority-fee level where some swept size is profitable, the engine's selected size nets ≥ 95% of the best measured size (off-grid selections use interpolation between measured neighbours, a lower bound on a concave curve), and the optimum is not at the grid edge (larger sizes rejected as unprofitable close the curve). At least one such curve is required |
 | gas-stress | `gas-stress` | Across base-fee ×0.5–×10 and gas usage ×1.0–×1.5, no production decision accepts a trade whose realised net is below the minimum (out-of-gas is a revert, not a loss of principal) |
 | builder-competition | `builder-competition` | At every configured builder share ≤ 50%, no accepted decision nets below the minimum |
 | liquidity-stress | `liquidity-stress` | Net output degrades monotonically under 10–250 bps output haircuts, and every row that falls below the floor is rejected or reverts |

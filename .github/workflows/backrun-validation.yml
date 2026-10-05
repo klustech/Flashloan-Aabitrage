@@ -38,12 +38,13 @@ jobs:
       - run: cd server && npm ci --ignore-scripts --legacy-peer-deps
       - run: npx hardhat compile --force
       - run: npm run test:core
-      - run: npx hardhat test
+      - run: npm run test:contracts
       - name: Validation module tests
         run: >-
           node --test test/unit/backrunEconomicGates.node.test.js test/unit/backrunFailureInjection.node.test.js
           test/unit/backrunRecovery.node.test.js test/unit/backrunLatency.node.test.js
           test/unit/backrunValidationRunner.node.test.js test/unit/backrunPaperEvidence.node.test.js
+          test/unit/backrunTestIsolation.node.test.js
       - name: Failure injection and restart recovery gates
         run: |
           npm run backrun:validate:failure
@@ -58,7 +59,7 @@ jobs:
             if curl -sf -H 'content-type: application/json' --data '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' http://127.0.0.1:8548 > /dev/null; then break; fi
             sleep 1
           done
-          LOCAL_BACKRUN_TEST_RPC=http://127.0.0.1:8548 LOCAL_BACKRUN_TEST_ENGINE=anvil node --test --test-concurrency=1 test/unit/backrunFork.node.test.js test/unit/mevShareFork.node.test.js
+          LOCAL_BACKRUN_TEST_RPC=http://127.0.0.1:8548 npm run test:fork:local
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -32,9 +32,14 @@ benchmarks never run in CI.
 Run both suites; neither result substitutes for the other:
 
 ```bash
-npm run test:core
-npx hardhat test
+npm run test:core        # node:test unit suite, isolated, without fork tests
+npm run test:contracts   # hardhat test, isolated
+npm run test:fork:local  # fork tests only, serially (needs LOCAL_BACKRUN_TEST_RPC)
 ```
+
+These entry points start each suite with an isolated environment, so operator
+settings such as `PAPER_ONLY=true` or PostgreSQL variables cannot change results.
+Plain `npx hardhat test` still works but inherits your shell.
 
 `test:core` runs `test/unit/*.node.test.js` with Node's test runner. Hardhat
 runs the Mocha tests and excludes `*.node.test.js` from automatic discovery.

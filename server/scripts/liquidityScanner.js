@@ -1,6 +1,6 @@
 require("dotenv").config({
   path: require("path").resolve(__dirname, "../../.env"),
-  override: true,
+  override: false, // injected environment takes precedence over .env
 });
 const redis = require("../utils/redisClient");
 const axios = require("axios");

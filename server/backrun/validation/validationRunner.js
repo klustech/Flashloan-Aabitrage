@@ -14,14 +14,16 @@ function steps(env = process.env) {
   const forkEnv = { LOCAL_BACKRUN_TEST_RPC: env.LOCAL_BACKRUN_TEST_RPC, LOCAL_BACKRUN_TEST_ENGINE: env.LOCAL_BACKRUN_TEST_ENGINE || "anvil" };
   return [
     { id: "compiler", command: "npx", args: ["hardhat", "compile", "--force"], evidence: "step-compiler" },
-    { id: "core-tests", command: "npm", args: ["run", "test:core"], evidence: "step-core-tests" },
-    { id: "contract-tests", command: "npx", args: ["hardhat", "test"], evidence: "step-contract-tests" },
+    // Test steps run through scripts/run-core-tests.js, which isolates them from
+    // the operator environment (PAPER_ONLY, database, fork RPC).
+    { id: "core-tests", command: node, args: ["scripts/run-core-tests.js"], evidence: "step-core-tests" },
+    { id: "contract-tests", command: node, args: ["scripts/run-core-tests.js", "--hardhat"], evidence: "step-contract-tests" },
     { id: "static-analysis", evidence: "step-static-analysis", sequence: [
-      { command: "slither", args: [".", "--compile-force-framework", "hardhat", "--hardhat-ignore-compile", "--exclude-dependencies",
+      { tool: "slither", args: [".", "--compile-force-framework", "hardhat", "--hardhat-ignore-compile", "--exclude-dependencies",
         "--filter-paths", "contracts/mocks", "--fail-high"] },
       { command: node, args: ["scripts/audit-gate.js"] }] },
     { id: "fork-tests", evidence: "step-fork-tests", env: forkEnv, requiresEnv: "LOCAL_BACKRUN_TEST_RPC", noSkips: true,
-      command: node, args: ["--test", "--test-concurrency=1", "test/unit/backrunFork.node.test.js", "test/unit/mevShareFork.node.test.js"] },
+      command: node, args: ["scripts/run-core-tests.js", "--fork"] },
     { id: "economic-gates", command: node, args: ["scripts/backrun-economic-gates.js", "all"],
       gateEvidence: ["canonical-replay", "size-sweep", "gas-stress", "builder-competition", "liquidity-stress", "funding-parity"] },
     { id: "failure-injection", command: node, args: ["scripts/backrun-failure-test.js"], gateEvidence: ["failure-injection"] },
@@ -41,7 +43,28 @@ function tail(text, lines = 40) { return redact(text).split("\n").slice(-lines).
 
 function defaultExec(command, args, { env }) {
   const r = spawnSync(command, args, { cwd: ROOT, env, encoding: "utf8", maxBuffer: 256 << 20 });
-  return { status: r.error ? null : r.status, stdout: r.stdout || "", stderr: (r.stderr || "") + (r.error ? String(r.error.message) : "") };
+  return { status: r.error ? null : r.status, signal: r.signal || null, error: r.error ? r.error.code || r.error.message : null,
+    stdout: r.stdout || "", stderr: (r.stderr || "") + (r.error ? String(r.error.message) : "") };
+}
+
+// Slither is a Python tool: use SLITHER_BIN, then `slither` on PATH, then
+// `python3 -m slither`. A missing tool is a named failure, never "exit null".
+const SLITHER_HELP = "install it with `pip install slither-analyzer==0.11.6` or set SLITHER_BIN";
+function resolveTool(tool, env, exec) {
+  if (tool !== "slither") return { command: tool, prefix: [] };
+  const candidates = [...(env.SLITHER_BIN ? [[env.SLITHER_BIN]] : []), ["slither"], ["python3", "-m", "slither"]];
+  for (const [command, ...prefix] of candidates) {
+    const r = exec(command, [...prefix, "--version"], { env });
+    if (r.status === 0) return { command, prefix, version: String(r.stdout || r.stderr).trim().split("\n")[0] };
+  }
+  return null;
+}
+
+function failureReason(r) {
+  if (r.status !== null && r.status !== undefined) return `exit ${r.status}`;
+  if (r.error) return `could not start (${r.error})`;
+  if (r.signal) return `killed by ${r.signal}`;
+  return "no exit status";
 }
 
 async function runStep(step, { env, exec, manifestFor, log }) {
@@ -53,19 +76,36 @@ async function runStep(step, { env, exec, manifestFor, log }) {
   if (step.requiresEnv && !env[step.requiresEnv]) return { id: step.id, passed: false, durationMs: 0,
     reason: `${step.requiresEnv} not set (start a local fork: node scripts/backrun-fork-node.js --anvil)` };
   const runs = [];
+  let reason = null;
   for (const part of step.sequence || [step]) {
-    log(`→ ${step.id}: ${[part.command, ...part.args].join(" ")}`);
-    const r = exec(part.command, part.args, { env: childEnv });
-    runs.push({ command: [path.basename(part.command), ...part.args].join(" "), exitCode: r.status, output: tail(r.stdout + "\n" + r.stderr) });
-    if (r.status !== 0) break;
+    let command = part.command, args = part.args, tool = null;
+    if (part.tool) {
+      tool = resolveTool(part.tool, childEnv, exec);
+      if (!tool) { reason = `${part.tool} not found: ${SLITHER_HELP}`; runs.push({ command: part.tool, exitCode: null, error: "not found" }); break; }
+      command = tool.command; args = [...tool.prefix, ...part.args];
+    }
+    log(`→ ${step.id}: ${[command, ...args].join(" ")}`);
+    const r = exec(command, args, { env: childEnv });
+    runs.push({ command: [path.basename(command), ...args].join(" "), toolVersion: tool?.version, exitCode: r.status,
+      signal: r.signal || null, error: r.error || null, output: tail(r.stdout + "\n" + r.stderr) });
+    if (r.status !== 0) {
+      // A tool may explain its own failure on a final "REASON: ..." line.
+      const own = String(r.stderr || "").match(/^REASON: (.+)$/m);
+      reason = own ? own[1].trim() : `${path.basename(command)}: ${failureReason(r)}`; break;
+    }
   }
-  let passed = runs.every(r => r.exitCode === 0), reason = passed ? null : `exit ${runs[runs.length - 1].exitCode}`;
-  if (passed && step.noSkips && !/# skipped 0\b/.test(runs.map(r => r.output).join("\n"))) { passed = false; reason = "tests were skipped"; }
+  let passed = reason === null;
+  if (passed && step.noSkips && !/(#|ℹ) skipped 0\b/.test(runs.map(r => r.output).join("\n"))) { passed = false; reason = "tests were skipped"; }
   const manifest = manifestFor();
   if (step.evidence) writeEvidence(step.evidence, { passed, reason, durationMs: Date.now() - started, runs }, manifest, { env });
+  // A gate CLI's own verdict explains more than its exit status.
   if (step.gateEvidence) for (const name of step.gateEvidence) {
     const { ok, reason: why, record } = readEvidence(name, { manifest, env });
-    if (!ok || record.passed !== true) { passed = false; reason ||= why || `${name} failed`; }
+    if (!ok || record.passed !== true) {
+      passed = false;
+      const detail = !ok ? why : `${name}: ${record.reason || (record.failed || [])[0] || "failed"}`;
+      reason = reason && /^[^:]+: exit \d+$/.test(reason) ? detail : reason || detail;
+    }
   }
   return { id: step.id, passed, reason, durationMs: Date.now() - started };
 }
@@ -81,4 +121,4 @@ async function runValidation({ env = process.env, exec = defaultExec, manifestFo
   return { results, passed: results.length > 0 && results.every(r => r.passed) };
 }
 
-module.exports = { runValidation, runStep, steps, redact };
+module.exports = { runValidation, runStep, steps, redact, resolveTool, failureReason };
