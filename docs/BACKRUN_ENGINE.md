@@ -507,3 +507,82 @@ WETH cap. Fee multipliers are integers from 0 to 20000, at most four distinct
 values, and must include 10000 so the historical fee comparator is retained.
 These settings affect only the local diagnostic and do not increase LIVE limits.
 A complete sweep with no positive net combinations is a valid result.
+
+### Scan and size independent historical triggers locally
+
+```bash
+PAPER_ENV_FILE=.env.backrun-paper npm run backrun:executor-batch
+```
+
+This command starts/reuses the dedicated Anvil node automatically. No mainnet
+executor deployment or execution key is needed. By default it scans **20 blocks,
+26115893–26115912**, for every successful Swap transaction touching the two
+canonical fixture pools. It does not select only transactions already known to
+be profitable. It tests both WETH two-leg route directions, including same-DEX
+parallel pools if supplied in the explicit pool file. This is coverage of the
+tracked pools, not an Ethereum-wide search. The default window and pools are
+anchored around a known example, so this initial sample is not representative
+market evidence.
+
+For each discovered trigger, the command replays its canonical signed prefix
+and verifies transaction order, receipt status, gas and logs. It deploys the real
+executor constructor locally and preserves only its isolated synthetic funding
+and local identity across resets. Pool, router and Aave setup remains historical.
+The existing reserve-math seed, exact-quote sweep and refinement size each route
+separately for CAPITAL and FLASH_LOAN within `BACKRUN_MAX_AMOUNT_WETH` and actual
+historical Aave liquidity. The top **three exact sizes per route per mode** are
+executed unsigned in the same historical block, immediately after the trigger.
+Their measured events, recipient balance increase, preserved principal, actual
+Aave premium and actual receipt gas determine net ETH. Pre-trigger quotes also
+show whether the gross-positive edge was created by that trigger or already
+existed beforehand.
+
+Sizing initially optimizes exact profit after funding before gas; actual gas
+then ranks measured finalists. It does not prove a global optimum after gas.
+Negative and positive nets are both retained. No viable tested quote is a valid
+result; failed quotes, failed replay or failed executor accounting are reported
+as errors. An uncertain mining response aborts all further mutations. Trigger
+limits, route bounds, missing canonical blocks and technical errors cannot issue
+a complete report. Zero discovered triggers is reported explicitly and supplies
+no profitability evidence.
+
+The fee reference is the **actual historical block base fee plus the median
+priority fee of successful transactions in that block**. Priority is included
+once in the measured gas cost. This uses hindsight and is not a known winning
+builder bid. Additional direct builder payments, deployment and infrastructure
+costs are excluded. Builder inclusion and public availability of historical
+orderflow are unverified. Counts identify hypothetical net-positive triggers,
+not live wins or realized income. Size/route/funding alternatives are mutually
+exclusive; nearby triggers may also overlap through the same pools. The report
+therefore never sums their profits or extrapolates daily earnings. It always
+states `commissioningEvidence: false` and never writes production proof paths.
+
+The final table and `LOCAL_EXECUTOR_HISTORICAL_BATCH_SUMMARY` show coverage,
+errors, net-positive trigger counts, counts above the configured net minimum,
+and the best measured trade for each funding mode. Full per-trigger searches,
+measured alternatives, fee references and private atomic checkpoints are saved
+in `runtime/backrun/local-executor-batch.json`. A completed loss-making sample
+exits successfully; an incomplete or technically failed scan exits nonzero.
+Archive reads and cold prefix mining can take considerably longer than the
+single-fixture sweep; progress and mining heartbeats remain visible.
+
+Use explicit settings to extend coverage, without changing LIVE settings:
+
+```bash
+BACKRUN_START_BLOCK=26115853 BACKRUN_END_BLOCK=26115952 \
+PAPER_ENV_FILE=.env.backrun-paper npm run backrun:executor-batch
+```
+
+Both range endpoints are required together; each run supports at most 100
+blocks. `BACKRUN_BATCH_TOPOLOGY_PATH` optionally selects a JSON file with a
+`pools` array containing 2–20 supported pools (`dex`, `poolAddress` or `address`,
+plus `feeTier` for V3). Router/factory/quoter addresses come from the existing
+profile and exact pool validation. No unrelated topology file is used silently.
+Other optional bounds are `BACKRUN_BATCH_MAX_TRIGGERS` (default 200, maximum
+1000), `BACKRUN_BATCH_MAX_ROUTES` (default 32, maximum 64),
+`BACKRUN_BATCH_MIN_AMOUNT_WETH` (default configured maximum / 1,000,000, at least
+one wei), `BACKRUN_BATCH_SIZING_SAMPLES` (default 10, range 2–20),
+`BACKRUN_BATCH_SIZING_REFINEMENTS` (default 5, range 0–10), and
+`BACKRUN_BATCH_FINALISTS` (default 3, range 1–5 per route/mode). An exceeded trigger
+limit reports truncation explicitly; an exceeded route limit fails that trigger
+instead of silently choosing a subset.

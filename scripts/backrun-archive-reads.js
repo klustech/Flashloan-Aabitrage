@@ -1,7 +1,7 @@
 const { setTimeout: delay } = require("timers/promises");
 const READ_METHODS = new Set(["eth_chainId", "net_version", "eth_blockNumber", "eth_getBlockByNumber",
   "eth_getBlockByHash", "eth_getTransactionByHash", "eth_getTransactionReceipt", "eth_getRawTransactionByHash",
-  "eth_getCode", "eth_getBalance", "eth_getStorageAt", "eth_call"]);
+  "eth_getCode", "eth_getBalance", "eth_getStorageAt", "eth_call", "eth_getLogs"]);
 function errorChain(error) {
   const errors = [];
   for (let current = error, depth = 0; current && depth < 5; depth++) {

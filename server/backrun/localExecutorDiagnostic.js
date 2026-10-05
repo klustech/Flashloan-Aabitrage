@@ -159,7 +159,7 @@ function measureSettlement({ receipt, executor, tokenAddress, recipient, recipie
     netPositive: net.gt(0), meetsConfiguredMinimum: net.gte(minimumProfit) });
 }
 
-async function executeLocalMode({ backend, data, endIndex, local, quoteData, fundingMode, minimumProfit, priorityFeeBps = 10000, progress = () => {} }) {
+async function executeLocalMode({ backend, data, endIndex, local, quoteData, fundingMode, minimumProfit, priorityFeeBps = 10000, feeReference, progress = () => {} }) {
   const raw = data.raw.slice(0, endIndex + 1), canonical = data.block.transactions.slice(0, endIndex + 1);
   const provider = backend.provider, { executor, token, owner, gasBalance } = local;
   if (!Number.isSafeInteger(priorityFeeBps) || priorityFeeBps < 0 || priorityFeeBps > 20000)
@@ -171,8 +171,8 @@ async function executeLocalMode({ backend, data, endIndex, local, quoteData, fun
   verifyReceipts(prefix.receipts, data.receipts.slice(0, endIndex + 1));
   const principal = await token.balanceOf(executor.address), recipient = await token.balanceOf(owner);
   const lendingPool = await executor.lendingPool();
-  const historicalReceipt = data.receipts[endIndex + 1];
-  if (!historicalReceipt?.effectiveGasPrice) throw new Error("Historical arbitrage fee evidence missing");
+  const historicalReceipt = feeReference || data.receipts[endIndex + 1];
+  if (!historicalReceipt?.effectiveGasPrice) throw new Error("Historical fee evidence missing");
   const historicalPriority = bn(historicalReceipt.effectiveGasPrice).sub(data.block.baseFeePerGas);
   if (historicalPriority.lt(0)) throw new Error("Historical arbitrage priority fee is negative");
   const priority = historicalPriority.mul(priorityFeeBps).div(10000), effectiveGasPrice = bn(data.block.baseFeePerGas).add(priority);
@@ -201,9 +201,12 @@ async function executeLocalMode({ backend, data, endIndex, local, quoteData, fun
     sameBlock: sim.targetBlock === data.block.number, unsigned: true, mainnetSubmitted: false,
     canonicalReceiptsVerified: true, routerAllowancesCleared: true, aaveAllowanceCleared: true,
     directCoinbasePayment: sim.directCoinbasePayment,
-    priorityFeeBps, historicalPriorityFeePerGas: historicalPriority.toString(),
+    priorityFeeBps, feeReferenceSource: feeReference?.source || "next_canonical_transaction",
+    historicalPriorityFeePerGas: historicalPriority.toString(),
     priorityFeePerGas: priority.toString(), builderPriorityPaymentNative: priority.mul(sim.gasUsed).toString(),
-    feeAssumption: priorityFeeBps === 10000 ? "historical arbitrage effective gas price; no additional direct builder payment modelled" :
+    feeAssumption: priorityFeeBps === 10000 ? (feeReference ?
+      "stated historical fee reference; no additional direct builder payment modelled; inclusion not tested" :
+      "historical arbitrage effective gas price; no additional direct builder payment modelled") :
       "hypothetical priority multiplier; unchanged historical base fee; inclusion not tested",
     inclusionTested: false };
 }

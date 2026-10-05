@@ -166,13 +166,20 @@ test("local executor diagnostic preserves historical prefix and settles both fun
     await call(weth,"transfer",[pool.address,amount.mul(10)]);await call(weth,"transfer",[r2.address,amount.mul(10)]);
     await call(other,"mint",[r1.address,amount.mul(10)]);
     await call(r1,"setRate",[weth.address,other.address,1,1]);await call(r2,"setRate",[other.address,weth.address,1,1]);
+    await call(r1,"setRate",[other.address,weth.address,1,1]);await call(r2,"setRate",[weth.address,other.address,1,1]);
     await provider.send("hardhat_stopImpersonatingAccount",[creator]);
+    // Test-only trigger forwards setRate to the mock router and emits a Swap topic.
+    // No historical/mainnet code is modified by the actual batch command.
+    const triggerPool=Wallet.createRandom().address;
+    const swapTopic=[...require("../../server/backrun/triggerDecoder").SWAP_TOPICS][0];
+    await provider.send("hardhat_setCode",[triggerPool,"0x36600060003760006000366000600073"+
+      r2.address.slice(2)+"5af1507f"+swapTopic.slice(2)+"60006000a100"]);
     const parent=await latestBlock(provider);let snapshot=await provider.send("evm_snapshot",[]);
     const backend=new ForkBackend({url,provider,engine:"anvil"});
     backend.reset=async block=>{backend.assertMiningSettled();assert.equal(block.hash,parent.hash);
       assert.equal(await provider.send("evm_revert",[snapshot]),true);snapshot=await provider.send("evm_snapshot",[]);
       await provider.send("evm_setAutomine",[false]);};
-    const raw=await triggerSigner.signTransaction({to:r2.address,data:r2.interface.encodeFunctionData("setRate",[other.address,weth.address,11,10]),
+    const raw=await triggerSigner.signTransaction({to:triggerPool,data:r2.interface.encodeFunctionData("setRate",[other.address,weth.address,11,10]),
       chainId:1,nonce:0,type:2,gasLimit:150000,maxFeePerGas:parent.baseFeePerGas.mul(2).add(1),maxPriorityFeePerGas:1});
     const canonical=utils.parseTransaction(raw),header={...parent,number:parent.number+1,timestamp:parent.timestamp+12,
       baseFeePerGas:require("../../server/backrun/forkBackend").nextBaseFee(parent)};
@@ -211,8 +218,56 @@ test("local executor diagnostic preserves historical prefix and settles both fun
       assert.equal((await weth.balanceOf(local.executor.address)).toString(),"0");
       assert.equal((await weth.balanceOf(pool.address)).toString(),amount.mul(10).add(amount.mul(9).div(10000)).toString());
       assert.equal(results.length,12);
+      // Explicit block fee reference also works when the trigger is the LAST transaction.
+      const onlyTrigger={...data,receipts:[prefix.receipts[0]]};
+      const feeReference={effectiveGasPrice:header.baseFeePerGas.add(7).toString(),source:"test_block_median"};
+      for(const fundingMode of ["CAPITAL","FLASH_LOAN"]){
+        const measured=await executeLocalMode({backend,data:onlyTrigger,endIndex:0,local,quoteData,fundingMode,
+          feeReference,minimumProfit:1});
+        assert.equal(measured.priorityFeePerGas,"7");assert.equal(measured.feeReferenceSource,"test_block_median");
+        assert.equal(measured.sameBlock,true);assert.equal(measured.inclusionTested,false);
+      }
       assert.throws(()=>local.setFundingMode("CAPITAL",amount.add(1)),/maximum/);
       await assert.rejects(executeLocalMode({backend,data,endIndex:0,local,quoteData,fundingMode:"CAPITAL",priorityFeeBps:-1}),/multiplier/);
       await assert.rejects(backend.reset({...parent,hash:utils.hexZeroPad("0x1234",32)}),/pinned/);
-    }finally{local.restoreReset();await provider.send("evm_setAutomine",[true]);}
+    }finally{local.restoreReset();await provider.send("evm_setAutomine",[false]);}
+    const {evaluateTrigger,batchOptions}=require("../../server/backrun/localHistoricalBatch");
+    const {TokenRegistry}=require("../../server/market/tokenRegistry"),{PoolRegistry}=require("../../server/market/poolRegistry");
+    const {QuoteEngine}=require("../../server/bot/quoteEngine");
+    const batchProfile={tokens:{WETH:weth.address},flashloanProvider:{addressesProvider:ap.address,lendingPool:pool.address},
+      backrun:{maxAmountBySymbol:{WETH:"100"},minimumProfitBySymbol:{WETH:"1"}},slippageBps:0};
+    const batchPools=[{dex:"uniswap_v2",poolAddress:r1.address,router:r1.address},
+      {dex:"sushiswap_v2",poolAddress:triggerPool,router:r2.address}];
+    const context=async (_profile,_provider,_pools,block)=>{
+      const tokens=new TokenRegistry(provider,1);tokens.register({address:weth.address,decimals:18,symbol:"WETH"});
+      tokens.register({address:other.address,decimals:18,symbol:"B"});
+      const registry=new PoolRegistry(tokens),adapters={};
+      for(const ref of batchPools){
+        registry.add({...ref,token0:weth.address,token1:other.address,reserve0:amount.mul(100),reserve1:amount.mul(100),
+          feeBps:0,stateBlock:block.number});
+        adapters[ref.dex]={quoteExactInput:async(leg,input)=>{
+          const router=leg.router===r1.address?r1:r2;
+          const rate=await router.rates(leg.tokenIn,leg.tokenOut,{blockTag:block.number});
+          return input.mul(rate.numerator).div(rate.denominator);
+        },buildSwapStep:leg=>({...step,router:leg.router,tokenIn:leg.tokenIn,tokenOut:leg.tokenOut})};
+      }
+      const quoter=new QuoteEngine(adapters);quoter.beginBlock(block.hash);return {registry,quoter};
+    };
+    // Size both directions and measure the positive direction in both funding modes.
+    await backend.reset(parent);
+    const batchTrigger={blockNumber:header.number,blockHash:prefix.block.hash.toLowerCase(),transactionIndex:0,
+      triggerHash:canonical.hash.toLowerCase(),affectedPools:[triggerPool.toLowerCase()]};
+    const options={...batchOptions(batchProfile,{targetBlock:header.number},{}),samples:2,refinements:1,finalists:1};
+    const result=await evaluateTrigger({profile:batchProfile,backend,data:onlyCanonical(data,prefix),trigger:batchTrigger,
+      pools:batchPools,options,artifact:artifact("ArbitrageFlashloan"),context,
+      flashloanFactory:()=>({terms:async()=>({premiumBps:9,availableLiquidity:amount.mul(10)}),
+        fee:(input,bps)=>input.mul(bps).add(5000).div(10000)})});
+    assert.equal(result.status,"EVALUATED");assert.equal(result.routes,2);
+    assert.equal(result.executions.filter(row=>row.status==="MEASURED").length,2);
+    assert.equal(result.executions.every(row=>row.canonicalReceiptsVerified&&row.principalPreserved&&row.triggerCreatedGrossEdge),true);
+    assert.equal(result.executions.every(row=>row.priorityFeePerGas==="1"),true);
+    assert.equal(result.executions.some(row=>row.fundingMode==="FLASH_LOAN"&&row.startingExecutorWeth==="0"),true);
+    assert.equal(result.errors.length,0);
+    await provider.send("evm_setAutomine",[true]);
+    function onlyCanonical(data,prefix){return {...data,block:{...data.block,hash:prefix.block.hash},receipts:[prefix.receipts[0]]};}
   });
