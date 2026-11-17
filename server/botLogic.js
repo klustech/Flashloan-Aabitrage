@@ -9,6 +9,7 @@
  */
 
 const runtimeConfig = require("./utils/runtimeConfig");
+const { exitAfterFatal } = require("./utils/fatalExit");
 const fs = require("fs");
 const path = require("path");
 const axios = require("axios");
@@ -322,16 +323,22 @@ const circuitBreaker = getCircuitBreaker({
 // Helper wrapped with safeAsync using the configured logger
 const safeFetchReserves = safeAsync(fetchMulticallReservesForRoute, logger);
 
+// Log, alert, then exit: continuing after either of these leaves the process in
+// an unknown state. See server/utils/fatalExit.js.
 process.on("unhandledRejection", (reason) => {
   logger.error(
     `Unhandled Rejection: ${reason instanceof Error ? reason.message : reason}`
   );
+  exitAfterFatal();
 });
 
 process.on("uncaughtException", (err) => {
   logger.error(`Uncaught Exception: ${err.stack || err.message}`);
   arbFailure.labels("uncaught_exception").inc();
-  sendSlackAlert(`Uncaught Exception in bot process: ${err.message}`);
+  Promise.resolve(
+    sendSlackAlert(`Uncaught Exception in bot process: ${err.message}`)
+  ).catch(() => {});
+  exitAfterFatal();
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

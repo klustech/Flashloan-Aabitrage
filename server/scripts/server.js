@@ -10,7 +10,11 @@ const express = require("express");
 const path = require("path");
 const cors = require("cors");
 const { createApiRateLimits, OPEN_PATHS } = require("../utils/apiRateLimits");
-const { assertPaperConfiguration, assertLiveAllowed } = require("../config/paperPolicy");
+const { exitAfterFatal } = require("../utils/fatalExit");
+const {
+  assertPaperConfiguration,
+  assertLiveAllowed,
+} = require("../config/paperPolicy");
 const settingsPersistence = require("../utils/settingsPersistence");
 const fs = require("fs");
 const readline = require("readline");
@@ -260,9 +264,25 @@ const loadDbClient = () => {
 const { getRecentTrades: getLegacyRecentTrades } = loadDbClient();
 async function getRecentTrades(limit = 100) {
   if (process.env.NODE_ENV === "test") return getLegacyRecentTrades(limit);
-  return require("../bot/coordinator").getCoordinator().ledger.recent(10000)
-    .filter(r=>r.mode==="LIVE" && ["INCLUDED","REVERTED"].includes(r.status) && r.token?.symbol==="DAI")
-    .slice(0,limit).map(r=>({id:r.id,route:r.swapData?.route||r.route?.strategy,profit:ethers.utils.formatUnits(r.realizedNetProfit,r.token.decimals),txHash:r.txHash,timestamp:new Date(r.updatedAt).toISOString(),status:r.status,token:r.token}));
+  return require("../bot/coordinator")
+    .getCoordinator()
+    .ledger.recent(10000)
+    .filter(
+      (r) =>
+        r.mode === "LIVE" &&
+        ["INCLUDED", "REVERTED"].includes(r.status) &&
+        r.token?.symbol === "DAI"
+    )
+    .slice(0, limit)
+    .map((r) => ({
+      id: r.id,
+      route: r.swapData?.route || r.route?.strategy,
+      profit: ethers.utils.formatUnits(r.realizedNetProfit, r.token.decimals),
+      txHash: r.txHash,
+      timestamp: new Date(r.updatedAt).toISOString(),
+      status: r.status,
+      token: r.token,
+    }));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -354,13 +374,22 @@ const { tradingState } = require("../bot/stateMachine");
 const coordinator = () => {
   const c = require("../bot/coordinator").getCoordinator();
   if (!c.operatorSettingsRestored) {
-    Object.assign(c.overrides, settingsPersistence.productionOverrides(botSettings, persistedSettings));
+    Object.assign(
+      c.overrides,
+      settingsPersistence.productionOverrides(botSettings, persistedSettings)
+    );
     c.operatorSettingsRestored = true;
   }
   return c;
 };
 app.get("/api/trading", (_req, res) => {
-  try { res.json(coordinator().status()); } catch (err) { res.status(503).json({ error: err.message, trading: tradingState.snapshot() }); }
+  try {
+    res.json(coordinator().status());
+  } catch (err) {
+    res
+      .status(503)
+      .json({ error: err.message, trading: tradingState.snapshot() });
+  }
 });
 app.post("/api/trading/paper", (_req, res) => {
   tradingState.paper();
@@ -368,50 +397,114 @@ app.post("/api/trading/paper", (_req, res) => {
   savePersistedSettings(botSettings);
   res.json({ trading: tradingState.snapshot() });
 });
-app.post("/api/trading/pause", (_req, res) => { tradingState.pause(); res.json({ trading: tradingState.snapshot() }); });
+app.post("/api/trading/pause", (_req, res) => {
+  tradingState.pause();
+  res.json({ trading: tradingState.snapshot() });
+});
 app.post("/api/trading/arm", async (_req, res) => {
-  try { assertLiveAllowed(); res.json({ trading: await coordinator().arm() }); } catch (err) { res.status(409).json({ error: err.message }); }
+  try {
+    assertLiveAllowed();
+    res.json({ trading: await coordinator().arm() });
+  } catch (err) {
+    res.status(409).json({ error: err.message });
+  }
 });
 app.post("/api/trading/live", (_req, res) => {
-  try { assertLiveAllowed(); res.json({ trading: tradingState.live() }); } catch (err) { res.status(409).json({ error: err.message }); }
+  try {
+    assertLiveAllowed();
+    res.json({ trading: tradingState.live() });
+  } catch (err) {
+    res.status(409).json({ error: err.message });
+  }
 });
 app.get("/api/trading/readiness", async (_req, res) => {
-  try { res.json(await coordinator().checkReadiness()); } catch (err) { res.status(503).json({ ready: false, errors: [err.message] }); }
+  try {
+    res.json(await coordinator().checkReadiness());
+  } catch (err) {
+    res.status(503).json({ ready: false, errors: [err.message] });
+  }
 });
 app.get("/api/trading/paper-health", async (_req, res) => {
-  try { res.json(await require("../bot/paperHealth").paperHealth(coordinator(), require("../dbClient"))); }
-  catch (_) { res.status(503).json({ error:"PAPER persistence or mainnet health check failed" }); }
+  try {
+    res.json(
+      await require("../bot/paperHealth").paperHealth(
+        coordinator(),
+        require("../dbClient")
+      )
+    );
+  } catch (_) {
+    res
+      .status(503)
+      .json({ error: "PAPER persistence or mainnet health check failed" });
+  }
 });
 app.get("/api/executions", (_req, res) => {
-  try { res.json({ executions: coordinator().ledger.recent(100), summary: coordinator().ledger.summary() }); } catch (err) { res.status(503).json({ error: err.message }); }
+  try {
+    res.json({
+      executions: coordinator().ledger.recent(100),
+      summary: coordinator().ledger.summary(),
+    });
+  } catch (err) {
+    res.status(503).json({ error: err.message });
+  }
 });
-app.get("/api/backrun/status", (_req,res) => {
-  try { res.json(coordinator().status().backrun); } catch (_) { res.status(503).json({error:"Backrun status unavailable"}); }
+app.get("/api/backrun/status", (_req, res) => {
+  try {
+    res.json(coordinator().status().backrun);
+  } catch (_) {
+    res.status(503).json({ error: "Backrun status unavailable" });
+  }
 });
 for (const [endpoint, select] of [
-  ["recent-triggers", rows => rows],
-  ["candidates", rows => rows.filter(r => r.candidateId)],
-  ["simulations", rows => rows.filter(r => r.simulation)],
-]) app.get("/api/backrun/"+endpoint, (_req,res) => {
-  try { res.json({records:select(coordinator().backrun?.ledger.recent(100)||[])}); }
-  catch (_) { res.status(503).json({error:"Backrun records unavailable"}); }
-});
-app.get("/api/backrun/benchmark", (_req,res) => {
+  ["recent-triggers", (rows) => rows],
+  ["candidates", (rows) => rows.filter((r) => r.candidateId)],
+  ["simulations", (rows) => rows.filter((r) => r.simulation)],
+])
+  app.get("/api/backrun/" + endpoint, (_req, res) => {
+    try {
+      res.json({
+        records: select(coordinator().backrun?.ledger.recent(100) || []),
+      });
+    } catch (_) {
+      res.status(503).json({ error: "Backrun records unavailable" });
+    }
+  });
+app.get("/api/backrun/benchmark", (_req, res) => {
   try {
-    const c=coordinator(), file=c.profile.backrun.benchmarkPath;
-    res.json({benchmark:fs.existsSync(file)?JSON.parse(fs.readFileSync(file,"utf8")):null});
-  } catch (_) { res.status(503).json({error:"Benchmark unavailable"}); }
+    const c = coordinator(),
+      file = c.profile.backrun.benchmarkPath;
+    res.json({
+      benchmark: fs.existsSync(file)
+        ? JSON.parse(fs.readFileSync(file, "utf8"))
+        : null,
+    });
+  } catch (_) {
+    res.status(503).json({ error: "Benchmark unavailable" });
+  }
 });
-app.post("/api/backrun/triggers", (req,res) => {
+app.post("/api/backrun/triggers", (req, res) => {
   try {
-    const source=coordinator().backrun?.source;
-    if(!source?.feed) return res.status(409).json({error:"Custom order-flow source not running"});
-    const body=req.body;
-    if(!body || Object.keys(body).some(k=>!["hash","rawTx"].includes(k)) || !body.rawTx || !body.hash)
-      return res.status(400).json({error:"Signed raw transaction and hash required"});
-    require("../backrun/rawTransaction").validateRaw(body.rawTx,body.hash);
-    source.feed(body); res.status(202).json({accepted:true});
-  } catch (_) { res.status(400).json({error:"Invalid custom trigger"}); }
+    const source = coordinator().backrun?.source;
+    if (!source?.feed)
+      return res
+        .status(409)
+        .json({ error: "Custom order-flow source not running" });
+    const body = req.body;
+    if (
+      !body ||
+      Object.keys(body).some((k) => !["hash", "rawTx"].includes(k)) ||
+      !body.rawTx ||
+      !body.hash
+    )
+      return res
+        .status(400)
+        .json({ error: "Signed raw transaction and hash required" });
+    require("../backrun/rawTransaction").validateRaw(body.rawTx, body.hash);
+    source.feed(body);
+    res.status(202).json({ accepted: true });
+  } catch (_) {
+    res.status(400).json({ error: "Invalid custom trigger" });
+  }
 });
 
 // Winston logger for server.log
@@ -444,23 +537,29 @@ const requireLogApiKey = (req, res, next) => {
     return res.status(401).json({ error: "missing x-api-key header" });
   }
 
-  if (providedKey !== API_KEY) {
+  if (!safeKeyEqual(providedKey, API_KEY)) {
     return res.status(403).json({ error: "invalid x-api-key" });
   }
 
   return next();
 };
 
+// Log, alert, then exit: continuing after either of these leaves the process in
+// an unknown state. See server/utils/fatalExit.js.
 process.on("unhandledRejection", (reason) => {
   logger.error(
     `Unhandled Rejection: ${reason instanceof Error ? reason.message : reason}`
   );
+  exitAfterFatal();
 });
 
 process.on("uncaughtException", (err) => {
   logger.error(`Uncaught Exception: ${err.stack || err.message}`);
   arbFailure.labels("uncaught_exception").inc();
-  sendSlackAlert(`Uncaught Exception in API server: ${err.message}`);
+  Promise.resolve(
+    sendSlackAlert(`Uncaught Exception in API server: ${err.message}`)
+  ).catch(() => {});
+  exitAfterFatal();
 });
 
 const ARB_TIMEOUT_MS =
@@ -545,7 +644,8 @@ async function runArbWithTimeout(useFlashbots, contextLabel, scanOptions = {}) {
   });
 
   const arbPromise = simulateAndExecuteArb(useFlashbots, {
-    ...scanOptions, signal: controller.signal,
+    ...scanOptions,
+    signal: controller.signal,
   });
 
   try {
@@ -625,11 +725,20 @@ app.use((req, _res, next) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // In-memory bot settings
 // ─────────────────────────────────────────────────────────────────────────────
-const SETTINGS_FILE = process.env.SETTINGS_FILE || path.join(__dirname, "../.settings.json");
-function loadPersistedSettings() { return settingsPersistence.readSettings(SETTINGS_FILE, logger); }
-function savePersistedSettings(settings) { return settingsPersistence.writeSettings(SETTINGS_FILE, settings, logger); }
+const SETTINGS_FILE =
+  process.env.SETTINGS_FILE || path.join(__dirname, "../.settings.json");
+function loadPersistedSettings() {
+  return settingsPersistence.readSettings(SETTINGS_FILE, logger);
+}
+function savePersistedSettings(settings) {
+  return settingsPersistence.writeSettings(SETTINGS_FILE, settings, logger);
+}
 const persistedSettings = loadPersistedSettings();
-let botSettings = settingsPersistence.initialSettings(persistedSettings, process.env, logger);
+let botSettings = settingsPersistence.initialSettings(
+  persistedSettings,
+  process.env,
+  logger
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // REST endpoints
@@ -1115,7 +1224,8 @@ app.post(
       }
 
       const nextSettings = { ...botSettings, ...updates };
-      if (!savePersistedSettings(nextSettings)) throw new Error("Settings persistence failed");
+      if (!savePersistedSettings(nextSettings))
+        throw new Error("Settings persistence failed");
       botSettings = nextSettings;
 
       if (updates.minBorrowAmount !== undefined) {
@@ -1127,10 +1237,14 @@ app.post(
 
       if (process.env.NODE_ENV !== "test") {
         const overrides = coordinator().overrides;
-        if (updates.gasPriceCeiling !== undefined) overrides.gasCeilingGwei = String(updates.gasPriceCeiling);
-        if (updates.slippageBips !== undefined) overrides.slippageBps = updates.slippageBips;
-        if (updates.minBorrowAmount !== undefined) overrides.minBorrowAmount = String(updates.minBorrowAmount);
-        if (updates.simulationInputAmount !== undefined) overrides.maxBorrowAmount = String(updates.simulationInputAmount);
+        if (updates.gasPriceCeiling !== undefined)
+          overrides.gasCeilingGwei = String(updates.gasPriceCeiling);
+        if (updates.slippageBips !== undefined)
+          overrides.slippageBps = updates.slippageBips;
+        if (updates.minBorrowAmount !== undefined)
+          overrides.minBorrowAmount = String(updates.minBorrowAmount);
+        if (updates.simulationInputAmount !== undefined)
+          overrides.maxBorrowAmount = String(updates.simulationInputAmount);
         tradingState.paper(); // Changed settings require fresh explicit LIVE arming.
       }
       // Persist settings to disk
@@ -1573,11 +1687,12 @@ app.post("/api/simulate-arbitrage", async (req, res) => {
     const netProfit = grossProfit - gasCostEth * 1800; // Rough ETH to token conversion
 
     // ML score (mock if ML not available)
-    const mlScore = typeof mlScorer?.scoreRoute === "function"
-      ? await mlScorer
-          .scoreRoute({ hops, borrowAmount, gasPrice })
-          .catch(() => 0.5)
-      : 0.5 + Math.random() * 0.3;
+    const mlScore =
+      typeof mlScorer?.scoreRoute === "function"
+        ? await mlScorer
+            .scoreRoute({ hops, borrowAmount, gasPrice })
+            .catch(() => 0.5)
+        : 0.5 + Math.random() * 0.3;
 
     res.json({
       success: true,
@@ -1622,7 +1737,12 @@ app.get("/api/connext/status", async (req, res) => {
 
 // POST /api/connext/forward
 app.post("/api/connext/forward", async (req, res) => {
-  if (process.env.NODE_ENV !== "test") return res.status(409).json({error:"Cross-chain forwarding disabled in the production profile"});
+  if (process.env.NODE_ENV !== "test")
+    return res
+      .status(409)
+      .json({
+        error: "Cross-chain forwarding disabled in the production profile",
+      });
   try {
     const { token, amount } = req.body;
 
@@ -1763,7 +1883,8 @@ app.get("/api/timelock/operations/:operationId", async (req, res) => {
 const governanceSignerRequired = (_req, res) =>
   res.status(403).json({
     error: "governance signer required",
-    message: "Propose, execute and cancel timelock operations from the governance multisig",
+    message:
+      "Propose, execute and cancel timelock operations from the governance multisig",
   });
 app.post("/api/timelock/schedule", governanceSignerRequired);
 app.post("/api/timelock/execute/:operationId", governanceSignerRequired);
@@ -1876,15 +1997,20 @@ function startArbitrageScheduler() {
     pollIntervalMs: c.profile.blockPollIntervalMs,
     enabled: () => botSettings.botActive || c.ledger.pending().length > 0,
     cancellable: () => Boolean(c.marketCache.head),
-    budgetMs: () => c.marketCache.head ? c.profile.scanBudgetMs : 60000,
-    onError: err => notifyError("block_scheduler", err),
-    run: async options => {
+    budgetMs: () => (c.marketCache.head ? c.profile.scanBudgetMs : 60000),
+    onError: (err) => notifyError("block_scheduler", err),
+    run: async (options) => {
       const startTime = Date.now();
-      const result = await runArbWithTimeout(botSettings.flashbotsDefault, "block_scheduler", options);
+      const result = await runArbWithTimeout(
+        botSettings.flashbotsDefault,
+        "block_scheduler",
+        options
+      );
       const elapsed = Date.now() - startTime;
       simulationHistogram.observe(elapsed / 1000);
       avgLatency.set(elapsed);
-      if (result.executed) broadcastTradeExecuted({ ...result, timestamp: Date.now() });
+      if (result.executed)
+        broadcastTradeExecuted({ ...result, timestamp: Date.now() });
     },
   }).start();
   return c.scheduler;
@@ -1896,7 +2022,9 @@ function startArbitrageScheduler() {
 const buildPath = path.join(__dirname, "../../frontend/build");
 if (process.env.NODE_ENV !== "test") {
   app.use(express.static(buildPath));
-  app.get("/{*path}", (_req, res) => res.sendFile(path.join(buildPath, "index.html")));
+  app.get("/{*path}", (_req, res) =>
+    res.sendFile(path.join(buildPath, "index.html"))
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2002,7 +2130,12 @@ function initWebSocketServer(server) {
     return null;
   }
 
-  wss = new WebSocket.Server({ server, path: "/ws", verifyClient: info => safeKeyEqual(info.req.headers["x-api-key"], process.env.API_KEY) });
+  wss = new WebSocket.Server({
+    server,
+    path: "/ws",
+    verifyClient: (info) =>
+      safeKeyEqual(info.req.headers["x-api-key"], process.env.API_KEY),
+  });
 
   wss.on("connection", (ws, req) => {
     const clientIp = req.socket.remoteAddress;
@@ -2111,9 +2244,13 @@ const start = async (port = PORT) => {
   if (process.env.NODE_ENV !== "test") {
     const scheduler = startArbitrageScheduler();
     server.once("close", () => scheduler.stop());
-    const c=coordinator();
-    await c.startBackrun().catch(err=>{c.backrunStartError="Backrun startup failed; check dedicated fork, source and database";notifyError("backrun_start",new Error(c.backrunStartError));});
-    server.once("close",()=>c.stopBackrun());
+    const c = coordinator();
+    await c.startBackrun().catch((err) => {
+      c.backrunStartError =
+        "Backrun startup failed; check dedicated fork, source and database";
+      notifyError("backrun_start", new Error(c.backrunStartError));
+    });
+    server.once("close", () => c.stopBackrun());
   }
 
   return new Promise((resolve) => {
