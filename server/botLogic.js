@@ -9,6 +9,7 @@
  */
 
 const runtimeConfig = require("./utils/runtimeConfig");
+const { exitAfterFatal } = require("./utils/fatalExit");
 const fs = require("fs");
 const path = require("path");
 const axios = require("axios");
@@ -65,6 +66,7 @@ const {
   initConnextClient,
   forwardProfits,
   checkAutoForward,
+  tokenDecimals,
   getAccumulatedProfits,
   getDestinationInfo,
   checkTransferStatus,
@@ -262,12 +264,9 @@ const {
 // ─────────────────────────────────────────────────────────────────────────────
 const { getV3Quote } = require("./scripts/v3Utils");
 const { getVolatility } = require("./scripts/optimalParams");
-let initBalancer;
-let getBalancerQuote;
 if (features.balancer) {
   ({ initBalancer, getBalancerQuote } = require("./scripts/balancerUtils"));
 }
-let getCurveQuote;
 if (features.curve) {
   ({ getCurveQuote } = require("./scripts/curveUtils"));
 }
@@ -314,47 +313,6 @@ const logger = winston.createLogger({
   ],
 });
 
-const RECENT_OPPORTUNITY_LIMIT = 5;
-const recentOpportunities = [];
-
-function cloneSwapDataForStore(data) {
-  return {
-    borrowToken: data.borrowToken,
-    borrowAmount: data.borrowAmount ? data.borrowAmount.toString() : undefined,
-    steps: (data.steps || []).map((s) => ({
-      dexType: s.dexType,
-      router: s.router,
-      tokenIn: s.tokenIn,
-      tokenOut: s.tokenOut,
-      minAmountOut: ethers.BigNumber.isBigNumber(s.minAmountOut)
-        ? s.minAmountOut.toString()
-        : String(s.minAmountOut ?? "0"),
-      v3Fee: s.v3Fee,
-    })),
-    minProfit: data.minProfit ? data.minProfit.toString() : "0",
-    route: data.route,
-  };
-}
-
-function recordOpportunity(opportunity) {
-  recentOpportunities.unshift(opportunity);
-  if (recentOpportunities.length > RECENT_OPPORTUNITY_LIMIT) {
-    recentOpportunities.length = RECENT_OPPORTUNITY_LIMIT;
-  }
-
-  // Emit event for real-time WebSocket broadcast
-  eventBus.emitOpportunity(opportunity);
-}
-
-function getRecentOpportunities() {
-  return recentOpportunities.slice();
-}
-
-// Whether to broadcast arb txs to the public mempool when private relays fail.
-// Off by default — a public arbitrage tx gets front-run/sandwiched.
-const ALLOW_PUBLIC_FALLBACK =
-  process.env.ALLOW_PUBLIC_MEMPOOL_FALLBACK === "true";
-
 // Off-chain circuit breaker — gates trading on cascading losses / failures.
 const circuitBreaker = getCircuitBreaker({
   dailyDrawdownLimitDAI: parseFloat(
@@ -362,46 +320,26 @@ const circuitBreaker = getCircuitBreaker({
   ),
 });
 
-// Feed a real execution outcome (success/revert) to the circuit breaker. Idle
-// "no opportunity" cycles must NOT be recorded here, or the breaker trips on a
-// quiet market.
-function recordTradeOutcome({ success, profit, gasPrice }) {
-  try {
-    circuitBreaker.recordResult({
-      success: Boolean(success),
-      profit: ethers.BigNumber.isBigNumber(profit)
-        ? profit
-        : ethers.BigNumber.from(profit || 0),
-      gasPrice,
-    });
-  } catch (e) {
-    logger.warn(`[circuitBreaker] recordResult failed: ${e.message}`);
-  }
-}
-
 // Helper wrapped with safeAsync using the configured logger
 const safeFetchReserves = safeAsync(fetchMulticallReservesForRoute, logger);
 
+// Log, alert, then exit: continuing after either of these leaves the process in
+// an unknown state. See server/utils/fatalExit.js.
 process.on("unhandledRejection", (reason) => {
   logger.error(
     `Unhandled Rejection: ${reason instanceof Error ? reason.message : reason}`
   );
+  exitAfterFatal();
 });
 
 process.on("uncaughtException", (err) => {
   logger.error(`Uncaught Exception: ${err.stack || err.message}`);
   arbFailure.labels("uncaught_exception").inc();
-  sendSlackAlert(`Uncaught Exception in bot process: ${err.message}`);
+  Promise.resolve(
+    sendSlackAlert(`Uncaught Exception in bot process: ${err.message}`)
+  ).catch(() => {});
+  exitAfterFatal();
 });
-
-const throwIfAborted = (signal) => {
-  if (signal?.aborted) {
-    const abortError = new Error("Arbitrage execution aborted");
-    abortError.name = "AbortError";
-    abortError.metricReason = "timeout";
-    throw abortError;
-  }
-};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Environment & Config (adjusted)
@@ -553,7 +491,9 @@ function getChainContext(chain) {
       url: rpcUrl,
       timeout: 120_000,
     });
-    const wallet = PRIVATE_KEY ? new ethers.Wallet(PRIVATE_KEY, provider) : provider;
+    const wallet = PRIVATE_KEY
+      ? new ethers.Wallet(PRIVATE_KEY, provider)
+      : provider;
 
     // Get network-specific DEX routers
     const dexRouters = getCachedDexRouters(chain);
@@ -598,69 +538,6 @@ function getChainContext(chain) {
   }
   return chainContexts.get(chain);
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Global constants (parsed as ints/floats)
-// ─────────────────────────────────────────────────────────────────────────────
-const SLIPPAGE_DEFAULT_INT = SLIPPAGE_DEFAULT_BIPS
-  ? parseInt(SLIPPAGE_DEFAULT_BIPS, 10)
-  : parseInt(OPTIONAL_ENV_DEFAULTS.SLIPPAGE_DEFAULT_BIPS, 10);
-const GAS_CEILING_BN = ethers.utils.parseUnits(
-  GAS_PRICE_CEILING || OPTIONAL_ENV_DEFAULTS.GAS_PRICE_CEILING,
-  "gwei"
-);
-const ZSCORE_THRESH = parseFloat(
-  ZSCORE_THRESHOLD || OPTIONAL_ENV_DEFAULTS.ZSCORE_THRESHOLD
-);
-const ML_TOP_K = parseInt(ML_TOPK || OPTIONAL_ENV_DEFAULTS.ML_TOPK, 10);
-const BUNDLE_COUNT = parseInt(
-  FLASHBOTS_BUNDLE_COUNT || OPTIONAL_ENV_DEFAULTS.FLASHBOTS_BUNDLE_COUNT,
-  10
-);
-const CB_NEG_THRESH_INT = parseInt(
-  CB_NEG_THRESHOLD || OPTIONAL_ENV_DEFAULTS.CB_NEG_THRESHOLD,
-  10
-);
-const DAILY_DD_LIMIT_DAI = ethers.utils.parseUnits(
-  DAILY_DRAWDOWN_LIMIT_DAI || OPTIONAL_ENV_DEFAULTS.DAILY_DRAWDOWN_LIMIT_DAI,
-  18
-);
-const REALTIME_POOL_LIMIT = parseInt(
-  REALTIME_POOL_COUNT || OPTIONAL_ENV_DEFAULTS.REALTIME_POOL_COUNT,
-  10
-);
-const ROUTE_TOPN_LIMIT = parseInt(
-  DYNAMIC_ROUTE_TOPN || OPTIONAL_ENV_DEFAULTS.DYNAMIC_ROUTE_TOPN,
-  10
-);
-const ROUTE_MAX_HOPS = parseInt(
-  DYNAMIC_ROUTE_HOPS || OPTIONAL_ENV_DEFAULTS.DYNAMIC_ROUTE_HOPS,
-  10
-);
-const FLASHLOAN_PREMIUM_INT = parseInt(
-  FLASHLOAN_PREMIUM_BIPS || OPTIONAL_ENV_DEFAULTS.FLASHLOAN_PREMIUM_BIPS,
-  10
-);
-const PRIO_PERCENT_INT = parseInt(
-  PRIO_PERCENT || OPTIONAL_ENV_DEFAULTS.PRIO_PERCENT,
-  10
-);
-const PRIO_FEE_MAX = ethers.utils.parseUnits(
-  PRIO_FEE_MAX_GWEI || OPTIONAL_ENV_DEFAULTS.PRIO_FEE_MAX_GWEI,
-  "gwei"
-);
-const TIP_RETRY_LIMIT = parseInt(
-  TIP_RETRY_COUNT || OPTIONAL_ENV_DEFAULTS.TIP_RETRY_COUNT,
-  10
-);
-const TIP_MULTIPLIER_NUM_INT = parseInt(
-  TIP_MULTIPLIER_NUM || OPTIONAL_ENV_DEFAULTS.TIP_MULTIPLIER_NUM,
-  10
-);
-const TIP_MULTIPLIER_DEN_INT = parseInt(
-  TIP_MULTIPLIER_DEN || OPTIONAL_ENV_DEFAULTS.TIP_MULTIPLIER_DEN,
-  10
-);
 
 slippageAgent = initSlippageAgent({
   continuous: (RL_CONTINUOUS || OPTIONAL_ENV_DEFAULTS.RL_CONTINUOUS) === "true",
@@ -827,562 +704,21 @@ const minimalRouterABI = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
-// Heuristic state
-// ─────────────────────────────────────────────────────────────────────────────
-let consecutiveNegatives = 0;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helper Functions: Slippage, Aave Liquidity & Borrow Calculations
-// ─────────────────────────────────────────────────────────────────────────────
-function calculateMinOut(amountOut, slippageBips) {
-  return amountOut
-    .mul(BigNumber.from(10000 - slippageBips))
-    .div(BigNumber.from(10000));
-}
-
-async function getAvailableLiquidity(token, chain) {
-  const { provider } = getChainContext(chain);
-  const providerAddr = AAVE_LENDING_POOL_ADDRESS_PROVIDER;
-  const lpProvider = new ethers.Contract(
-    providerAddr,
-    ["function getLendingPool() view returns (address)"],
-    provider
-  );
-  let poolAddr;
-  try {
-    poolAddr = await lpProvider.getLendingPool();
-  } catch (err) {
-    logger.error(
-      `[${chain}] Failed to get Aave LendingPool address: ${err.message}`
-    );
-    return BigNumber.from(0);
-  }
-  const lendingPool = new ethers.Contract(
-    poolAddr,
-    [
-      "function getReserveData(address) view returns (uint256 totalLiquidity, uint256 availableLiquidity, uint256 totalStableDebt, uint256 totalVariableDebt, uint256 liquidityRate, uint256 variableBorrowRate, uint256 stableBorrowRate, uint256 averageStableBorrowRate, uint256 liquidityIndex, uint256 variableBorrowIndex, uint40 lastUpdateTimestamp)",
-    ],
-    provider
-  );
-  try {
-    const reserveData = await lendingPool.getReserveData(tokenAddresses[token]);
-    logger.info(
-      `[${chain}] Aave available liquidity for ${token}: ${ethers.utils.formatUnits(
-        reserveData.availableLiquidity,
-        18
-      )}`
-    );
-    return reserveData.availableLiquidity;
-  } catch (err) {
-    logger.error(`[${chain}] Failed reserveData for ${token}: ${err.message}`);
-    return BigNumber.from(0);
-  }
-}
-
-async function getOptimalBorrowAmount(token, chain) {
-  const availableLiquidity = await getAvailableLiquidity(token, chain);
-  if (availableLiquidity.isZero()) {
-    logger.info(
-      `[${chain}] Aave reports zero available liquidity for ${token}.`
-    );
-    return BigNumber.from(0);
-  }
-  // Upper bound for the optimal-sizing search (the per-route profit-maximising
-  // size is chosen later in selectBestRoute). Capped by Aave liquidity and a
-  // configurable ceiling so we never propose an absurd borrow.
-  const ceiling = ethers.utils.parseUnits(
-    process.env.MAX_BORROW_DAI || "100000",
-    18
-  );
-  const cap = ceiling.lte(availableLiquidity) ? ceiling : availableLiquidity;
-  logger.info(
-    `[${chain}] Borrow ceiling for ${token}: ${ethers.utils.formatUnits(
-      cap,
-      18
-    )}`
-  );
-  return cap;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Statistical Filtering: Z-Score Computation
-// ─────────────────────────────────────────────────────────────────────────────
-function computeZScore(values) {
-  if (!values.length) return [];
-  const mean = stats.mean(values);
-  const stdev = stats.standardDeviation(values);
-  return values.map((p) => (p - mean) / (stdev || 1));
-}
-
-/**
- * Compute multi-metric Z-score combining price ratio and liquidity
- * This provides better filtering by considering both opportunity size and execution reliability.
- *
- * @param {Array} routes - Array of route definitions
- * @param {object} weights - Weights for each metric { priceRatio: 0.7, liquidity: 0.3 }
- * @returns {number[]} - Composite Z-scores
- */
-function computeMultiMetricZScore(
-  routes,
-  weights = { priceRatio: 0.7, liquidity: 0.3 }
-) {
-  if (!routes.length) return [];
-
-  // Extract metrics
-  const priceRatios = routes.map((r) => r.estimatedPriceRatio || 1);
-  const liquidities = routes.map((r) => {
-    // Get minimum liquidity across all hops (bottleneck)
-    if (r.hops && r.hops.length > 0) {
-      const hopLiqs = r.hops
-        .map((h) => h.liquidity || h.reserveUSD || 0)
-        .filter((l) => l > 0);
-      return hopLiqs.length > 0 ? Math.min(...hopLiqs) : 0;
-    }
-    return r.liquidity || 0;
-  });
-
-  // Compute individual Z-scores
-  const priceZScores = computeZScore(priceRatios);
-  const liquidityZScores = computeZScore(liquidities);
-
-  // Combine with weights - higher price ratio is better, higher liquidity is better
-  // For price ratio: positive Z-score means above average (good)
-  // For liquidity: positive Z-score means above average (good)
-  const compositeScores = routes.map((_, i) => {
-    const priceComponent = priceZScores[i] * weights.priceRatio;
-    const liquidityComponent = liquidityZScores[i] * weights.liquidity;
-    return priceComponent + liquidityComponent;
-  });
-
-  return compositeScores;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // ML Feature Enrichment: Compute missing features for routes
 // ─────────────────────────────────────────────────────────────────────────────
-
-// Gas cost estimates by DEX type (in gas units)
-const GAS_ESTIMATES = {
-  uniswap_v2: 60000,
-  sushiswap_v2: 60000,
-  uniswap_v3: 100000,
-  balancer: 120000,
-  curve: 150000,
-  default: 80000,
-};
-
-/**
- * Query historical success count for routes from the database
- * @param {Array} routeDefs - Array of route definitions
- * @returns {Map} - Map of route hash to success count
- */
-async function getHistoricalSuccessCounts(routeDefs) {
-  const successMap = new Map();
-
-  if (!isDbEnabled() || !dbPool) {
-    return successMap;
-  }
-
-  try {
-    // Query successful trades from last 7 days, grouped by route
-    const result = await dbPool.query(`
-      SELECT route, COUNT(*) as success_count
-      FROM trades
-      WHERE status = 'success'
-        AND timestamp > NOW() - INTERVAL '7 days'
-      GROUP BY route
-    `);
-
-    for (const row of result.rows) {
-      successMap.set(row.route, parseInt(row.success_count, 10));
-    }
-  } catch (err) {
-    logger.warn(
-      `[enrichRoutes] Failed to query historical success: ${err.message}`
-    );
-  }
-
-  return successMap;
-}
-
-/**
- * Generate a unique key for a route (for matching with historical data)
- * @param {object} route - Route definition
- * @returns {string} - Route key
- */
-function getRouteKey(route) {
-  if (!route.hops || !route.hops.length) return "";
-  return route.hops
-    .map((h) => `${h.poolAddress || h.tokenA}-${h.dex || "v2"}`)
-    .join("->");
-}
-
-/**
- * Estimate gas cost for a route based on DEX types and hop count
- * @param {object} route - Route definition
- * @returns {number} - Estimated gas units
- */
-function estimateGasCost(route) {
-  if (!route.hops || !route.hops.length) return GAS_ESTIMATES.default;
-
-  let totalGas = 21000; // Base transaction cost
-  for (const hop of route.hops) {
-    const dexType = hop.dex || "uniswap_v2";
-    totalGas += GAS_ESTIMATES[dexType] || GAS_ESTIMATES.default;
-  }
-
-  return totalGas;
-}
-
-/**
- * Enrich routes with computed features for ML scoring
- * @param {Array} routeDefs - Array of route definitions
- * @returns {Promise<Array>} - Enriched route definitions
- */
-async function enrichRoutesWithFeatures(routeDefs) {
-  if (!routeDefs || !routeDefs.length) return routeDefs;
-
-  // Get market volatility (cached, from CoinGecko)
-  let marketVolatility = 2; // Default 2%
-  try {
-    marketVolatility = await getVolatility();
-  } catch (err) {
-    logger.warn(`[enrichRoutes] Failed to get volatility: ${err.message}`);
-  }
-
-  // Get historical success counts
-  const successMap = await getHistoricalSuccessCounts(routeDefs);
-
-  // Enrich each route
-  for (const route of routeDefs) {
-    // 1. Volatility: Base market volatility adjusted by route complexity
-    // More hops = more compounding slippage risk
-    const hopMultiplier = route.hops ? 1 + (route.hops.length - 2) * 0.1 : 1;
-    route.volatility = marketVolatility * hopMultiplier;
-
-    // 2. Estimated gas cost based on DEX types
-    route.estimatedGasCost = estimateGasCost(route);
-
-    // 3. Historical success count from DB
-    const routeKey = getRouteKey(route);
-    route.historicalSuccessCount = successMap.get(routeKey) || 0;
-
-    // 4. Compute aggregate fee if not already set
-    if (!route.fee && route.hops) {
-      route.fee = route.hops.reduce(
-        (sum, h) => sum + (h.feeBps || h.fee || 30),
-        0
-      );
-    }
-
-    // 5. Compute aggregate liquidity if not already set
-    if (!route.liquidity && route.hops) {
-      const liquidities = route.hops
-        .map((h) => h.liquidity || h.reserveUSD || 0)
-        .filter((l) => l > 0);
-      route.liquidity = liquidities.length > 0 ? Math.min(...liquidities) : 0;
-    }
-  }
-
-  logger.info(
-    `[enrichRoutes] Enriched ${
-      routeDefs.length
-    } routes with features (volatility=${marketVolatility.toFixed(2)}%)`
-  );
-
-  return routeDefs;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ML Scoring: Attach score to each route via ML microservice (with heuristic fallback)
 // ─────────────────────────────────────────────────────────────────────────────
 const mlScorer = require("./scripts/mlScorer");
 
-async function scoreRoutesWithML(routeDefs) {
-  try {
-    // First enrich routes with computed features
-    const enrichedRoutes = await enrichRoutesWithFeatures(routeDefs);
-
-    const features = enrichedRoutes.map((r) => [
-      r.hops.length,
-      r.liquidity || 0,
-      r.fee || 3000,
-      r.volatility || 0,
-      r.estimatedGasCost || 0,
-      r.historicalSuccessCount || 0,
-    ]);
-
-    // Use mlScorer which has both ML endpoint and heuristic fallback
-    const probabilities = await mlScorer.score(features);
-
-    enrichedRoutes.forEach((r, i) => {
-      r.score = probabilities[i] || 0;
-    });
-
-    logger.info(
-      `[scoreRoutesWithML] Assigned scores to ${
-        enrichedRoutes.length
-      } routes (using ${
-        ML_MODEL_ENDPOINT ? "ML endpoint" : "heuristic fallback"
-      }).`
-    );
-
-    return enrichedRoutes.sort((a, b) => b.score - a.score);
-  } catch (err) {
-    logger.warn(
-      `[scoreRoutesWithML] Scoring error: ${err.message}. Proceeding without ranking.`
-    );
-    return routeDefs;
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Parallel Simulation via Worker Threads (using workerSimulator.js)
-// ─────────────────────────────────────────────────────────────────────────────
-function parallelSimulate(routes, amountIn, slippageBips) {
-  return new Promise((resolve) => {
-    const results = [];
-    let completed = 0;
-    routes.forEach((route) => {
-      const worker = new Worker(
-        path.join(__dirname, "scripts", "workerSimulator.js"),
-        {
-          workerData: { route, amountIn: amountIn.toString(), slippageBips },
-        }
-      );
-      worker.on("message", (msg) => {
-        if (msg.error) {
-          logger.warn(`Worker error for route ${msg.routeId}: ${msg.error}`);
-          results.push({
-            routeId: msg.routeId,
-            result: BigNumber.from(0),
-          });
-        } else {
-          results.push({
-            routeId: msg.routeId,
-            /* worker guarantees a wei-scaled string → safe BigNumber */
-            result: BigNumber.from(msg.result),
-          });
-        }
-        completed++;
-        if (completed === routes.length) {
-          logger.info(
-            `Parallel simulation completed for ${routes.length} routes.`
-          );
-          resolve(results);
-        }
-      });
-      worker.on("error", () => {
-        completed++;
-        if (completed === routes.length) {
-          logger.warn(
-            `Parallel simulation encountered errors but finished all ${routes.length} routes.`
-          );
-          resolve(results);
-        }
-      });
-    });
-  });
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Fetch Top Liquidity Pools & Generate Routes per Chain
 // ─────────────────────────────────────────────────────────────────────────────
 async function getAllRoutes(chain = "ethereum") {
   if (chain !== "ethereum") return [];
-  return (await require("./bot/coordinator").getCoordinator().discover()).candidates;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Select Best Route by Simulating (possibly parallelized)
-// ─────────────────────────────────────────────────────────────────────────────
-/**
- * Price-impact-aware evaluation of a route. Builds oriented per-hop reserves from
- * the live caches (exact V2; V3 via virtual reserves) and returns the
- * profit-maximising borrow size plus the realistic net profit at that size.
- * Returns { confident:false } when any hop lacks local reserve data (Curve/
- * Balancer) so those routes defer to the coarse simulator + on-chain guard.
- */
-function evaluateRouteRealistic(route, borrowToken, maxInput, premiumBps) {
-  try {
-    if (!route || !Array.isArray(route.hops) || route.hops.length === 0) {
-      return { confident: false };
-    }
-    const borrow = borrowToken.toLowerCase();
-    let current = borrow;
-    const hops = [];
-
-    for (const hop of route.hops) {
-      const a = (hop.tokenA || "").toLowerCase();
-      const b = (hop.tokenB || "").toLowerCase();
-      if (!a || !b || !hop.poolAddress) return { confident: false };
-
-      let tokenIn, tokenOut;
-      if (a === current) {
-        tokenIn = a;
-        tokenOut = b;
-      } else if (b === current) {
-        tokenIn = b;
-        tokenOut = a;
-      } else if (hops.length === 0) {
-        tokenIn = a;
-        tokenOut = b;
-      } else {
-        return { confident: false }; // broken token continuity
-      }
-      current = tokenOut;
-
-      const dex = (hop.dex || "uniswap_v2").toLowerCase();
-      const feeBps = Number.isFinite(hop.feeBps)
-        ? hop.feeBps
-        : dex.includes("v3") && hop.fee
-        ? Math.max(1, Math.round(hop.fee / 100))
-        : 30;
-      // V2 & V3 both sort token0 = lower address.
-      const inIsToken0 = tokenIn < tokenOut;
-
-      let reserveIn, reserveOut;
-      if (dex.includes("v3")) {
-        const c = v3PriceCache.get(hop.poolAddress);
-        if (!c || !c.sqrtPriceX96 || !c.liquidity) return { confident: false };
-        const { reserve0, reserve1 } = ammV3VirtualReserves(
-          c.sqrtPriceX96,
-          c.liquidity
-        );
-        if (reserve0.lte(0) || reserve1.lte(0)) return { confident: false };
-        reserveIn = inIsToken0 ? reserve0 : reserve1;
-        reserveOut = inIsToken0 ? reserve1 : reserve0;
-      } else if (
-        dex === "uniswap_v2" ||
-        dex === "sushiswap_v2" ||
-        dex === "sushiswap"
-      ) {
-        const c = reserveCache.get(hop.poolAddress);
-        if (!c || c.reserve0 == null || c.reserve1 == null) {
-          return { confident: false };
-        }
-        const r0 = BigNumber.from(c.reserve0);
-        const r1 = BigNumber.from(c.reserve1);
-        if (r0.lte(0) || r1.lte(0)) return { confident: false };
-        reserveIn = inIsToken0 ? r0 : r1;
-        reserveOut = inIsToken0 ? r1 : r0;
-      } else {
-        return { confident: false }; // Curve/Balancer: no local reserve model
-      }
-      hops.push({ reserveIn, reserveOut, feeBps });
-    }
-
-    if (current !== borrow) return { confident: false }; // must cycle back to borrow token
-
-    const { input, output, profit } = findOptimalInput({
-      hops,
-      maxInput,
-      premiumBps,
-    });
-    return { confident: true, optimalInput: input, output, profit };
-  } catch (_) {
-    return { confident: false };
-  }
-}
-
-async function selectBestRoute(amountIn, slippageBips, routeList) {
-  let best = null;
-  let bestOut = BigNumber.from(0);
-
-  // Use multi-metric Z-score combining price ratio and liquidity
-  // This provides better filtering by considering both opportunity size and execution reliability
-  const multiMetricZScores = computeMultiMetricZScore(routeList);
-
-  // Filter routes with composite Z-score above threshold (positive = above average)
-  let candidates = routeList.filter(
-    (r, i) => multiMetricZScores[i] > ZSCORE_THRESH
-  );
-
-  logger.info(
-    `[selectBestRoute] Multi-metric Z-score filtered ${routeList.length} routes down to ${candidates.length} (threshold=${ZSCORE_THRESH}).`
-  );
-
-  if (!candidates.length) {
-    // Fallback: take top 50% by composite score if none exceed threshold
-    const sortedByScore = routeList
-      .map((r, i) => ({ route: r, zScore: multiMetricZScores[i] }))
-      .sort((a, b) => b.zScore - a.zScore)
-      .slice(0, Math.max(1, Math.floor(routeList.length / 2)))
-      .map((item) => item.route);
-
-    candidates = sortedByScore;
-    logger.info(
-      `[selectBestRoute] No routes exceeded threshold; using top ${candidates.length} by composite score.`
-    );
-  }
-
-  candidates = await scoreRoutesWithML(candidates);
-  candidates = candidates.slice(0, ML_TOP_K);
-  logger.info(
-    `After ML scoring, retaining top ${candidates.length} routes for simulation.`
-  );
-
-  let optimalBorrow = BigNumber.from(0);
-  const simStart = Date.now();
-
-  // Price-impact-aware ranking: evaluate each candidate's REAL net profit at its
-  // optimal trade size. This filters out phantom spot-only cycles before they
-  // ever reach an on-chain gas estimate, and picks the profit-maximising size.
-  const evaluated = candidates
-    .map((route) => ({
-      route,
-      ev: evaluateRouteRealistic(
-        route,
-        tokenAddresses.DAI,
-        amountIn,
-        FLASHLOAN_PREMIUM_INT
-      ),
-    }))
-    .filter((e) => e.ev && e.ev.confident && e.ev.profit.gt(0));
-  evaluated.sort((a, b) => (b.ev.profit.gt(a.ev.profit) ? 1 : -1));
-
-  if (evaluated.length) {
-    const top = evaluated[0];
-    best = top.route;
-    bestOut = top.ev.output;
-    optimalBorrow = top.ev.optimalInput;
-    logger.info(
-      `[selectBestRoute] impact-aware winner id=${
-        best.id
-      } size=${ethers.utils.formatUnits(
-        optimalBorrow,
-        18
-      )} DAI projProfit=${ethers.utils.formatUnits(top.ev.profit, 18)} DAI`
-    );
-  } else {
-    // No confident-profitable route (e.g. Curve/Balancer hops without local
-    // reserve data). Fall back to the coarse worker simulator; the on-chain
-    // profit-or-revert guard still protects execution.
-    const sims = await parallelSimulate(candidates, amountIn, slippageBips);
-    sims.forEach(({ routeId, result }) => {
-      const route = candidates.find((r) => r.id === routeId);
-      if (result.gt(bestOut)) {
-        bestOut = result;
-        best = route;
-      }
-    });
-    if (best) optimalBorrow = amountIn;
-    logger.info(
-      `[selectBestRoute] no impact-aware winner; used coarse simulation fallback.`
-    );
-  }
-
-  const simEnd = Date.now();
-  simulationHistogram.observe((simEnd - simStart) / 1000);
-  avgLatency.set(simEnd - simStart);
-  logger.info(`Route evaluation took ${simEnd - simStart} ms.`);
-
-  if (!best) {
-    logger.info(`No route yielded positive output after evaluation.`);
-  }
-
-  return { bestRoute: best, bestOut, optimalBorrow };
+  return (await require("./bot/coordinator").getCoordinator().discover())
+    .candidates;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1422,151 +758,15 @@ async function computeDailyPnL() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// On-Chain Sanity Check - Verify prices before execution
-// ─────────────────────────────────────────────────────────────────────────────
-const SANITY_CHECK_MAX_DEVIATION_BPS = 100; // 1% max price deviation allowed
-
-/**
- * Performs on-chain sanity check before execution.
- * Verifies that pool reserves/prices haven't moved significantly since simulation.
- * @param {Object} route - The route to check
- * @param {Object} provider - Ethers provider for on-chain calls
- * @returns {Promise<{passed: boolean, reason?: string, details?: Object}>}
- */
-async function performOnChainSanityCheck(route, provider) {
-  if (!route || !route.hops || route.hops.length === 0) {
-    return { passed: true, reason: "No hops to check" };
-  }
-
-  const deviations = [];
-  const pairInterface = new ethers.utils.Interface([
-    "function getReserves() view returns (uint112,uint112,uint32)",
-  ]);
-  const v3Interface = new ethers.utils.Interface([
-    "function slot0() view returns (uint160 sqrtPriceX96, int24 tick, uint16, uint16, uint16, uint8, bool)",
-  ]);
-
-  for (const hop of route.hops) {
-    if (!hop.poolAddress || !ethers.utils.isAddress(hop.poolAddress)) continue;
-
-    try {
-      const dex = hop.dex || "uniswap_v2";
-
-      if (dex === "uniswap_v2" || dex === "sushiswap_v2") {
-        // V2 pools - check reserves
-        const cached = reserveCache.get(hop.poolAddress);
-        if (!cached) continue;
-
-        const contract = new ethers.Contract(
-          hop.poolAddress,
-          pairInterface,
-          provider
-        );
-        const [r0, r1] = await contract.getReserves();
-        const onChainR0 = r0.toString();
-        const onChainR1 = r1.toString();
-
-        // Calculate deviation for reserve0
-        const cachedR0 = BigNumber.from(cached.reserve0);
-        const freshR0 = BigNumber.from(onChainR0);
-        if (!cachedR0.isZero()) {
-          const diff0 = freshR0.sub(cachedR0).abs();
-          const devBps0 = diff0.mul(10000).div(cachedR0);
-          deviations.push({
-            pool: hop.poolAddress,
-            dex,
-            metric: "reserve0",
-            devBps: devBps0.toNumber(),
-          });
-        }
-
-        // Calculate deviation for reserve1
-        const cachedR1 = BigNumber.from(cached.reserve1);
-        const freshR1 = BigNumber.from(onChainR1);
-        if (!cachedR1.isZero()) {
-          const diff1 = freshR1.sub(cachedR1).abs();
-          const devBps1 = diff1.mul(10000).div(cachedR1);
-          deviations.push({
-            pool: hop.poolAddress,
-            dex,
-            metric: "reserve1",
-            devBps: devBps1.toNumber(),
-          });
-        }
-      } else if (dex === "uniswap_v3") {
-        // V3 pools - check sqrtPriceX96
-        const cached = v3PriceCache.get(hop.poolAddress);
-        if (!cached) continue;
-
-        const contract = new ethers.Contract(
-          hop.poolAddress,
-          v3Interface,
-          provider
-        );
-        const slot0 = await contract.slot0();
-        const onChainPrice = slot0.sqrtPriceX96.toString();
-
-        const cachedPrice = BigNumber.from(cached.sqrtPriceX96);
-        const freshPrice = BigNumber.from(onChainPrice);
-        if (!cachedPrice.isZero()) {
-          const diff = freshPrice.sub(cachedPrice).abs();
-          const devBps = diff.mul(10000).div(cachedPrice);
-          deviations.push({
-            pool: hop.poolAddress,
-            dex,
-            metric: "sqrtPriceX96",
-            devBps: devBps.toNumber(),
-          });
-        }
-      }
-    } catch (err) {
-      logger.warn(
-        `[sanityCheck] Failed to verify pool ${hop.poolAddress}: ${err.message}`
-      );
-      // Don't fail the check if we can't read one pool - might be a transient RPC issue
-    }
-  }
-
-  // Check if any deviation exceeds threshold
-  const maxDeviation = Math.max(...deviations.map((d) => d.devBps), 0);
-  const failedPools = deviations.filter(
-    (d) => d.devBps > SANITY_CHECK_MAX_DEVIATION_BPS
-  );
-
-  if (failedPools.length > 0) {
-    const reason = `Price deviation exceeds ${
-      SANITY_CHECK_MAX_DEVIATION_BPS / 100
-    }% for ${failedPools.length} pool(s): ${failedPools
-      .map((p) => `${p.pool.slice(0, 10)}... (${p.devBps / 100}%)`)
-      .join(", ")}`;
-    logger.warn(`[sanityCheck] FAILED: ${reason}`);
-    return {
-      passed: false,
-      reason,
-      details: {
-        maxDeviationBps: maxDeviation,
-        failedPools,
-        allDeviations: deviations,
-      },
-    };
-  }
-
-  logger.info(
-    `[sanityCheck] PASSED: Max deviation ${maxDeviation / 100}% (threshold ${
-      SANITY_CHECK_MAX_DEVIATION_BPS / 100
-    }%)`
-  );
-  return {
-    passed: true,
-    details: { maxDeviationBps: maxDeviation, checkedPools: deviations.length },
-  };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Main Simulation & Execution Loop for One Chain
 // ─────────────────────────────────────────────────────────────────────────────
-async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = {}) {
-  if (chain !== "ethereum") throw new Error("Production execution is Ethereum-only");
+async function simulateAndExecuteArbChain(
+  chain,
+  useFlashbots = true,
+  options = {}
+) {
+  if (chain !== "ethereum")
+    throw new Error("Production execution is Ethereum-only");
   const coordinator = require("./bot/coordinator").getCoordinator();
   const cb = circuitBreaker.canTrade();
   if (!cb.allowed) return { executed: false, reason: cb.reason };
@@ -1582,9 +782,11 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Initialize Connext client for cross-chain profit forwarding
- * NOTE: Connext is ENABLED BY DEFAULT when CONNEXT_ADAPTER_ADDRESS is set.
- * Set CONNEXT_AUTO_FORWARD=false to disable auto-forwarding.
+ * Initialize Connext client for cross-chain profit forwarding.
+ * The client is initialised when CONNEXT_ADAPTER_ADDRESS is set, but
+ * auto-forwarding is OFF unless CONNEXT_AUTO_FORWARD=true. The adapter pulls
+ * forwarded tokens from its owner, which is the signer here: use a dedicated
+ * treasury key, not the hot trading key, before enabling it.
  */
 async function initConnext(chain) {
   const connextAdapterAddress = process.env.CONNEXT_ADAPTER_ADDRESS;
@@ -1595,10 +797,8 @@ async function initConnext(chain) {
     return false;
   }
 
-  // Auto-forward is ENABLED by default when adapter is configured
-  // Set CONNEXT_AUTO_FORWARD=false to explicitly disable
-  const autoForwardEnv = process.env.CONNEXT_AUTO_FORWARD;
-  connextAutoForwardEnabled = autoForwardEnv !== "false"; // Enabled unless explicitly "false"
+  // Auto-forward moves funds cross-chain, so it is strictly opt-in.
+  connextAutoForwardEnabled = process.env.CONNEXT_AUTO_FORWARD === "true";
 
   try {
     const { provider, wallet } = getChainContext(chain);
@@ -1608,14 +808,10 @@ async function initConnext(chain) {
       signer: wallet,
       config: {
         autoForwardEnabled: connextAutoForwardEnabled,
-        autoForwardThreshold: ethers.utils.parseUnits(
+        // Whole tokens; the client scales them by each token's decimals.
+        autoForwardThreshold:
           process.env.CONNEXT_AUTO_FORWARD_THRESHOLD || "100",
-          18
-        ),
-        minForwardAmount: ethers.utils.parseUnits(
-          process.env.CONNEXT_MIN_FORWARD_AMOUNT || "10",
-          18
-        ),
+        minForwardAmount: process.env.CONNEXT_MIN_FORWARD_AMOUNT || "10",
       },
     });
     connextInitialized = true;
@@ -1657,6 +853,7 @@ async function checkAndForwardProfits(token, profitAmount) {
 
     // Check if auto-forward should be triggered
     const autoForwardCheck = await checkAutoForward(token);
+    const decimals = await tokenDecimals(token);
 
     const baseStatus = {
       connextEnabled: true,
@@ -1664,11 +861,11 @@ async function checkAndForwardProfits(token, profitAmount) {
       accumulatedProfits: accumulatedBalance.toString(),
       accumulatedProfitsFormatted: ethers.utils.formatUnits(
         accumulatedBalance,
-        18
+        decimals
       ),
       pendingTransfers: pendingTransfersList.length,
       threshold: autoForwardCheck.threshold
-        ? ethers.utils.formatUnits(autoForwardCheck.threshold, 18)
+        ? ethers.utils.formatUnits(autoForwardCheck.threshold, decimals)
         : null,
     };
 
@@ -1676,7 +873,7 @@ async function checkAndForwardProfits(token, profitAmount) {
       logger.info(
         `[Connext] Auto-forward threshold reached, forwarding ${ethers.utils.formatUnits(
           autoForwardCheck.balance,
-          18
+          decimals
         )} tokens`
       );
 
@@ -1695,7 +892,7 @@ async function checkAndForwardProfits(token, profitAmount) {
           txHash: result.txHash,
           transferId: result.transferId,
           amount: result.amount,
-          amountFormatted: ethers.utils.formatUnits(result.amount, 18),
+          amountFormatted: ethers.utils.formatUnits(result.amount, decimals),
           relayerFee: result.relayerFee,
           tracked: result.tracked,
         };
@@ -1711,7 +908,7 @@ async function checkAndForwardProfits(token, profitAmount) {
       }
     } else {
       const balanceFormatted = autoForwardCheck.balance
-        ? ethers.utils.formatUnits(autoForwardCheck.balance, 18)
+        ? ethers.utils.formatUnits(autoForwardCheck.balance, decimals)
         : "0";
       logger.info(
         `[Connext] Below auto-forward threshold: ${balanceFormatted} / ${
@@ -1786,7 +983,10 @@ async function getConnextStatus(token) {
       autoForwardEnabled: connextAutoForwardEnabled,
       destination: destInfo,
       accumulatedProfits: accumulated.toString(),
-      accumulatedProfitsFormatted: ethers.utils.formatUnits(accumulated, 18),
+      accumulatedProfitsFormatted: ethers.utils.formatUnits(
+        accumulated,
+        token ? await tokenDecimals(token) : 18
+      ),
       pendingTransfers: {
         count: pendingTransfersList.length,
         transfers: pendingTransfersList,
@@ -1934,9 +1134,23 @@ module.exports.getAllRoutes = getAllRoutes;
 module.exports.DEFAULT_CHAIN = DEFAULT_CHAIN;
 module.exports.computeDailyPnL = computeDailyPnL;
 module.exports.__cache = cache;
-module.exports.getRecentOpportunities = () => require("./bot/coordinator").getCoordinator().ledger.recent(50)
-  .filter(r => r.status === "SIMULATED")
-  .map(r => ({ ...r, chain: "ethereum", timestamp: r.updatedAt, borrowAmount: BigNumber.from(r.borrowAmount), estimatedOut: BigNumber.from(r.economics.expectedFinalAmount), gasEstimate: BigNumber.from(r.economics.estimatedGasUnits), gasPrice: BigNumber.from(0), gasCostDai: BigNumber.from(r.economics.estimatedGasCostBorrowToken), premiumWei: BigNumber.from(r.flashloanPremium), netProfit: BigNumber.from(r.economics.expectedNetProfit) }));
+module.exports.getRecentOpportunities = () =>
+  require("./bot/coordinator")
+    .getCoordinator()
+    .ledger.recent(50)
+    .filter((r) => r.status === "SIMULATED")
+    .map((r) => ({
+      ...r,
+      chain: "ethereum",
+      timestamp: r.updatedAt,
+      borrowAmount: BigNumber.from(r.borrowAmount),
+      estimatedOut: BigNumber.from(r.economics.expectedFinalAmount),
+      gasEstimate: BigNumber.from(r.economics.estimatedGasUnits),
+      gasPrice: BigNumber.from(0),
+      gasCostDai: BigNumber.from(r.economics.estimatedGasCostBorrowToken),
+      premiumWei: BigNumber.from(r.flashloanPremium),
+      netProfit: BigNumber.from(r.economics.expectedNetProfit),
+    }));
 module.exports.getCurrentMarketData = getCurrentMarketData;
 module.exports.updateMinBorrowAmount = updateMinBorrowAmount;
 module.exports.updateSimulationInputAmount = updateSimulationInputAmount;
@@ -1977,9 +1191,18 @@ module.exports.getSubscriptionStats = getSubscriptionStats;
 
 // Risk manager exports
 module.exports.getRiskReport = getPerformanceReport;
-module.exports.pauseTrading = () => { require("./bot/stateMachine").tradingState.pause(); return riskManager.pause("Manual pause requested"); };
-module.exports.resumeTrading = () => { require("./bot/stateMachine").tradingState.paper(); return riskManager.resume(); };
-module.exports.forceResumeTrading = () => { require("./bot/stateMachine").tradingState.paper(); return riskManager.forceResume(); };
+module.exports.pauseTrading = () => {
+  require("./bot/stateMachine").tradingState.pause();
+  return riskManager.pause("Manual pause requested");
+};
+module.exports.resumeTrading = () => {
+  require("./bot/stateMachine").tradingState.paper();
+  return riskManager.resume();
+};
+module.exports.forceResumeTrading = () => {
+  require("./bot/stateMachine").tradingState.paper();
+  return riskManager.forceResume();
+};
 module.exports.getRiskAlerts = () => riskManager.getAlerts();
 
 // Multi-relay exports
@@ -2003,7 +1226,10 @@ module.exports.getTier1FeatureStatus = () => ({
  * @param {string} chain - Chain identifier
  */
 async function executeBackrun() {
-  return { executed: false, reason: "Backrunning is disabled in the production profile" };
+  return {
+    executed: false,
+    reason: "Backrunning is disabled in the production profile",
+  };
 }
 
 /**
@@ -2078,8 +1304,11 @@ module.exports.initializeTier1Features = initializeTier1Features;
 module.exports.executeBackrun = executeBackrun;
 
 if (require.main === module) {
-  require("../scripts/run-bot").runBot().then(() => process.exit(0)).catch(err => {
-    console.error(err.message);
-    process.exit(1);
-  });
+  require("../scripts/run-bot")
+    .runBot()
+    .then(() => process.exit(0))
+    .catch((err) => {
+      console.error(err.message);
+      process.exit(1);
+    });
 }

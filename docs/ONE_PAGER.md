@@ -15,16 +15,15 @@ An automated Aave V2 flash-loan executor that:
 
 ## 3. Key Metrics
 
-- **Latency:** <500ms Tx dispatch from opportunity detection
+- **Latency:** measured per stage (T0–T9) by the latency gate; see [LATENCY_TESTING.md](validation/LATENCY_TESTING.md). No fixed figure is claimed.
 - **Profit Threshold:** configurable off-chain minimum (`MIN_PROFIT_DAI`), enforced on-chain as profit-or-revert
-- **Downside:** none on-chain — a trade reverts unless it is profitable after the Aave premium
+- **Downside:** a losing trade reverts, so the route itself cannot lose principal. Remaining risks: hot-key compromise, approvals to approved routers, gas on public fallback submissions, and capital held for capital-funded trades.
 - **Tests:** unit + integration + invariant tests (run via `hardhat test`)
 - **On-chain Live Demo:** not yet deployed
 
 ## 4. Market Opportunity
 
-- **Total Value Locked (TVL)** across Uniswap V2 & SushiSwap v2: > $2 Bn
-- **Daily Volume Disparity:** > $10 M in liquid pools
+- **Market size:** large DEX liquidity on Ethereum, but the arbitrage and backrun opportunity is contested by well-capitalised searchers. No market-size figure here is sourced or claimed.
 - **Revenue Potential:** Highly variable and competitive; actual returns depend on market conditions, MEV competition and gas costs. No revenue figure is guaranteed. (Any dollar-per-day target should be treated as an illustrative goal, not a projection.)
 
 ## 5. Competitive Differentiators

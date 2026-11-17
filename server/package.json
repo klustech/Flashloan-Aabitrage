@@ -1,6 +1,7 @@
 {
   "name": "flashloan-arbitrage-server",
   "version": "1.0.0",
+  "license": "MIT",
   "type": "commonjs",
   "main": "index.js",
   "scripts": {
@@ -9,9 +10,7 @@
   "dependencies": {
     "@balancer-labs/sdk": "^1.1.6",
     "@balancer-labs/sor": "^4.1.3",
-    "@curvefi/api": "^2.65.13",
     "@flashbots/ethers-provider-bundle": "0.4.0",
-    "@makerdao/multicall": "^0.12.0",
     "@uniswap/sdk-core": "^3.0.0",
     "axios": "^1.9.0",
     "cors": "^2.8.5",
@@ -21,11 +20,18 @@
     "express-rate-limit": "^7.5.0",
     "graphlib": "^2.1.8",
     "graphql-request": "^3.6.0",
-    "nodemon": "^2.0.22",
     "pg": "^8.16.0",
     "prom-client": "^14.0.1",
     "simple-statistics": "^7.8.8",
     "winston": "^3.17.0",
     "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
+  },
+  "overrides": {
+    "@ethersproject/providers@5.8.0": {
+      "ws": "8.23.0"
+    }
   }
 }

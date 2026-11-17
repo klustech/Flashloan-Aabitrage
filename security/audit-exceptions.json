@@ -1,280 +1,101 @@
 [
   {
-    "advisory": "https://github.com/advisories/GHSA-2p49-hgcm-8545",
-    "package": "svgo",
-    "severity": "high",
-    "title": "SVGO removeScripts plugin leaves some executable scripts intact",
-    "projects": [
-      "frontend"
-    ],
-    "reason": "Pre-existing when the gate was introduced; triage required (upgrade, replace or document why unreachable).",
-    "reviewBy": "2026-11-04"
-  },
-  {
     "advisory": "https://github.com/advisories/GHSA-3g43-6gmg-66jw",
     "package": "axios",
     "severity": "high",
     "title": "axios Vulnerable to Credential Theft and Response Hijacking via Prototype Pollution Gadget in Config Merge",
-    "projects": [
-      ".",
-      "server"
-    ],
-    "reason": "Pre-existing when the gate was introduced; triage required (upgrade, replace or document why unreachable).",
-    "reviewBy": "2026-11-04"
+    "projects": [".", "server"],
+    "reason": "Pinned axios@0.24 nested inside @balancer-labs/sdk (no fixed SDK release). Only reached by the legacy Balancer scanner path in server/scripts/balancerUtils.js, which calls Balancer's own API with no user-controlled config or credentials. The production backrun core does not use it. Plan: drop the SDK in favour of the existing direct-vault fallback.",
+    "reviewBy": "2027-02-15"
   },
   {
     "advisory": "https://github.com/advisories/GHSA-43fc-jf86-j433",
     "package": "axios",
     "severity": "high",
     "title": "Axios is Vulnerable to Denial of Service via __proto__ Key in mergeConfig",
-    "projects": [
-      ".",
-      "server"
-    ],
-    "reason": "Pre-existing when the gate was introduced; triage required (upgrade, replace or document why unreachable).",
-    "reviewBy": "2026-11-04"
-  },
-  {
-    "advisory": "https://github.com/advisories/GHSA-5c6j-r48x-rmvq",
-    "package": "serialize-javascript",
-    "severity": "high",
-    "title": "Serialize JavaScript is Vulnerable to RCE via RegExp.flags and Date.prototype.toISOString()",
-    "projects": [
-      "frontend"
-    ],
-    "reason": "Pre-existing when the gate was introduced; triage required (upgrade, replace or document why unreachable).",
-    "reviewBy": "2026-11-04"
+    "projects": [".", "server"],
+    "reason": "Pinned axios@0.24 nested inside @balancer-labs/sdk (no fixed SDK release). Only reached by the legacy Balancer scanner path in server/scripts/balancerUtils.js, which calls Balancer's own API with no user-controlled config or credentials. The production backrun core does not use it. Plan: drop the SDK in favour of the existing direct-vault fallback.",
+    "reviewBy": "2027-02-15"
   },
   {
     "advisory": "https://github.com/advisories/GHSA-6chq-wfr3-2hj9",
     "package": "axios",
     "severity": "high",
     "title": "Axios: Header Injection via Prototype Pollution",
-    "projects": [
-      ".",
-      "server"
-    ],
-    "reason": "Pre-existing when the gate was introduced; triage required (upgrade, replace or document why unreachable).",
-    "reviewBy": "2026-11-04"
-  },
-  {
-    "advisory": "https://github.com/advisories/GHSA-6g55-p6wh-862q",
-    "package": "postcss",
-    "severity": "high",
-    "title": "PostCSS: Arbitrary file read and information disclosure via attacker-controlled sourceMappingURL in CSS comments",
-    "projects": [
-      "frontend"
-    ],
-    "reason": "Pre-existing when the gate was introduced; triage required (upgrade, replace or document why unreachable).",
-    "reviewBy": "2026-11-04"
-  },
-  {
-    "advisory": "https://github.com/advisories/GHSA-86w9-cpqp-85rv",
-    "package": "node-forge",
-    "severity": "high",
-    "title": "node-forge RSA PKCS#1 v1.5 signature verification accepts extra nested DigestAlgorithm elements",
-    "projects": [
-      "frontend"
-    ],
-    "reason": "Pre-existing when the gate was introduced; triage required (upgrade, replace or document why unreachable).",
-    "reviewBy": "2026-11-04"
-  },
-  {
-    "advisory": "https://github.com/advisories/GHSA-96hv-2xvq-fx4p",
-    "package": "ws",
-    "severity": "high",
-    "title": "ws: Memory exhaustion DoS from tiny fragments and data chunks",
-    "projects": [
-      ".",
-      "server"
-    ],
-    "reason": "Pre-existing when the gate was introduced; triage required (upgrade, replace or document why unreachable).",
-    "reviewBy": "2026-11-04"
-  },
-  {
-    "advisory": "https://github.com/advisories/GHSA-c2qf-rxjj-qqgw",
-    "package": "semver",
-    "severity": "high",
-    "title": "semver vulnerable to Regular Expression Denial of Service",
-    "projects": [
-      "server"
-    ],
-    "reason": "Pre-existing when the gate was introduced; triage required (upgrade, replace or document why unreachable).",
-    "reviewBy": "2026-11-04"
-  },
-  {
-    "advisory": "https://github.com/advisories/GHSA-g84c-rxfj-3j2c",
-    "package": "webpack-dev-middleware",
-    "severity": "high",
-    "title": "webpack-dev-middleware vulnerable to Path Traversal via non-slash-terminated publicPath",
-    "projects": [
-      "frontend"
-    ],
-    "reason": "Pre-existing when the gate was introduced; triage required (upgrade, replace or document why unreachable).",
-    "reviewBy": "2026-11-04"
+    "projects": [".", "server"],
+    "reason": "Pinned axios@0.24 nested inside @balancer-labs/sdk (no fixed SDK release). Only reached by the legacy Balancer scanner path in server/scripts/balancerUtils.js, which calls Balancer's own API with no user-controlled config or credentials. The production backrun core does not use it. Plan: drop the SDK in favour of the existing direct-vault fallback.",
+    "reviewBy": "2027-02-15"
   },
   {
     "advisory": "https://github.com/advisories/GHSA-hfxv-24rg-xrqf",
     "package": "axios",
     "severity": "high",
     "title": "Axios: Regular Expression Denial of Service (ReDoS) via Cookie Name Injection",
-    "projects": [
-      ".",
-      "server"
-    ],
-    "reason": "Pre-existing when the gate was introduced; triage required (upgrade, replace or document why unreachable).",
-    "reviewBy": "2026-11-04"
+    "projects": [".", "server"],
+    "reason": "Pinned axios@0.24 nested inside @balancer-labs/sdk (no fixed SDK release). Only reached by the legacy Balancer scanner path in server/scripts/balancerUtils.js, which calls Balancer's own API with no user-controlled config or credentials. The production backrun core does not use it. Plan: drop the SDK in favour of the existing direct-vault fallback.",
+    "reviewBy": "2027-02-15"
   },
   {
     "advisory": "https://github.com/advisories/GHSA-j5f8-grm9-p9fc",
     "package": "axios",
     "severity": "high",
     "title": "Axios: Proxy-Authorization header leaks to redirect target when proxy is re-evaluated to direct connection",
-    "projects": [
-      ".",
-      "server"
-    ],
-    "reason": "Pre-existing when the gate was introduced; triage required (upgrade, replace or document why unreachable).",
-    "reviewBy": "2026-11-04"
+    "projects": [".", "server"],
+    "reason": "Pinned axios@0.24 nested inside @balancer-labs/sdk (no fixed SDK release). Only reached by the legacy Balancer scanner path in server/scripts/balancerUtils.js, which calls Balancer's own API with no user-controlled config or credentials. The production backrun core does not use it. Plan: drop the SDK in favour of the existing direct-vault fallback.",
+    "reviewBy": "2027-02-15"
   },
   {
     "advisory": "https://github.com/advisories/GHSA-jr5f-v2jv-69x6",
     "package": "axios",
     "severity": "high",
     "title": "axios Requests Vulnerable To Possible SSRF and Credential Leakage via Absolute URL",
-    "projects": [
-      ".",
-      "server"
-    ],
-    "reason": "Pre-existing when the gate was introduced; triage required (upgrade, replace or document why unreachable).",
-    "reviewBy": "2026-11-04"
+    "projects": [".", "server"],
+    "reason": "Pinned axios@0.24 nested inside @balancer-labs/sdk (no fixed SDK release). Only reached by the legacy Balancer scanner path in server/scripts/balancerUtils.js, which calls Balancer's own API with no user-controlled config or credentials. The production backrun core does not use it. Plan: drop the SDK in favour of the existing direct-vault fallback.",
+    "reviewBy": "2027-02-15"
   },
   {
     "advisory": "https://github.com/advisories/GHSA-p92q-9vqr-4j8v",
     "package": "axios",
     "severity": "high",
     "title": "Axios: Proxy-Authorization Credential Leak to Origin Server Across HTTP-to-HTTPS Redirect in Axios Node.js HTTP Adapter",
-    "projects": [
-      ".",
-      "server"
-    ],
-    "reason": "Pre-existing when the gate was introduced; triage required (upgrade, replace or document why unreachable).",
-    "reviewBy": "2026-11-04"
+    "projects": [".", "server"],
+    "reason": "Pinned axios@0.24 nested inside @balancer-labs/sdk (no fixed SDK release). Only reached by the legacy Balancer scanner path in server/scripts/balancerUtils.js, which calls Balancer's own API with no user-controlled config or credentials. The production backrun core does not use it. Plan: drop the SDK in favour of the existing direct-vault fallback.",
+    "reviewBy": "2027-02-15"
   },
   {
     "advisory": "https://github.com/advisories/GHSA-pf86-5x62-jrwf",
     "package": "axios",
     "severity": "high",
     "title": "Axios: Prototype Pollution Gadgets - Response Tampering, Data Exfiltration, and Request Hijacking",
-    "projects": [
-      ".",
-      "server"
-    ],
-    "reason": "Pre-existing when the gate was introduced; triage required (upgrade, replace or document why unreachable).",
-    "reviewBy": "2026-11-04"
+    "projects": [".", "server"],
+    "reason": "Pinned axios@0.24 nested inside @balancer-labs/sdk (no fixed SDK release). Only reached by the legacy Balancer scanner path in server/scripts/balancerUtils.js, which calls Balancer's own API with no user-controlled config or credentials. The production backrun core does not use it. Plan: drop the SDK in favour of the existing direct-vault fallback.",
+    "reviewBy": "2027-02-15"
   },
   {
     "advisory": "https://github.com/advisories/GHSA-pjwm-pj3p-43mv",
     "package": "axios",
     "severity": "high",
     "title": "axios's shouldBypassProxy does not recognize IPv4-mapped IPv6 addresses, allowing NO_PROXY bypass (incomplete fix for CVE-2025-62718)",
-    "projects": [
-      ".",
-      "server"
-    ],
-    "reason": "Pre-existing when the gate was introduced; triage required (upgrade, replace or document why unreachable).",
-    "reviewBy": "2026-11-04"
+    "projects": [".", "server"],
+    "reason": "Pinned axios@0.24 nested inside @balancer-labs/sdk (no fixed SDK release). Only reached by the legacy Balancer scanner path in server/scripts/balancerUtils.js, which calls Balancer's own API with no user-controlled config or credentials. The production backrun core does not use it. Plan: drop the SDK in favour of the existing direct-vault fallback.",
+    "reviewBy": "2027-02-15"
   },
   {
     "advisory": "https://github.com/advisories/GHSA-pmwg-cvhr-8vh7",
     "package": "axios",
     "severity": "high",
-    "title": "Axios: Incomplete Fix for CVE-2025-62718 — NO_PROXY Protection Bypassed via RFC 1122 Loopback Subnet (127.0.0.0/8) in Axios 1.15.0",
-    "projects": [
-      ".",
-      "server"
-    ],
-    "reason": "Pre-existing when the gate was introduced; triage required (upgrade, replace or document why unreachable).",
-    "reviewBy": "2026-11-04"
-  },
-  {
-    "advisory": "https://github.com/advisories/GHSA-qpx9-hpmf-5gmw",
-    "package": "underscore",
-    "severity": "high",
-    "title": "Underscore has unlimited recursion in _.flatten and _.isEqual, potential for DoS attack",
-    "projects": [
-      "frontend"
-    ],
-    "reason": "Pre-existing when the gate was introduced; triage required (upgrade, replace or document why unreachable).",
-    "reviewBy": "2026-11-04"
-  },
-  {
-    "advisory": "https://github.com/advisories/GHSA-r28c-9q8g-f849",
-    "package": "postcss",
-    "severity": "high",
-    "title": "PostCSS: Path Traversal in Previous Source Map Auto-Loading (sourceMappingURL) leads to Arbitrary .map File Disclosure",
-    "projects": [
-      "frontend"
-    ],
-    "reason": "Pre-existing when the gate was introduced; triage required (upgrade, replace or document why unreachable).",
-    "reviewBy": "2026-11-04"
+    "title": "Axios: Incomplete Fix for CVE-2025-62718 \u2014 NO_PROXY Protection Bypassed via RFC 1122 Loopback Subnet (127.0.0.0/8) in Axios 1.15.0",
+    "projects": [".", "server"],
+    "reason": "Pinned axios@0.24 nested inside @balancer-labs/sdk (no fixed SDK release). Only reached by the legacy Balancer scanner path in server/scripts/balancerUtils.js, which calls Balancer's own API with no user-controlled config or credentials. The production backrun core does not use it. Plan: drop the SDK in favour of the existing direct-vault fallback.",
+    "reviewBy": "2027-02-15"
   },
   {
     "advisory": "https://github.com/advisories/GHSA-r683-j2x4-v87g",
     "package": "node-fetch",
     "severity": "high",
     "title": "node-fetch forwards secure headers to untrusted sites",
-    "projects": [
-      ".",
-      "server"
-    ],
-    "reason": "Pre-existing when the gate was introduced; triage required (upgrade, replace or document why unreachable).",
-    "reviewBy": "2026-11-04"
-  },
-  {
-    "advisory": "https://github.com/advisories/GHSA-rp65-9cf3-cjxr",
-    "package": "nth-check",
-    "severity": "high",
-    "title": "Inefficient Regular Expression Complexity in nth-check",
-    "projects": [
-      "frontend"
-    ],
-    "reason": "Pre-existing when the gate was introduced; triage required (upgrade, replace or document why unreachable).",
-    "reviewBy": "2026-11-04"
-  },
-  {
-    "advisory": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
-    "package": "braces",
-    "severity": "high",
-    "title": "braces vulnerable to stack-exhaustion denial of service through deeply nested patterns",
-    "projects": [
-      "server",
-      "frontend"
-    ],
-    "reason": "Pre-existing when the gate was introduced; triage required (upgrade, replace or document why unreachable).",
-    "reviewBy": "2026-11-04"
-  },
-  {
-    "advisory": "https://github.com/advisories/GHSA-vjh7-7g9h-fjfh",
-    "package": "elliptic",
-    "severity": "critical",
-    "title": "Elliptic's private key extraction in ECDSA upon signing a malformed input (e.g. a string)",
-    "projects": [
-      ".",
-      "server"
-    ],
-    "reason": "ethers v5 signing dependency (no fixed elliptic for ethers 5). The advisory needs signing malformed, attacker-supplied input; the bot signs only transactions it builds itself. Remove by migrating signing to ethers v6 / @noble/curves.",
-    "reviewBy": "2026-11-04"
-  },
-  {
-    "advisory": "https://github.com/advisories/GHSA-w27v-7q3p-w38r",
-    "package": "svgo",
-    "severity": "high",
-    "title": "SVGO: removeScripts allows executable links through namespace and control-character bypasses",
-    "projects": [
-      "frontend"
-    ],
-    "reason": "Pre-existing when the gate was introduced; triage required (upgrade, replace or document why unreachable).",
-    "reviewBy": "2026-11-04"
+    "projects": [".", "server"],
+    "reason": "node-fetch@1 nested under isomorphic-fetch inside @balancer-labs/sdk (no fixed SDK release). Same legacy Balancer scanner path as the axios entries; it never forwards cookies or credentials to third-party redirects. Plan: drop the SDK.",
+    "reviewBy": "2027-02-15"
   }
 ]

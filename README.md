@@ -1,19 +1,56 @@
-> Production core: the bot now starts in PAPER and uses exact pool-preserving quotes, strict private simulation, explicit LIVE arming, and receipt-based realized accounting. See [implementation and commissioning](docs/PRODUCTION_COMPLETION.md) for the supported Ethereum/Aave V2 profile, deployment commands, and fork/PAPER evidence gates.
-
 # Flashloan Arbitrage Bot
 
-> **Commissioning path:** start at [docs/README.md](docs/README.md). Local validation (`npm run backrun:validate-local`) gates PAPER, PAPER gates LIVE.
+An experimental Ethereum arbitrage and MEV-Share backrun engine: Aave V2 flash
+loans, multi-DEX routing (Uniswap V2/V3, SushiSwap, Balancer, Curve), exact
+pool-preserving quotes, private-relay simulation, a PAPER → LIVE state machine
+and receipt-based accounting.
 
-This experimental project implements an arbitrage bot that leverages Aave flash
-loans and multiple DEX integrations.
+## Project status
+
+**This is engineering validation, not proven profitability.**
+
+- **What is validated:** the on-chain executor is profit-or-revert and has
+  adversarial, failure-injection and fork tests. The bot starts in PAPER, needs
+  explicit arming for LIVE, and records every decision with evidence gates (see
+  [docs/README.md](docs/README.md)).
+- **What is not claimed:** that it finds or wins profitable opportunities on
+  mainnet. MEV is highly competitive. No live track record, revenue figure or
+  backtest result in this repository should be read as a profit projection.
+- **Real risks remain** even though losing trades revert: a compromised hot key,
+  token approvals to approved routers, gas paid on public fallback submissions,
+  dependency vulnerabilities, and capital held in the executor for
+  capital-funded trades.
+
+Commissioning path: local validation (`npm run backrun:validate-local`) gates
+PAPER, and PAPER gates LIVE. See
+[docs/PRODUCTION_COMPLETION.md](docs/PRODUCTION_COMPLETION.md) for the supported
+Ethereum/Aave V2 profile.
+
+Released under the [MIT licence](LICENSE), except
+`contracts/interfaces/ILendingPool.sol` and
+`contracts/interfaces/ILendingPoolAddressesProvider.sol`, which are derived from
+Aave Protocol V2 and remain under AGPL-3.0 (see their SPDX headers and the notice
+in `LICENSE`). Provided as is, without warranty; use at your own risk.
+
+### Running in PAPER (no signing, no submissions)
+
+PAPER mode records decisions without signing or sending transactions. Keep
+`PAPER_ONLY=true` and do not set `PRIVATE_KEY`; startup refuses that combination.
+Start the API with `npm run api`, select PAPER on the dashboard, then run
+`npm run paper:preflight` and `npm run paper:smoke`. The full procedure, including
+the Docker Compose stack, is in
+[docs/commissioning/PAPER_RUNBOOK.md](docs/commissioning/PAPER_RUNBOOK.md) and
+[docs/MAINNET_PAPER.md](docs/MAINNET_PAPER.md).
 
 ## Setup
 
-1. Install the base dependencies and recover missing modules if needed.
+1. Install the dependencies for the root, the backend and the dashboard.
 
 ```bash
 npm ci
-./scripts/install-deps.sh
+(cd server && npm ci)
+(cd frontend && npm ci)
+npm run compile   # build output (artifacts/, cache/) is not committed
 ```
 
 2. Copy `.env.example` to `.env` and fill in the required addresses (router addresses, deployed Arbitrage contracts, etc.). Only Uniswap and SushiSwap routers are needed; the old `ROUTERXYZ` fields have been removed.
@@ -162,6 +199,19 @@ See `docs/offline_pools_sample.json` for an example structure.
 
 ## Testing
 
+| Suite                                            | Command                                               |
+| ------------------------------------------------ | ----------------------------------------------------- |
+| Unit suite (node:test; compiles first)           | `npm run test:core`                                   |
+| Contract, security and API tests (Hardhat/Mocha) | `npm test`                                            |
+| Dashboard tests                                  | `cd frontend && CI=true npm test -- --watchAll=false` |
+| Lint                                             | `npx eslint .`                                        |
+| Dependency audit gate                            | `node scripts/audit-gate.js`                          |
+| Full local validation (needs a local Anvil fork) | `npm run backrun:validate-local`                      |
+
+None of these need mainnet credentials or a funded key. Passing them shows the
+code behaves as specified on local chains; it does not show that profitable
+opportunities exist or that live execution will succeed.
+
 The contracts compile with solc 0.8.20. Running the Hardhat test suite normally
 downloads the compiler binary, so if you are behind a proxy, ensure access to
 `binaries.soliditylang.org`.
@@ -196,6 +246,26 @@ npm run test:fork
 ```
 
 ## Architecture Overview
+
+Current components (details in [docs/architecture/](docs/architecture/BACKRUN_ARCHITECTURE.md)):
+
+- **Executor contract** `contracts/ArbitrageFlashloan.sol` (executor v4): Aave V2
+  flash-loan or pre-funded routes across approved routers; profit-or-revert;
+  admin (timelock) and hot executor roles are separate.
+- **Coordinator and trading state machine** `server/bot/`: STOPPED → PAPER →
+  LIVE_ARMED → LIVE_RUNNING; LIVE requires explicit arming and readiness checks.
+- **Backrun engine** `server/backrun/`: order-flow intake (MEV-Share or custom),
+  state prediction on a dedicated fork, exact post-trigger quoting and sizing,
+  funding selection, ordered bundle simulation, ledger and evidence.
+- **Execution** `server/execution/` (private relays) and
+  `server/bot/receiptAccounting.js` (realised PnL from receipts).
+- **API and dashboard** `server/scripts/server.js` (API-key protected, binds to
+  127.0.0.1 by default) and `frontend/`.
+- **Optional** Connext profit forwarding (`contracts/ConnextAdapter.sol`), off
+  unless `CONNEXT_AUTO_FORWARD=true`.
+
+The diagram below shows the original scanner layout, which the API still serves
+alongside the components above:
 
 ```
       +-------------+      HTTP        +-----------------+
@@ -319,6 +389,5 @@ and maintainability of the arbitrage bot:
 - **Refactor as Needed**: as the codebase grows, break out components and add
   documentation to keep the project approachable.
 
-Implementing these recommendations holistically can increase the chances of the
-bot finding profitable opportunities in a competitive market.
-
+These recommendations improve robustness; they do not make profitability any
+more likely in a competitive market.
