@@ -9,11 +9,12 @@ loans and multiple DEX integrations.
 
 ## Setup
 
-1. Install the base dependencies and recover missing modules if needed.
+1. Install the dependencies for the root, the backend and the dashboard.
 
 ```bash
 npm ci
-./scripts/install-deps.sh
+(cd server && npm ci)
+(cd frontend && npm ci)
 ```
 
 2. Copy `.env.example` to `.env` and fill in the required addresses (router addresses, deployed Arbitrage contracts, etc.). Only Uniswap and SushiSwap routers are needed; the old `ROUTERXYZ` fields have been removed.
@@ -321,4 +322,3 @@ and maintainability of the arbitrage bot:
 
 Implementing these recommendations holistically can increase the chances of the
 bot finding profitable opportunities in a competitive market.
-

@@ -61,15 +61,32 @@ export default defineConfig([
     extends: [
       "js/recommended", // ESLint’s JS rules
       pluginReact.configs.flat.recommended, // React’s flat rules
+      pluginReact.configs.flat["jsx-runtime"], // React 17+ automatic JSX runtime
     ],
     rules: {
       "react/prop-types": "off",
+      // `/* global BigInt */` comments are kept for react-scripts' own linter.
+      "no-redeclare": ["error", { builtinGlobals: false }],
       "no-undef": [
         "error",
         {
           typeof: true, // allow checks like `typeof process`
         },
       ],
+    },
+  },
+
+  //
+  // ── 3b) Frontend Jest tests (react-scripts test) ──────────────────────────────
+  //
+  {
+    files: [
+      "frontend/**/*.test.{js,jsx}",
+      "frontend/**/__tests__/**/*.{js,jsx}",
+      "frontend/src/setupTests.js",
+    ],
+    languageOptions: {
+      globals: { ...globals.jest },
     },
   },
 
