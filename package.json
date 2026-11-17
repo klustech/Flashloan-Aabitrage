@@ -110,5 +110,10 @@
     "winston": "^3.17.0",
     "ws": "^8.11.0",
     "zod": "^4.1.12"
+  },
+  "overrides": {
+    "@ethersproject/providers@5.8.0": {
+      "ws": "8.23.0"
+    }
   }
 }

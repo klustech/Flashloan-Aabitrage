@@ -27,15 +27,6 @@
     "reviewBy": "2027-02-15"
   },
   {
-    "advisory": "https://github.com/advisories/GHSA-96hv-2xvq-fx4p",
-    "package": "ws",
-    "severity": "high",
-    "title": "ws: Memory exhaustion DoS from tiny fragments and data chunks",
-    "projects": [".", "server"],
-    "reason": "ws@8.18 pinned by @ethersproject/providers (ethers v5; fix only in ethers v6). The bot only opens client WebSocket connections to the operator's own configured RPC endpoints. The API server's own WebSocket uses the top-level, patched ws. Plan: migrate to ethers v6.",
-    "reviewBy": "2027-02-15"
-  },
-  {
     "advisory": "https://github.com/advisories/GHSA-hfxv-24rg-xrqf",
     "package": "axios",
     "severity": "high",
