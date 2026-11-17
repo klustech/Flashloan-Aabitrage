@@ -129,6 +129,14 @@ DESTINATION_DOMAIN=<numeric_connext_domain_id>
 RECIPIENT_ON_DESTINATION=0x...
 ```
 
+Cross-chain forwarding from the bot is **off by default**. Setting
+`CONNEXT_ADAPTER_ADDRESS` only initialises the client; auto-forwarding also
+needs `CONNEXT_AUTO_FORWARD=true`. `ConnextAdapter.forwardArbitrage` pulls tokens
+from the adapter's owner, so the owner must be a dedicated treasury key, not the
+hot `OPERATOR_ADDRESS` key. Ownership moves in two steps
+(`transferOwnership`, then `acceptOwnership` from the new owner), and the owner
+can recover stranded funds with `rescueToken` / `rescueNative`.
+
 ### Testnet Configuration
 
 For Sepolia testnet, use these addresses:

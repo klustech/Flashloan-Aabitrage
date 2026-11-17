@@ -65,6 +65,7 @@ const {
   initConnextClient,
   forwardProfits,
   checkAutoForward,
+  tokenDecimals,
   getAccumulatedProfits,
   getDestinationInfo,
   checkTransferStatus,
@@ -553,7 +554,9 @@ function getChainContext(chain) {
       url: rpcUrl,
       timeout: 120_000,
     });
-    const wallet = PRIVATE_KEY ? new ethers.Wallet(PRIVATE_KEY, provider) : provider;
+    const wallet = PRIVATE_KEY
+      ? new ethers.Wallet(PRIVATE_KEY, provider)
+      : provider;
 
     // Get network-specific DEX routers
     const dexRouters = getCachedDexRouters(chain);
@@ -1191,7 +1194,8 @@ function parallelSimulate(routes, amountIn, slippageBips) {
 // ─────────────────────────────────────────────────────────────────────────────
 async function getAllRoutes(chain = "ethereum") {
   if (chain !== "ethereum") return [];
-  return (await require("./bot/coordinator").getCoordinator().discover()).candidates;
+  return (await require("./bot/coordinator").getCoordinator().discover())
+    .candidates;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1565,8 +1569,13 @@ async function performOnChainSanityCheck(route, provider) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Simulation & Execution Loop for One Chain
 // ─────────────────────────────────────────────────────────────────────────────
-async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = {}) {
-  if (chain !== "ethereum") throw new Error("Production execution is Ethereum-only");
+async function simulateAndExecuteArbChain(
+  chain,
+  useFlashbots = true,
+  options = {}
+) {
+  if (chain !== "ethereum")
+    throw new Error("Production execution is Ethereum-only");
   const coordinator = require("./bot/coordinator").getCoordinator();
   const cb = circuitBreaker.canTrade();
   if (!cb.allowed) return { executed: false, reason: cb.reason };
@@ -1582,9 +1591,11 @@ async function simulateAndExecuteArbChain(chain, useFlashbots = true, options = 
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Initialize Connext client for cross-chain profit forwarding
- * NOTE: Connext is ENABLED BY DEFAULT when CONNEXT_ADAPTER_ADDRESS is set.
- * Set CONNEXT_AUTO_FORWARD=false to disable auto-forwarding.
+ * Initialize Connext client for cross-chain profit forwarding.
+ * The client is initialised when CONNEXT_ADAPTER_ADDRESS is set, but
+ * auto-forwarding is OFF unless CONNEXT_AUTO_FORWARD=true. The adapter pulls
+ * forwarded tokens from its owner, which is the signer here: use a dedicated
+ * treasury key, not the hot trading key, before enabling it.
  */
 async function initConnext(chain) {
   const connextAdapterAddress = process.env.CONNEXT_ADAPTER_ADDRESS;
@@ -1595,10 +1606,8 @@ async function initConnext(chain) {
     return false;
   }
 
-  // Auto-forward is ENABLED by default when adapter is configured
-  // Set CONNEXT_AUTO_FORWARD=false to explicitly disable
-  const autoForwardEnv = process.env.CONNEXT_AUTO_FORWARD;
-  connextAutoForwardEnabled = autoForwardEnv !== "false"; // Enabled unless explicitly "false"
+  // Auto-forward moves funds cross-chain, so it is strictly opt-in.
+  connextAutoForwardEnabled = process.env.CONNEXT_AUTO_FORWARD === "true";
 
   try {
     const { provider, wallet } = getChainContext(chain);
@@ -1608,14 +1617,10 @@ async function initConnext(chain) {
       signer: wallet,
       config: {
         autoForwardEnabled: connextAutoForwardEnabled,
-        autoForwardThreshold: ethers.utils.parseUnits(
+        // Whole tokens; the client scales them by each token's decimals.
+        autoForwardThreshold:
           process.env.CONNEXT_AUTO_FORWARD_THRESHOLD || "100",
-          18
-        ),
-        minForwardAmount: ethers.utils.parseUnits(
-          process.env.CONNEXT_MIN_FORWARD_AMOUNT || "10",
-          18
-        ),
+        minForwardAmount: process.env.CONNEXT_MIN_FORWARD_AMOUNT || "10",
       },
     });
     connextInitialized = true;
@@ -1657,6 +1662,7 @@ async function checkAndForwardProfits(token, profitAmount) {
 
     // Check if auto-forward should be triggered
     const autoForwardCheck = await checkAutoForward(token);
+    const decimals = await tokenDecimals(token);
 
     const baseStatus = {
       connextEnabled: true,
@@ -1664,11 +1670,11 @@ async function checkAndForwardProfits(token, profitAmount) {
       accumulatedProfits: accumulatedBalance.toString(),
       accumulatedProfitsFormatted: ethers.utils.formatUnits(
         accumulatedBalance,
-        18
+        decimals
       ),
       pendingTransfers: pendingTransfersList.length,
       threshold: autoForwardCheck.threshold
-        ? ethers.utils.formatUnits(autoForwardCheck.threshold, 18)
+        ? ethers.utils.formatUnits(autoForwardCheck.threshold, decimals)
         : null,
     };
 
@@ -1676,7 +1682,7 @@ async function checkAndForwardProfits(token, profitAmount) {
       logger.info(
         `[Connext] Auto-forward threshold reached, forwarding ${ethers.utils.formatUnits(
           autoForwardCheck.balance,
-          18
+          decimals
         )} tokens`
       );
 
@@ -1695,7 +1701,7 @@ async function checkAndForwardProfits(token, profitAmount) {
           txHash: result.txHash,
           transferId: result.transferId,
           amount: result.amount,
-          amountFormatted: ethers.utils.formatUnits(result.amount, 18),
+          amountFormatted: ethers.utils.formatUnits(result.amount, decimals),
           relayerFee: result.relayerFee,
           tracked: result.tracked,
         };
@@ -1711,7 +1717,7 @@ async function checkAndForwardProfits(token, profitAmount) {
       }
     } else {
       const balanceFormatted = autoForwardCheck.balance
-        ? ethers.utils.formatUnits(autoForwardCheck.balance, 18)
+        ? ethers.utils.formatUnits(autoForwardCheck.balance, decimals)
         : "0";
       logger.info(
         `[Connext] Below auto-forward threshold: ${balanceFormatted} / ${
@@ -1786,7 +1792,10 @@ async function getConnextStatus(token) {
       autoForwardEnabled: connextAutoForwardEnabled,
       destination: destInfo,
       accumulatedProfits: accumulated.toString(),
-      accumulatedProfitsFormatted: ethers.utils.formatUnits(accumulated, 18),
+      accumulatedProfitsFormatted: ethers.utils.formatUnits(
+        accumulated,
+        token ? await tokenDecimals(token) : 18
+      ),
       pendingTransfers: {
         count: pendingTransfersList.length,
         transfers: pendingTransfersList,
@@ -1934,9 +1943,23 @@ module.exports.getAllRoutes = getAllRoutes;
 module.exports.DEFAULT_CHAIN = DEFAULT_CHAIN;
 module.exports.computeDailyPnL = computeDailyPnL;
 module.exports.__cache = cache;
-module.exports.getRecentOpportunities = () => require("./bot/coordinator").getCoordinator().ledger.recent(50)
-  .filter(r => r.status === "SIMULATED")
-  .map(r => ({ ...r, chain: "ethereum", timestamp: r.updatedAt, borrowAmount: BigNumber.from(r.borrowAmount), estimatedOut: BigNumber.from(r.economics.expectedFinalAmount), gasEstimate: BigNumber.from(r.economics.estimatedGasUnits), gasPrice: BigNumber.from(0), gasCostDai: BigNumber.from(r.economics.estimatedGasCostBorrowToken), premiumWei: BigNumber.from(r.flashloanPremium), netProfit: BigNumber.from(r.economics.expectedNetProfit) }));
+module.exports.getRecentOpportunities = () =>
+  require("./bot/coordinator")
+    .getCoordinator()
+    .ledger.recent(50)
+    .filter((r) => r.status === "SIMULATED")
+    .map((r) => ({
+      ...r,
+      chain: "ethereum",
+      timestamp: r.updatedAt,
+      borrowAmount: BigNumber.from(r.borrowAmount),
+      estimatedOut: BigNumber.from(r.economics.expectedFinalAmount),
+      gasEstimate: BigNumber.from(r.economics.estimatedGasUnits),
+      gasPrice: BigNumber.from(0),
+      gasCostDai: BigNumber.from(r.economics.estimatedGasCostBorrowToken),
+      premiumWei: BigNumber.from(r.flashloanPremium),
+      netProfit: BigNumber.from(r.economics.expectedNetProfit),
+    }));
 module.exports.getCurrentMarketData = getCurrentMarketData;
 module.exports.updateMinBorrowAmount = updateMinBorrowAmount;
 module.exports.updateSimulationInputAmount = updateSimulationInputAmount;
@@ -1977,9 +2000,18 @@ module.exports.getSubscriptionStats = getSubscriptionStats;
 
 // Risk manager exports
 module.exports.getRiskReport = getPerformanceReport;
-module.exports.pauseTrading = () => { require("./bot/stateMachine").tradingState.pause(); return riskManager.pause("Manual pause requested"); };
-module.exports.resumeTrading = () => { require("./bot/stateMachine").tradingState.paper(); return riskManager.resume(); };
-module.exports.forceResumeTrading = () => { require("./bot/stateMachine").tradingState.paper(); return riskManager.forceResume(); };
+module.exports.pauseTrading = () => {
+  require("./bot/stateMachine").tradingState.pause();
+  return riskManager.pause("Manual pause requested");
+};
+module.exports.resumeTrading = () => {
+  require("./bot/stateMachine").tradingState.paper();
+  return riskManager.resume();
+};
+module.exports.forceResumeTrading = () => {
+  require("./bot/stateMachine").tradingState.paper();
+  return riskManager.forceResume();
+};
 module.exports.getRiskAlerts = () => riskManager.getAlerts();
 
 // Multi-relay exports
@@ -2003,7 +2035,10 @@ module.exports.getTier1FeatureStatus = () => ({
  * @param {string} chain - Chain identifier
  */
 async function executeBackrun() {
-  return { executed: false, reason: "Backrunning is disabled in the production profile" };
+  return {
+    executed: false,
+    reason: "Backrunning is disabled in the production profile",
+  };
 }
 
 /**
@@ -2078,8 +2113,11 @@ module.exports.initializeTier1Features = initializeTier1Features;
 module.exports.executeBackrun = executeBackrun;
 
 if (require.main === module) {
-  require("../scripts/run-bot").runBot().then(() => process.exit(0)).catch(err => {
-    console.error(err.message);
-    process.exit(1);
-  });
+  require("../scripts/run-bot")
+    .runBot()
+    .then(() => process.exit(0))
+    .catch((err) => {
+      console.error(err.message);
+      process.exit(1);
+    });
 }

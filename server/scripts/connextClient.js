@@ -24,16 +24,47 @@ try {
   sendSlackAlert = async (msg) => console.log(`[Connext Alert] ${msg}`);
 }
 
-// ConnextAdapter ABI (from deployed contract)
+// ConnextAdapter ABI (contracts/ConnextAdapter.sol). The destination is
+// immutable; forwardArbitrage pulls `amount` from the owner (the signer here)
+// and requires msg.value == relayerFee.
 const CONNEXT_ADAPTER_ABI = [
-  "function forwardProfits(address token, uint256 amount, uint256 relayerFee) external payable",
+  "function forwardArbitrage(address token, uint256 amount, uint256 relayerFee) external payable returns (bytes32)",
   "function connext() external view returns (address)",
   "function destinationDomain() external view returns (uint32)",
-  "function recipientOnDestination() external view returns (address)",
+  "function destinationContract() external view returns (address)",
   "function owner() external view returns (address)",
-  "function setDestination(uint32 _domain, address _recipient) external",
-  "event ProfitsForwarded(address indexed token, uint256 amount, uint32 destinationDomain, address recipient, bytes32 transferId)",
+  "event ArbitrageForwarded(address indexed token, uint256 amount, address indexed recipient, bytes32 transferId)",
 ];
+
+const ERC20_ABI = [
+  "function decimals() view returns (uint8)",
+  "function balanceOf(address) view returns (uint256)",
+  "function approve(address,uint256) returns (bool)",
+  "function allowance(address,address) view returns (uint256)",
+];
+const decimalsCache = new Map();
+
+/** Token decimals, read once per token. Amount thresholds are configured in whole tokens. */
+async function tokenDecimals(token) {
+  const key = token.toLowerCase();
+  if (!decimalsCache.has(key)) {
+    const decimals = await new ethers.Contract(
+      token,
+      ERC20_ABI,
+      provider
+    ).decimals();
+    decimalsCache.set(key, Number(decimals));
+  }
+  return decimalsCache.get(key);
+}
+
+/** Parse a whole-token threshold (string or number) into `token`'s base units. */
+async function tokenAmount(token, wholeTokens) {
+  return ethers.utils.parseUnits(
+    String(wholeTokens),
+    await tokenDecimals(token)
+  );
+}
 
 // Connext domain IDs
 const CONNEXT_DOMAINS = {
@@ -48,7 +79,7 @@ const CONNEXT_DOMAINS = {
 // Default configuration
 const DEFAULT_CONFIG = {
   // Minimum profit to trigger cross-chain forwarding
-  minForwardAmount: ethers.utils.parseUnits("10", 18), // 10 tokens
+  minForwardAmount: "10", // whole tokens, scaled by the token's decimals
 
   // Relayer fee buffer (10% over estimated)
   relayerFeeBuffer: 1.1,
@@ -58,7 +89,7 @@ const DEFAULT_CONFIG = {
 
   // Auto-forward on profit threshold
   autoForwardEnabled: false,
-  autoForwardThreshold: ethers.utils.parseUnits("100", 18), // 100 tokens
+  autoForwardThreshold: "100", // whole tokens, scaled by the token's decimals
 
   // Monitoring configuration
   monitoringEnabled: true,
@@ -71,10 +102,14 @@ const DEFAULT_CONFIG = {
 
 // Connext subgraph endpoints by network
 const CONNEXT_SUBGRAPH_URLS = {
-  ethereum: "https://api.thegraph.com/subgraphs/name/connext/amarok-runtime-v0-mainnet",
-  optimism: "https://api.thegraph.com/subgraphs/name/connext/amarok-runtime-v0-optimism",
-  arbitrum: "https://api.thegraph.com/subgraphs/name/connext/amarok-runtime-v0-arbitrum-one",
-  polygon: "https://api.thegraph.com/subgraphs/name/connext/amarok-runtime-v0-polygon",
+  ethereum:
+    "https://api.thegraph.com/subgraphs/name/connext/amarok-runtime-v0-mainnet",
+  optimism:
+    "https://api.thegraph.com/subgraphs/name/connext/amarok-runtime-v0-optimism",
+  arbitrum:
+    "https://api.thegraph.com/subgraphs/name/connext/amarok-runtime-v0-arbitrum-one",
+  polygon:
+    "https://api.thegraph.com/subgraphs/name/connext/amarok-runtime-v0-polygon",
 };
 
 // Monitoring state
@@ -137,7 +172,7 @@ async function initConnextClient(params) {
   return {
     adapter: connextAdapter,
     destinationDomain: await connextAdapter.destinationDomain(),
-    recipient: await connextAdapter.recipientOnDestination(),
+    recipient: await connextAdapter.destinationContract(),
   };
 }
 
@@ -147,23 +182,23 @@ async function initConnextClient(params) {
  * @param {BigNumber} amount - Amount to transfer
  * @returns {BigNumber} - Estimated relayer fee in native token
  */
-async function estimateRelayerFee(token, amount) {
-  // In production, query Connext API for accurate fee estimation
-  // For now, use a simple heuristic based on amount
-  const baseFeeBps = 30; // 0.3% base fee
-  const baseFee = amount.mul(baseFeeBps).div(10000);
-
-  // Add gas cost estimation (approximately 200k gas for xcall)
+async function estimateRelayerFee(_token, _amount) {
+  // The relayer fee is paid in native currency (msg.value), so it is estimated
+  // from gas alone, never from the token amount (which is in token units).
+  // Heuristic: ~200k gas for destination execution at the current gas price.
+  // In production, query Connext's fee endpoint instead.
   const gasPrice = await provider.getGasPrice();
-  const gasCost = gasPrice.mul(200000);
-
-  const totalFee = baseFee.add(gasCost);
+  const totalFee = gasPrice.mul(200000);
 
   // Apply buffer
-  const bufferedFee = totalFee.mul(Math.floor(config.relayerFeeBuffer * 100)).div(100);
+  const bufferedFee = totalFee
+    .mul(Math.floor(config.relayerFeeBuffer * 100))
+    .div(100);
 
   // Cap at max
-  return bufferedFee.gt(config.maxRelayerFee) ? config.maxRelayerFee : bufferedFee;
+  return bufferedFee.gt(config.maxRelayerFee)
+    ? config.maxRelayerFee
+    : bufferedFee;
 }
 
 /**
@@ -175,19 +210,26 @@ async function forwardProfits(params) {
   const { token, amount, relayerFee: customRelayerFee } = params;
 
   if (!connextAdapter) {
-    throw new Error("Connext client not initialized. Call initConnextClient first.");
+    throw new Error(
+      "Connext client not initialized. Call initConnextClient first."
+    );
   }
 
   if (!signer) {
     throw new Error("Signer required for forwarding profits");
   }
 
-  // Validate amount
+  // Validate amount in the token's own units
+  const decimals = await tokenDecimals(token);
   const amountBN = ethers.BigNumber.from(amount);
-  if (amountBN.lt(config.minForwardAmount)) {
+  const minimum = await tokenAmount(token, config.minForwardAmount);
+  if (amountBN.lt(minimum)) {
     return {
       success: false,
-      reason: `Amount ${ethers.utils.formatUnits(amountBN, 18)} below minimum ${ethers.utils.formatUnits(config.minForwardAmount, 18)}`,
+      reason: `Amount ${ethers.utils.formatUnits(
+        amountBN,
+        decimals
+      )} below minimum ${ethers.utils.formatUnits(minimum, decimals)}`,
     };
   }
 
@@ -196,16 +238,22 @@ async function forwardProfits(params) {
     ? ethers.BigNumber.from(customRelayerFee)
     : await estimateRelayerFee(token, amountBN);
 
-  console.log(`[connextClient] Forwarding ${ethers.utils.formatUnits(amountBN, 18)} tokens`);
-  console.log(`[connextClient] Relayer fee: ${ethers.utils.formatUnits(relayerFee, 18)} ETH`);
+  console.log(
+    `[connextClient] Forwarding ${ethers.utils.formatUnits(
+      amountBN,
+      decimals
+    )} tokens`
+  );
+  console.log(
+    `[connextClient] Relayer fee: ${ethers.utils.formatUnits(
+      relayerFee,
+      18
+    )} ETH`
+  );
 
   try {
     // Approve token if needed
-    const tokenContract = new ethers.Contract(
-      token,
-      ["function approve(address,uint256)", "function allowance(address,address) view returns (uint256)"],
-      signer
-    );
+    const tokenContract = new ethers.Contract(token, ERC20_ABI, signer);
 
     const currentAllowance = await tokenContract.allowance(
       await signer.getAddress(),
@@ -214,21 +262,29 @@ async function forwardProfits(params) {
 
     if (currentAllowance.lt(amountBN)) {
       console.log("[connextClient] Approving token for adapter...");
-      const approveTx = await tokenContract.approve(connextAdapter.address, amountBN);
+      const approveTx = await tokenContract.approve(
+        connextAdapter.address,
+        amountBN
+      );
       await approveTx.wait();
     }
 
     // Forward profits
-    const tx = await connextAdapter.forwardProfits(token, amountBN, relayerFee, {
-      value: relayerFee,
-      gasLimit: 500000,
-    });
+    const tx = await connextAdapter.forwardArbitrage(
+      token,
+      amountBN,
+      relayerFee,
+      {
+        value: relayerFee,
+        gasLimit: 500000,
+      }
+    );
 
     console.log(`[connextClient] Transaction sent: ${tx.hash}`);
     const receipt = await tx.wait();
 
     // Parse event for transfer ID
-    const event = receipt.events?.find(e => e.event === "ProfitsForwarded");
+    const event = receipt.events?.find((e) => e.event === "ArbitrageForwarded");
     const transferId = event?.args?.transferId;
 
     // Track the transfer
@@ -238,6 +294,7 @@ async function forwardProfits(params) {
         txHash: tx.hash,
         token,
         amount: amountBN,
+        decimals,
         relayerFee,
       });
     }
@@ -270,6 +327,7 @@ function trackTransfer(transferData) {
     txHash,
     token,
     amount,
+    decimals = 18,
     relayerFee,
     timestamp = Date.now(),
   } = transferData;
@@ -279,6 +337,7 @@ function trackTransfer(transferData) {
     txHash,
     token,
     amount: amount.toString(),
+    decimals,
     relayerFee: relayerFee.toString(),
     status: TransferStatus.PENDING,
     createdAt: timestamp,
@@ -310,12 +369,17 @@ function updateTransferStatus(transferId, status, extraData = {}) {
     Object.assign(transfer, extraData);
 
     // Remove from pending if completed or failed
-    if (status === TransferStatus.COMPLETED || status === TransferStatus.FAILED) {
+    if (
+      status === TransferStatus.COMPLETED ||
+      status === TransferStatus.FAILED
+    ) {
       pendingTransfers.delete(transferId);
     }
 
     // Update in history
-    const historyEntry = transferHistory.find(t => t.transferId === transferId);
+    const historyEntry = transferHistory.find(
+      (t) => t.transferId === transferId
+    );
     if (historyEntry) {
       Object.assign(historyEntry, transfer);
     }
@@ -331,8 +395,9 @@ function updateTransferStatus(transferId, status, extraData = {}) {
 async function checkTransferStatus(transferId) {
   // If specific transfer ID provided, check that one
   if (transferId) {
-    const tracked = pendingTransfers.get(transferId) ||
-      transferHistory.find(t => t.transferId === transferId);
+    const tracked =
+      pendingTransfers.get(transferId) ||
+      transferHistory.find((t) => t.transferId === transferId);
 
     if (tracked) {
       // TODO: In production, also query Connext API for real-time status
@@ -376,20 +441,17 @@ function getPendingTransfers() {
 /**
  * Get accumulated profits ready for forwarding
  * @param {string} token - Token address
- * @returns {BigNumber} - Balance in adapter
+ * @returns {BigNumber} - Balance held by the adapter owner (the signer). The
+ *   adapter pulls forwarded tokens from its owner, so that is where profits
+ *   must sit to be forwarded.
  */
 async function getAccumulatedProfits(token) {
-  if (!connextAdapter) {
-    throw new Error("Connext client not initialized");
+  if (!connextAdapter || !signer) {
+    throw new Error("Connext client not initialized with signer");
   }
 
-  const tokenContract = new ethers.Contract(
-    token,
-    ["function balanceOf(address) view returns (uint256)"],
-    provider
-  );
-
-  return await tokenContract.balanceOf(connextAdapter.address);
+  const tokenContract = new ethers.Contract(token, ERC20_ABI, provider);
+  return await tokenContract.balanceOf(await signer.getAddress());
 }
 
 /**
@@ -402,12 +464,12 @@ async function getDestinationInfo() {
   }
 
   const domain = await connextAdapter.destinationDomain();
-  const recipient = await connextAdapter.recipientOnDestination();
+  const recipient = await connextAdapter.destinationContract();
 
   // Reverse lookup domain name
-  const domainName = Object.entries(CONNEXT_DOMAINS).find(
-    ([, id]) => id === domain
-  )?.[0] || "unknown";
+  const domainName =
+    Object.entries(CONNEXT_DOMAINS).find(([, id]) => id === domain)?.[0] ||
+    "unknown";
 
   return {
     domain,
@@ -421,16 +483,11 @@ async function getDestinationInfo() {
  * @param {number} domain - New destination domain
  * @param {string} recipient - New recipient address
  */
-async function updateDestination(domain, recipient) {
-  if (!connextAdapter || !signer) {
-    throw new Error("Connext client not initialized with signer");
-  }
-
-  const tx = await connextAdapter.setDestination(domain, recipient);
-  await tx.wait();
-
-  console.log(`[connextClient] Destination updated to domain ${domain}, recipient ${recipient}`);
-  return tx.hash;
+async function updateDestination(_domain, _recipient) {
+  // destinationDomain and destinationContract are immutable on ConnextAdapter.
+  throw new Error(
+    "ConnextAdapter destination is immutable; deploy a new adapter to change it"
+  );
 }
 
 /**
@@ -441,7 +498,11 @@ async function updateDestination(domain, recipient) {
 function getDomainId(chainName) {
   const domain = CONNEXT_DOMAINS[chainName.toLowerCase()];
   if (!domain) {
-    throw new Error(`Unknown chain: ${chainName}. Available: ${Object.keys(CONNEXT_DOMAINS).join(", ")}`);
+    throw new Error(
+      `Unknown chain: ${chainName}. Available: ${Object.keys(
+        CONNEXT_DOMAINS
+      ).join(", ")}`
+    );
   }
   return domain;
 }
@@ -457,19 +518,18 @@ async function checkAutoForward(token) {
   }
 
   const balance = await getAccumulatedProfits(token);
+  const threshold = await tokenAmount(token, config.autoForwardThreshold);
+  const decimals = await tokenDecimals(token);
 
-  if (balance.gte(config.autoForwardThreshold)) {
-    return {
-      shouldForward: true,
-      balance,
-      threshold: config.autoForwardThreshold,
-    };
+  if (balance.gte(threshold)) {
+    return { shouldForward: true, balance, threshold, decimals };
   }
 
   return {
     shouldForward: false,
     balance,
-    threshold: config.autoForwardThreshold,
+    threshold,
+    decimals,
     reason: "Below threshold",
   };
 }
@@ -524,9 +584,11 @@ async function queryConnextSubgraph(transferId) {
     return {
       origin: originTransfer,
       destination: destinationTransfer,
-      status: destinationTransfer?.status || originTransfer?.status || "unknown",
-      completed: destinationTransfer?.status === "Executed" ||
-                 destinationTransfer?.status === "Reconciled",
+      status:
+        destinationTransfer?.status || originTransfer?.status || "unknown",
+      completed:
+        destinationTransfer?.status === "Executed" ||
+        destinationTransfer?.status === "Reconciled",
     };
   } catch (err) {
     console.warn(`[Connext] Subgraph query failed: ${err.message}`);
@@ -541,7 +603,9 @@ async function checkPendingTransfersStatus() {
   const pending = getPendingTransfers();
   if (pending.length === 0) return;
 
-  console.log(`[Connext Monitor] Checking ${pending.length} pending transfers...`);
+  console.log(
+    `[Connext Monitor] Checking ${pending.length} pending transfers...`
+  );
 
   for (const transfer of pending) {
     try {
@@ -558,12 +622,15 @@ async function checkPendingTransfersStatus() {
 
         // Send completion alert
         if (config.alertOnCompletion) {
-          const amount = ethers.utils.formatUnits(transfer.amount, 18);
+          const amount = ethers.utils.formatUnits(
+            transfer.amount,
+            transfer.decimals ?? 18
+          );
           await sendSlackAlert(
             `✅ [Connext] Cross-chain transfer completed!\n` +
-            `Transfer ID: ${transfer.transferId}\n` +
-            `Amount: ${amount} tokens\n` +
-            `Duration: ${Math.round(age / 60000)} minutes`
+              `Transfer ID: ${transfer.transferId}\n` +
+              `Amount: ${amount} tokens\n` +
+              `Duration: ${Math.round(age / 60000)} minutes`
           );
         }
 
@@ -576,7 +643,10 @@ async function checkPendingTransfersStatus() {
         }
       }
       // Check if failed
-      else if (subgraphStatus.status === "Failed" || subgraphStatus.status === "Cancelled") {
+      else if (
+        subgraphStatus.status === "Failed" ||
+        subgraphStatus.status === "Cancelled"
+      ) {
         updateTransferStatus(transfer.transferId, TransferStatus.FAILED, {
           failedAt: now,
           failureReason: subgraphStatus.status,
@@ -584,13 +654,16 @@ async function checkPendingTransfersStatus() {
 
         // Send failure alert
         if (config.alertOnFailure) {
-          const amount = ethers.utils.formatUnits(transfer.amount, 18);
+          const amount = ethers.utils.formatUnits(
+            transfer.amount,
+            transfer.decimals ?? 18
+          );
           await sendSlackAlert(
             `❌ [Connext] Cross-chain transfer FAILED!\n` +
-            `Transfer ID: ${transfer.transferId}\n` +
-            `Amount: ${amount} tokens\n` +
-            `Reason: ${subgraphStatus.status}\n` +
-            `Original TX: ${transfer.txHash}`
+              `Transfer ID: ${transfer.transferId}\n` +
+              `Amount: ${amount} tokens\n` +
+              `Reason: ${subgraphStatus.status}\n` +
+              `Original TX: ${transfer.txHash}`
           );
         }
 
@@ -609,14 +682,17 @@ async function checkPendingTransfersStatus() {
           transfer.stuckAlertSent = true;
 
           if (config.alertOnStuck) {
-            const amount = ethers.utils.formatUnits(transfer.amount, 18);
+            const amount = ethers.utils.formatUnits(
+              transfer.amount,
+              transfer.decimals ?? 18
+            );
             await sendSlackAlert(
               `⚠️ [Connext] Transfer may be stuck!\n` +
-              `Transfer ID: ${transfer.transferId}\n` +
-              `Amount: ${amount} tokens\n` +
-              `Age: ${Math.round(age / 60000)} minutes\n` +
-              `Status: ${subgraphStatus.status || "unknown"}\n` +
-              `Please check Connextscan: https://connextscan.io/tx/${transfer.transferId}`
+                `Transfer ID: ${transfer.transferId}\n` +
+                `Amount: ${amount} tokens\n` +
+                `Age: ${Math.round(age / 60000)} minutes\n` +
+                `Status: ${subgraphStatus.status || "unknown"}\n` +
+                `Please check Connextscan: https://connextscan.io/tx/${transfer.transferId}`
             );
           }
 
@@ -631,7 +707,9 @@ async function checkPendingTransfersStatus() {
         }
       }
     } catch (err) {
-      console.error(`[Connext Monitor] Error checking transfer ${transfer.transferId}: ${err.message}`);
+      console.error(
+        `[Connext Monitor] Error checking transfer ${transfer.transferId}: ${err.message}`
+      );
     }
   }
 }
@@ -650,16 +728,18 @@ function startMonitoring() {
     return;
   }
 
-  console.log(`[Connext Monitor] Starting (interval: ${config.monitoringIntervalMs}ms)`);
+  console.log(
+    `[Connext Monitor] Starting (interval: ${config.monitoringIntervalMs}ms)`
+  );
 
   // Run immediately
-  checkPendingTransfersStatus().catch(err => {
+  checkPendingTransfersStatus().catch((err) => {
     console.error(`[Connext Monitor] Initial check failed: ${err.message}`);
   });
 
   // Schedule periodic checks
   monitoringInterval = setInterval(() => {
-    checkPendingTransfersStatus().catch(err => {
+    checkPendingTransfersStatus().catch((err) => {
       console.error(`[Connext Monitor] Check failed: ${err.message}`);
     });
   }, config.monitoringIntervalMs);
@@ -699,7 +779,8 @@ function getMonitoringStatus() {
  * @param {Object} newConfig - New monitoring settings
  */
 function updateMonitoringConfig(newConfig) {
-  const restartNeeded = newConfig.monitoringIntervalMs !== undefined &&
+  const restartNeeded =
+    newConfig.monitoringIntervalMs !== undefined &&
     newConfig.monitoringIntervalMs !== config.monitoringIntervalMs;
 
   Object.assign(config, newConfig);
@@ -735,6 +816,7 @@ module.exports = {
   updateDestination,
   getDomainId,
   checkAutoForward,
+  tokenDecimals,
   // Transfer tracking
   trackTransfer,
   updateTransferStatus,

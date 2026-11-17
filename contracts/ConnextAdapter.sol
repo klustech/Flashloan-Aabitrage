@@ -17,6 +17,7 @@ contract ConnextAdapter is IXReceiver {
     uint32 public immutable destinationDomain;
     address public immutable destinationContract;
     address public owner;
+    address public pendingOwner;
 
     // Trusted inbound origin for xReceive (the adapter on the source chain).
     // Both must be set before xReceive will accept any transfer (fail-closed).
@@ -26,10 +27,12 @@ contract ConnextAdapter is IXReceiver {
     // Default cross-chain slippage tolerance (BPS) applied to forwarded profit.
     uint256 public constant DEFAULT_SLIPPAGE_BPS = 300; // 3%
 
+    event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event TrustedOriginUpdated(address indexed originSender, uint32 originDomain);
-    event ArbitrageForwarded(address indexed token, uint256 amount, address indexed recipient);
+    event ArbitrageForwarded(address indexed token, uint256 amount, address indexed recipient, bytes32 transferId);
     event CrossChainReceived(address indexed asset, uint256 amount, address indexed recipient);
+    event Rescued(address indexed token, address indexed to, uint256 amount);
 
     modifier onlyOwner() {
         require(msg.sender == owner, "ConnextAdapter: not owner");
@@ -48,10 +51,19 @@ contract ConnextAdapter is IXReceiver {
         owner = msg.sender;
     }
 
+    /// @notice Start a two-step ownership handover; `newOwner` must call acceptOwnership.
     function transferOwnership(address newOwner) external onlyOwner {
         require(newOwner != address(0), "ConnextAdapter: zero address");
-        emit OwnershipTransferred(owner, newOwner);
-        owner = newOwner;
+        pendingOwner = newOwner;
+        emit OwnershipTransferStarted(owner, newOwner);
+    }
+
+    /// @notice Complete the ownership handover from the pending owner.
+    function acceptOwnership() external {
+        require(msg.sender == pendingOwner, "ConnextAdapter: not pending owner");
+        emit OwnershipTransferred(owner, msg.sender);
+        owner = msg.sender;
+        pendingOwner = address(0);
     }
 
     /// @notice Configure the trusted inbound origin used to authenticate xReceive.
@@ -64,14 +76,17 @@ contract ConnextAdapter is IXReceiver {
         emit TrustedOriginUpdated(_originSender, _originDomain);
     }
 
-    /// @notice Forward `amount` of `token` to the configured destination chain.
+    /// @notice Pull `amount` of `token` from the owner and forward it to the
+    /// configured destination chain. `msg.value` must equal `relayerFee` exactly
+    /// so no native currency is left stranded in the adapter.
     function forwardArbitrage(
         address token,
         uint256 amount,
         uint256 relayerFee
-    ) external payable onlyOwner {
+    ) external payable onlyOwner returns (bytes32 transferId) {
         require(destinationContract != address(0), "ConnextAdapter: no destination");
-        require(msg.value >= relayerFee, "ConnextAdapter: fee underfunded");
+        require(amount > 0, "ConnextAdapter: zero amount");
+        require(msg.value == relayerFee, "ConnextAdapter: fee mismatch");
 
         IERC20 tokenContract = IERC20(token);
         tokenContract.safeTransferFrom(msg.sender, address(this), amount);
@@ -82,7 +97,7 @@ contract ConnextAdapter is IXReceiver {
         // Recipient on the destination chain is encoded in the payload.
         bytes memory callData = abi.encode(msg.sender);
 
-        connext.xcall{ value: relayerFee }(
+        transferId = connext.xcall{ value: relayerFee }(
             destinationDomain,
             destinationContract,
             token,
@@ -92,7 +107,23 @@ contract ConnextAdapter is IXReceiver {
             callData
         );
 
-        emit ArbitrageForwarded(token, amount, msg.sender);
+        emit ArbitrageForwarded(token, amount, msg.sender, transferId);
+    }
+
+    /// @notice Recover ERC-20 tokens left in the adapter, e.g. a destination-side
+    /// transfer that landed here without executing xReceive.
+    function rescueToken(address token, address to, uint256 amount) external onlyOwner {
+        require(to != address(0), "ConnextAdapter: zero recipient");
+        IERC20(token).safeTransfer(to, amount);
+        emit Rescued(token, to, amount);
+    }
+
+    /// @notice Recover native currency held by the adapter.
+    function rescueNative(address payable to, uint256 amount) external onlyOwner {
+        require(to != address(0), "ConnextAdapter: zero recipient");
+        (bool ok, ) = to.call{ value: amount }("");
+        require(ok, "ConnextAdapter: native transfer failed");
+        emit Rescued(address(0), to, amount);
     }
 
     /// @inheritdoc IXReceiver
