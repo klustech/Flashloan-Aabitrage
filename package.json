@@ -28,6 +28,7 @@
     "mythx": "sh scripts/mythx.sh",
     "audit": "npm run slither && npm run mythx",
     "fuzz": "forge test -vvv",
+    "pretest:core": "hardhat compile --quiet",
     "test:core": "node scripts/run-core-tests.js",
     "db:migrate:executions": "node scripts/migrate-executions.js",
     "commission:report": "node scripts/commissioning-report.js",

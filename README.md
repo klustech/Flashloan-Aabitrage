@@ -1,11 +1,32 @@
-> Production core: the bot now starts in PAPER and uses exact pool-preserving quotes, strict private simulation, explicit LIVE arming, and receipt-based realized accounting. See [implementation and commissioning](docs/PRODUCTION_COMPLETION.md) for the supported Ethereum/Aave V2 profile, deployment commands, and fork/PAPER evidence gates.
-
 # Flashloan Arbitrage Bot
 
-> **Commissioning path:** start at [docs/README.md](docs/README.md). Local validation (`npm run backrun:validate-local`) gates PAPER, PAPER gates LIVE.
+An experimental Ethereum arbitrage and MEV-Share backrun engine: Aave V2 flash
+loans, multi-DEX routing (Uniswap V2/V3, SushiSwap, Balancer, Curve), exact
+pool-preserving quotes, private-relay simulation, a PAPER → LIVE state machine
+and receipt-based accounting.
 
-This experimental project implements an arbitrage bot that leverages Aave flash
-loans and multiple DEX integrations.
+## Project status
+
+**This is engineering validation, not proven profitability.**
+
+- **What is validated:** the on-chain executor is profit-or-revert and has
+  adversarial, failure-injection and fork tests. The bot starts in PAPER, needs
+  explicit arming for LIVE, and records every decision with evidence gates (see
+  [docs/README.md](docs/README.md)).
+- **What is not claimed:** that it finds or wins profitable opportunities on
+  mainnet. MEV is highly competitive. No live track record, revenue figure or
+  backtest result in this repository should be read as a profit projection.
+- **Real risks remain** even though losing trades revert: a compromised hot key,
+  token approvals to approved routers, gas paid on public fallback submissions,
+  dependency vulnerabilities, and capital held in the executor for
+  capital-funded trades.
+
+Commissioning path: local validation (`npm run backrun:validate-local`) gates
+PAPER, and PAPER gates LIVE. See
+[docs/PRODUCTION_COMPLETION.md](docs/PRODUCTION_COMPLETION.md) for the supported
+Ethereum/Aave V2 profile.
+
+Released under the [MIT licence](LICENSE). Use at your own risk.
 
 ## Setup
 
@@ -15,6 +36,7 @@ loans and multiple DEX integrations.
 npm ci
 (cd server && npm ci)
 (cd frontend && npm ci)
+npm run compile   # build output (artifacts/, cache/) is not committed
 ```
 
 2. Copy `.env.example` to `.env` and fill in the required addresses (router addresses, deployed Arbitrage contracts, etc.). Only Uniswap and SushiSwap routers are needed; the old `ROUTERXYZ` fields have been removed.
@@ -320,5 +342,5 @@ and maintainability of the arbitrage bot:
 - **Refactor as Needed**: as the codebase grows, break out components and add
   documentation to keep the project approachable.
 
-Implementing these recommendations holistically can increase the chances of the
-bot finding profitable opportunities in a competitive market.
+These recommendations improve robustness; they do not make profitability any
+more likely in a competitive market.
