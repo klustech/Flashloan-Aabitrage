@@ -4,21 +4,27 @@
 
 This document provides an honest assessment of where this bot stands in the MEV (Maximal Extractable Value) competitive landscape, identifies gaps versus Tier-1 operations, and outlines the upgrade path implemented to close those gaps.
 
+> **Note on figures.** Market shares, latencies, inclusion rates, capital and
+> cost ranges in this document are qualitative, unsourced estimates used to
+> describe the landscape. They are not measurements of this project and not
+> projections of its performance or returns. Measured latency comes only from the
+> latency gate ([validation/LATENCY_TESTING.md](validation/LATENCY_TESTING.md)).
+
 ---
 
 ## Current Architecture Assessment
 
 ### What This Bot Does Well
 
-| Component | Implementation | Strength |
-|-----------|---------------|----------|
-| Route Discovery | Graph-based DFS + Bellman-Ford | Finds multi-hop cycles up to N hops |
-| Statistical Filtering | Multi-metric Z-score | Prunes low-quality routes early |
-| ML Scoring | LightGBM + heuristic fallback | Ranks routes by success probability |
-| Parallel Simulation | Worker threads | Tests multiple routes concurrently |
-| MEV Protection | Flashbots integration | Avoids public mempool frontrunning |
-| Risk Management | Circuit breaker, drawdown limits | Prevents catastrophic losses |
-| Multi-DEX Support | Uniswap V2/V3, SushiSwap, Balancer, Curve | Wide opportunity surface |
+| Component             | Implementation                            | Strength                            |
+| --------------------- | ----------------------------------------- | ----------------------------------- |
+| Route Discovery       | Graph-based DFS + Bellman-Ford            | Finds multi-hop cycles up to N hops |
+| Statistical Filtering | Multi-metric Z-score                      | Prunes low-quality routes early     |
+| ML Scoring            | LightGBM + heuristic fallback             | Ranks routes by success probability |
+| Parallel Simulation   | Worker threads                            | Tests multiple routes concurrently  |
+| MEV Protection        | Flashbots integration                     | Avoids public mempool frontrunning  |
+| Risk Management       | Circuit breaker, drawdown limits          | Prevents catastrophic losses        |
+| Multi-DEX Support     | Uniswap V2/V3, SushiSwap, Balancer, Curve | Wide opportunity surface            |
 
 ### Architecture Flow
 
@@ -58,12 +64,12 @@ This document provides an honest assessment of where this bot stands in the MEV 
 
 ### MEV Searcher Tiers
 
-| Tier | Characteristics | Estimated Market Share | Example |
-|------|----------------|----------------------|---------|
-| **Tier 1** | Custom nodes, private order flow, <10ms latency, $10M+ capital | 70-80% | Wintermute, Jump, proprietary |
-| **Tier 2** | Dedicated infra, multi-relay, 10-50ms latency, $100K-1M capital | 15-25% | Specialized MEV shops |
-| **Tier 3** | Shared RPC, single relay, 50-200ms latency, <$100K capital | 3-5% | Sophisticated individuals |
-| **Tier 4** | Basic setup, learning/hobby | <1% | This bot (before upgrades) |
+| Tier       | Characteristics                                                 | Estimated Market Share | Example                       |
+| ---------- | --------------------------------------------------------------- | ---------------------- | ----------------------------- |
+| **Tier 1** | Custom nodes, private order flow, <10ms latency, $10M+ capital  | 70-80%                 | Wintermute, Jump, proprietary |
+| **Tier 2** | Dedicated infra, multi-relay, 10-50ms latency, $100K-1M capital | 15-25%                 | Specialized MEV shops         |
+| **Tier 3** | Shared RPC, single relay, 50-200ms latency, <$100K capital      | 3-5%                   | Sophisticated individuals     |
+| **Tier 4** | Basic setup, learning/hobby                                     | <1%                    | This bot (before upgrades)    |
 
 ### Why Tier-1 Wins
 
@@ -88,66 +94,71 @@ Opportunity Detected
 
 ### 1. Latency & Infrastructure
 
-| Aspect | Current State | Tier-1 Requirement | Gap |
-|--------|--------------|-------------------|-----|
-| RPC Access | Shared Alchemy/Infura | Dedicated Geth/Erigon nodes | HIGH |
-| Runtime | Node.js (interpreted) | Rust/C++ (compiled) | MEDIUM |
-| Location | User's machine | Co-located with validators | HIGH |
-| Mempool | No direct access | Full mempool visibility | HIGH |
+| Aspect     | Current State         | Tier-1 Requirement          | Gap    |
+| ---------- | --------------------- | --------------------------- | ------ |
+| RPC Access | Shared Alchemy/Infura | Dedicated Geth/Erigon nodes | HIGH   |
+| Runtime    | Node.js (interpreted) | Rust/C++ (compiled)         | MEDIUM |
+| Location   | User's machine        | Co-located with validators  | HIGH   |
+| Mempool    | No direct access      | Full mempool visibility     | HIGH   |
 
 **Implemented Mitigations:**
+
 - Multi-RPC failover with latency monitoring
 - Connection health tracking
 - Optimized hot paths
 
 ### 2. Order Flow & Builder Relationships
 
-| Aspect | Current State | Tier-1 Requirement | Gap |
-|--------|--------------|-------------------|-----|
-| Relays | Flashbots only | Multi-relay (5+) | MEDIUM |
-| Builders | None | Private builder relationships | HIGH |
-| Order Flow | Public only | Private/exclusive flow | CRITICAL |
+| Aspect     | Current State  | Tier-1 Requirement            | Gap      |
+| ---------- | -------------- | ----------------------------- | -------- |
+| Relays     | Flashbots only | Multi-relay (5+)              | MEDIUM   |
+| Builders   | None           | Private builder relationships | HIGH     |
+| Order Flow | Public only    | Private/exclusive flow        | CRITICAL |
 
 **Implemented Mitigations:**
+
 - Multi-relay support (Flashbots, bloXroute, Eden, etc.)
 - Dynamic tip bidding based on profit margins
 - Multi-variant bundle submission
 
 ### 3. Data & Price Intelligence
 
-| Aspect | Current State | Tier-1 Requirement | Gap |
-|--------|--------------|-------------------|-----|
-| Pool Discovery | Periodic The Graph queries | Real-time state diffs | MEDIUM |
-| Price Updates | WebSocket events | Direct node subscription | LOW |
-| Graph Updates | Full rebuild | Incremental updates | MEDIUM |
+| Aspect         | Current State              | Tier-1 Requirement       | Gap    |
+| -------------- | -------------------------- | ------------------------ | ------ |
+| Pool Discovery | Periodic The Graph queries | Real-time state diffs    | MEDIUM |
+| Price Updates  | WebSocket events           | Direct node subscription | LOW    |
+| Graph Updates  | Full rebuild               | Incremental updates      | MEDIUM |
 
 **Implemented Mitigations:**
+
 - Incremental graph updates on pool state changes
 - WebSocket with polling fallback
 - On-chain sanity checks before execution
 
 ### 4. Execution Strategy
 
-| Aspect | Current State | Tier-1 Requirement | Gap |
-|--------|--------------|-------------------|-----|
-| Strategy Types | Triangular/cycle arb | Backruns, sandwiches, liquidations | MEDIUM |
-| Bundle Strategy | Single bundle | Multi-variant with different tips | MEDIUM |
-| Cross-chain | Connext (slow) | Atomic cross-chain | HIGH |
+| Aspect          | Current State        | Tier-1 Requirement                 | Gap    |
+| --------------- | -------------------- | ---------------------------------- | ------ |
+| Strategy Types  | Triangular/cycle arb | Backruns, sandwiches, liquidations | MEDIUM |
+| Bundle Strategy | Single bundle        | Multi-variant with different tips  | MEDIUM |
+| Cross-chain     | Connext (slow)       | Atomic cross-chain                 | HIGH   |
 
 **Implemented Mitigations:**
+
 - Mempool monitoring for backrun opportunities
 - Multi-variant bundle submission
 - Competitive tip calculation
 
 ### 5. Capital & Risk
 
-| Aspect | Current State | Tier-1 Requirement | Gap |
-|--------|--------------|-------------------|-----|
-| Capital Base | Variable | $1M+ for competitive tips | HIGH |
-| Risk Limits | Basic drawdown | VaR, Greeks, correlation | MEDIUM |
-| Monitoring | Prometheus metrics | Real-time anomaly detection | LOW |
+| Aspect       | Current State      | Tier-1 Requirement          | Gap    |
+| ------------ | ------------------ | --------------------------- | ------ |
+| Capital Base | Variable           | $1M+ for competitive tips   | HIGH   |
+| Risk Limits  | Basic drawdown     | VaR, Greeks, correlation    | MEDIUM |
+| Monitoring   | Prometheus metrics | Real-time anomaly detection | LOW    |
 
 **Implemented Mitigations:**
+
 - Statistical risk controls (VaR-based)
 - Sharpe ratio tracking
 - Automated pause on anomalies
@@ -161,14 +172,14 @@ Opportunity Detected
 ```javascript
 // Submits to multiple relays in parallel
 const relays = [
-  'https://relay.flashbots.net',
-  'https://relay.bloxroute.com',
-  'https://relay.edennetwork.io',
+  "https://relay.flashbots.net",
+  "https://relay.bloxroute.com",
+  "https://relay.edennetwork.io",
   // ... more relays
 ];
 
 // Each relay gets the bundle simultaneously
-await Promise.allSettled(relays.map(relay => submitBundle(relay, bundle)));
+await Promise.allSettled(relays.map((relay) => submitBundle(relay, bundle)));
 ```
 
 ### Dynamic Tip Bidding
@@ -182,7 +193,7 @@ const tip = calculateCompetitiveTip({
   expectedProfit,
   gasPrice,
   competitionLevel,
-  urgency
+  urgency,
 });
 ```
 
@@ -190,7 +201,7 @@ const tip = calculateCompetitiveTip({
 
 ```javascript
 // Monitor pending transactions for large swaps
-provider.on('pending', async (txHash) => {
+provider.on("pending", async (txHash) => {
   const tx = await provider.getTransaction(txHash);
   if (isLargeSwap(tx)) {
     const backrunOpp = analyzeBackrunOpportunity(tx);
@@ -208,7 +219,7 @@ provider.on('pending', async (txHash) => {
 // 1. Subscribe to pool events
 // 2. Update only affected edges
 // 3. Recalculate affected routes
-poolContract.on('Sync', (r0, r1) => {
+poolContract.on("Sync", (r0, r1) => {
   graph.updateEdge(pool, { reserve0: r0, reserve1: r1 });
   invalidateAffectedRoutes(pool);
 });
@@ -218,28 +229,34 @@ poolContract.on('Sync', (r0, r1) => {
 
 ## Realistic Expectations
 
-### What These Upgrades Achieve
+### What These Upgrades Aim For
 
-| Metric | Before | After | Tier-1 Target |
-|--------|--------|-------|---------------|
-| Detection Latency | 200-500ms | 50-100ms | <10ms |
-| Bundle Inclusion Rate | 1-5% | 10-20% | 50-80% |
-| Opportunity Capture | 0.1-0.5% | 1-3% | 20-40% |
-| Monthly ROI (on capital) | -5% to +2% | +2% to +10% | +20% to +100% |
+The ranges below are illustrative design targets, not measured results. No
+before/after measurement of inclusion rate or opportunity capture has been made,
+and no return on capital is projected.
+
+| Metric                | Before (estimate) | Target (unmeasured) | Tier-1 (estimate) |
+| --------------------- | ----------------- | ------------------- | ----------------- |
+| Detection Latency     | 200-500ms         | 50-100ms            | <10ms             |
+| Bundle Inclusion Rate | 1-5%              | 10-20%              | 50-80%            |
+| Opportunity Capture   | 0.1-0.5%          | 1-3%                | 20-40%            |
 
 ### What Still Requires External Investment
 
 1. **Dedicated Infrastructure** (~$5-20K/month)
+
    - Dedicated Geth/Erigon nodes
    - Co-located servers near validators
    - Private peering arrangements
 
 2. **Private Order Flow** (~$50-500K/year)
+
    - Builder relationships
    - Exclusive order flow agreements
    - Protocol-level integrations
 
 3. **Core Rewrite** (~3-6 months engineering)
+
    - Rust/C++ simulation engine
    - Custom EVM for faster execution
    - FPGA for ultra-low latency
@@ -274,6 +291,7 @@ Given the competitive landscape, this bot is best suited for:
 ## Configuration for Different Modes
 
 ### Conservative Mode (Recommended for Mainnet)
+
 ```env
 MIN_PROFIT_DAI=10
 GAS_PRICE_CEILING=30
@@ -284,6 +302,7 @@ BACKRUN_ENABLED=false
 ```
 
 ### Aggressive Mode (L2 or Testnet)
+
 ```env
 MIN_PROFIT_DAI=1
 GAS_PRICE_CEILING=100
@@ -295,6 +314,7 @@ MEMPOOL_MONITORING=true
 ```
 
 ### Research Mode (Paper Trading)
+
 ```env
 DRY_RUN=true
 LOG_LEVEL=debug
