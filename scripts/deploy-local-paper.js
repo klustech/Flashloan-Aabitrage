@@ -24,7 +24,12 @@ async function main() {
   if (!["127.0.0.1", "localhost", "[::1]"].includes(parsedUrl.hostname)) {
     throw new Error("Refusing deployment: local RPC must bind to loopback");
   }
-  const chain = await ethers.provider.getNetwork();
+
+  // Use a plain JSON-RPC provider for the running Hardhat node. The
+  // Hardhat-extended provider can report zero signers when localhost.accounts
+  // is empty, even though the node itself exposes its unlocked accounts.
+  const provider = new ethers.providers.JsonRpcProvider(localUrl);
+  const chain = await provider.getNetwork();
   if (chain.chainId !== 1) throw new Error("Local fork must report Ethereum chain ID 1");
 
   const apiKey = process.env.API_KEY;
@@ -39,13 +44,13 @@ async function main() {
     "TOKENS_DAI", "TOKENS_WETH", "TOKENS_USDC", "TOKENS_USDT", "TOKENS_WBTC",
   ]) delete process.env[key];
   const profile = productionProfile();
-  const accounts = await ethers.provider.listAccounts();
+  const accounts = await provider.listAccounts();
   if (accounts.length < 4) throw new Error("Hardhat node must expose at least four unlocked local accounts");
 
-  const deployer = ethers.provider.getSigner(accounts[0]);
-  const operator = ethers.provider.getSigner(accounts[1]);
-  const recipient = ethers.provider.getSigner(accounts[2]);
-  const governance = ethers.provider.getSigner(accounts[3]);
+  const deployer = provider.getSigner(accounts[0]);
+  const operator = provider.getSigner(accounts[1]);
+  const recipient = provider.getSigner(accounts[2]);
+  const governance = provider.getSigner(accounts[3]);
   const [deployerAddress, operatorAddress, recipientAddress, governanceAddress] =
     await Promise.all([deployer.getAddress(), operator.getAddress(), recipient.getAddress(), governance.getAddress()]);
 
@@ -55,7 +60,7 @@ async function main() {
     ...Object.values(profile.routers).map((item) => item.router),
   ];
   for (const address of [...new Set(externalAddresses)]) {
-    if ((await ethers.provider.getCode(address)) === "0x") {
+    if ((await provider.getCode(address)) === "0x") {
       throw new Error("Fork is missing required mainnet contract bytecode: " + address);
     }
   }
@@ -115,7 +120,7 @@ async function main() {
     }
   }
 
-  const runtimeCode = await ethers.provider.getCode(executor.address);
+  const runtimeCode = await provider.getCode(executor.address);
   const runtimeCodeHash = ethers.utils.keccak256(runtimeCode);
   const localEnv = {
     LOCAL_PAPER_MODE: "true",
@@ -186,7 +191,7 @@ async function main() {
     JSON.stringify({
       chainId: 1,
       localRpc: localUrl,
-      forkBlock: await ethers.provider.getBlockNumber(),
+      forkBlock: await provider.getBlockNumber(),
       deployer: deployerAddress,
       operator: operatorAddress,
       profitRecipient: recipientAddress,
@@ -202,7 +207,7 @@ async function main() {
   // Produce fresh local blocks so the existing block-driven scanner continues
   // to run while the UI is in PAPER mode.
   try {
-    await ethers.provider.send("evm_setIntervalMining", [1000]);
+    await provider.send("evm_setIntervalMining", [1000]);
   } catch (_) {
     console.warn("[LOCAL PAPER] Interval mining unavailable; scanner will use provider polling.");
   }
