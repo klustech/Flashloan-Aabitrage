@@ -37,7 +37,7 @@
     "paper:preflight": "node scripts/paper-preflight.js",
     "paper:smoke": "node scripts/paper-smoke.js",
     "local-paper:node": "node scripts/start-local-paper-node.js",
-    "local-paper:deploy": "LOCAL_PAPER_FORK=true ENABLE_MAINNET_FORK=true PAPER_ONLY=true LOCALHOST_RPC_URL=http://127.0.0.1:18545 npx hardhat run scripts/deploy-local-paper.js --network localhost",
+    "local-paper:deploy": "LOCAL_PAPER_FORK=true ENABLE_MAINNET_FORK=true PAPER_ONLY=true PRIVATE_KEY= LOCALHOST_RPC_URL=http://127.0.0.1:18545 npx hardhat run scripts/deploy-local-paper.js --network localhost",
     "local-paper:api": "node scripts/run-local-paper-api.js",
     "backrun:fork": "node scripts/backrun-fork-node.js",
     "backrun:replay": "node scripts/replay-backrun.js",
