@@ -40,6 +40,7 @@ const {
 } = process.env;
 
 const isForkingEnabled = String(ENABLE_MAINNET_FORK || "").toLowerCase() === "true";
+const isLocalPaperFork = String(process.env.LOCAL_PAPER_FORK || "").toLowerCase() === "true";
 
 const toBlockNumber = (blockNumberEnv, fallback) => {
   if (blockNumberEnv) {
@@ -95,13 +96,13 @@ module.exports = {
   defaultNetwork: "hardhat",
   networks: {
     hardhat: {
-      chainId: 1337,
+      chainId: isLocalPaperFork && isForkingEnabled ? 1 : 1337,
       allowUnlimitedContractSize: true,
       ...(mainnetForkingConfig ? { forking: mainnetForkingConfig } : {}),
     },
     localhost: {
       url: process.env.LOCALHOST_RPC_URL || "http://127.0.0.1:8545",
-      chainId: 1337,
+      chainId: isLocalPaperFork && isForkingEnabled ? 1 : 1337,
       accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
       allowUnlimitedContractSize: true,
     },
