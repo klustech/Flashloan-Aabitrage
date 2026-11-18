@@ -1,483 +1,135 @@
-# Flashloan Arbitrage - Deployment Guide
+# Deployment and runtime guide
 
-## Table of Contents
+## Supported deployment status
 
-1. [Prerequisites](#prerequisites)
-2. [Environment Configuration](#environment-configuration)
-3. [Local Development](#local-development)
-4. [Testnet Deployment](#testnet-deployment)
-5. [Mainnet Deployment](#mainnet-deployment)
-6. [Monitoring Setup](#monitoring-setup)
-7. [Rollback Procedures](#rollback-procedures)
-8. [Troubleshooting](#troubleshooting)
+The supported and locally exercised deployment path is the repository's local runtime and PAPER workflow. The Kubernetes files under `k8s/` are **reference examples**, not a verified, production-ready deployment bundle. They have not been validated against a live cluster, registry, storage class, database, ingress, or secrets provider.
 
----
+Do not interpret the presence of Kubernetes manifests or GitHub Actions deployment workflows as evidence that staging or mainnet Kubernetes deployment has been commissioned. In particular:
 
-## Prerequisites
+- The checked-in workload manifests hard-code the `flashloan-arb` namespace.
+- The staging workflow targets `flashloan-arb-staging`; no matching staging overlay/manifests are supplied.
+- The checked-in workload image names use `ghcr.io/flashloan-arb/...`, while the GitHub Actions image build uses the repository path `ghcr.io/klustech/Flashloan-Aabitrage/...`.
+- The old `k8s/secret.yaml`, `k8s/configmap-testnet.yaml`, `k8s/configmap-mainnet.yaml`, and `k8s/secret-production.yaml` deployment instructions did not describe files that could be safely and consistently applied. The placeholder Secret manifest has been removed.
 
-### Required Software
+For a verified local setup, follow [the project README](../README.md), [environment reference](ENVIRONMENT.md), and [PAPER runbook](commissioning/PAPER_RUNBOOK.md). Keep the bot in PAPER unless you have separately completed the documented LIVE readiness gates.
 
-- Node.js 18+ and Yarn
-- Docker and Docker Compose
-- kubectl (for Kubernetes deployments)
-- Hardhat (installed via npm)
-- Python 3.10+ (for ML service)
+## 1. Local runtime
 
-### Required Accounts/Keys
-
-- Ethereum RPC endpoint (Infura/Alchemy)
-- Flashbots relay access
-- PostgreSQL database
-- Redis instance (for multi-instance deployments)
-- Slack webhook (for alerts)
-
----
-
-## Environment Configuration
-
-### Core Configuration (.env)
+From the repository root:
 
 ```bash
-# Network Configuration
-MAINNET_RPC_URL=https://mainnet.infura.io/v3/YOUR_KEY
-MAINNET_WEBSOCKET=wss://mainnet.infura.io/ws/v3/YOUR_KEY
-CHAIN_ID=1
-
-# Wallet Configuration (NEVER commit real keys!)
-PRIVATE_KEY=0x...
-FLASHBOTS_SIGNER_KEY=0x...
-
-# Contract Addresses (mainnet)
-AAVE_PROVIDER_ADDRESS=0xB53C1a33016B2DC2fF3653530bfF1848a515c8c5
-UNISWAP_V2_ROUTER=0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
-SUSHISWAP_V2_ROUTER=0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F
-UNISWAP_V3_ROUTER=0xE592427A0AEce92De3Edee1F18E0157C05861564
-UNISWAP_V3_QUOTER=0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6
-BALANCER_VAULT=0xBA12222222228d8Ba445958a75a0704d566BF2C8
-
-# Token Addresses
-DAI_ADDRESS=0x6B175474E89094C44Da98b954EesDeAC495271d0F
-WETH_ADDRESS=0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2
-
-# Bot Configuration
-MIN_PROFIT_DAI=1
-GAS_PRICE_CEILING=100
-SLIPPAGE_BIPS=50
-MIN_BORROW_AMOUNT=10000
-FLASHBOTS_DEFAULT=true
-
-# Database
-PG_HOST=localhost
-PG_PORT=5432
-PG_DB=flashloan_arb
-PG_USER=postgres
-PG_PASSWORD=your_password
-
-# Redis (optional, for multi-instance)
-REDIS_URL=redis://localhost:6379
-
-# ML Service
-ML_MODEL_ENDPOINT=http://localhost:4000/score
-
-# Monitoring
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
-
-# API Security (REQUIRED)
-# The API server is fail-closed: every non-health route requires a matching
-# `x-api-key` header, and the server REFUSES all requests if API_KEY is unset.
-API_KEY=your_secure_api_key
-# CORS is restricted to this origin. It MUST be set to the dashboard origin
-# for any browser-based access to work; requests from other origins are blocked.
-CORS_ORIGIN=https://dashboard.example.com
-
-# Transaction submission
-# Submission is Flashbots/private-relay by default. The public-mempool fallback
-# is DISABLED unless you explicitly opt in (leave unset/false in production).
-ALLOW_PUBLIC_MEMPOOL_FALLBACK=false
+npm ci
+(cd server && npm ci)
+(cd frontend && npm ci)
+npm run compile
 ```
 
-### Contract Deployment Parameters (.env)
-
-For Ethereum mainnet production use `npm run deploy:production`; see
-[EXECUTOR_GOVERNANCE.md](security/EXECUTOR_GOVERNANCE.md) for the role layout.
-
-`scripts/deploy.js` deploys a self-administered `ArbitrageTimelock` first, then
-`ArbitrageFlashloan` with the constructor
-`(provider, profitRecipient, admin=timelock, executor=OPERATOR_ADDRESS, routers)`,
-then the `ConnextAdapter`. It reads these variables (there is **no**
-`MAX_LOSS_BPS` or `FLASHLOAN_PREMIUM_BIPS` — the on-chain max-loss cap was
-removed and the Aave premium is read on-chain at runtime):
+Configure the local environment using the tracked `.env.example` as a reference. Keep actual credentials in an untracked `.env` file. Check configuration without printing secret values:
 
 ```bash
-# ArbitrageFlashloan
-AAVE_LENDING_POOL_ADDRESS_PROVIDER=0xB53C1a33016B2DC2fF3653530bfF1848a515c8c5
-PROFIT_RECIPIENT=0x...   # optional; defaults to the deployer address
-
-# Timelock (deployed first, then passed into the ArbitrageFlashloan constructor)
-TIMELOCK_MIN_DELAY_SEC=86400          # e.g. 24h delay
-TIMELOCK_PROPOSERS=0xProposer1,0xProposer2
-TIMELOCK_EXECUTORS=0xExecutor1,0xExecutor2
-
-# Hot bot key (executor role only; never a timelock proposer/executor) and the
-# routers/vaults/pools the executor may call
-OPERATOR_ADDRESS=0x...
-APPROVED_ROUTERS=0xRouter1,0xRouter2
-
-# ConnextAdapter (cross-chain forwarding)
-CONNEXT_ADDRESS=0x...
-DESTINATION_DOMAIN=<numeric_connext_domain_id>
-RECIPIENT_ON_DESTINATION=0x...
+npm run env:check
 ```
 
-Cross-chain forwarding from the bot is **off by default**. Setting
-`CONNEXT_ADAPTER_ADDRESS` only initialises the client; auto-forwarding also
-needs `CONNEXT_AUTO_FORWARD=true`. `ConnextAdapter.forwardArbitrage` pulls tokens
-from the adapter's owner, so the owner must be a dedicated treasury key, not the
-hot `OPERATOR_ADDRESS` key. Ownership moves in two steps
-(`transferOwnership`, then `acceptOwnership` from the new owner), and the owner
-can recover stranded funds with `rescueToken` / `rescueNative`.
+For the PAPER workflow, keep `PAPER_ONLY=true`, do not provide `PRIVATE_KEY`, and follow the exact preflight and smoke-test sequence in [PAPER_RUNBOOK.md](commissioning/PAPER_RUNBOOK.md). PAPER mode does not sign or submit transactions.
 
-### Testnet Configuration
+## 2. Kubernetes reference material (not a turnkey deployment)
 
-For Sepolia testnet, use these addresses:
+The manifests are retained to show the intended service topology and selected Kubernetes resources. They are not a verified staging or production installation. Do not run `kubectl apply -f k8s/` as a deployment procedure.
+
+Before using them in a real cluster, an operator must first create and validate an environment-specific overlay that:
+
+1. Sets the intended namespace consistently on every namespaced resource.
+2. Uses image names and immutable tags that actually exist in the configured GHCR owner/package.
+3. Supplies all referenced Secrets and registry credentials.
+4. Provides PostgreSQL and the required Redis service/configuration.
+5. Provides a compatible persistent volume/storage class for the ML training PVC, or disables the training resources.
+6. Verifies container ports, health endpoints, service exposure, network policies, resource limits, and database connectivity.
+7. Keeps mainnet transaction signing disabled until the separate LIVE commissioning gates are satisfied.
+
+The checked-in workload YAML currently uses the `flashloan-arb` namespace. It is not a staging overlay and must not be applied to `flashloan-arb-staging` by changing only the namespace command.
+
+### 2.1 Create the namespace
+
+After preparing and reviewing an environment-specific overlay, create its namespace (example only):
 
 ```bash
-CHAIN_ID=11155111
-MAINNET_RPC_URL=https://sepolia.infura.io/v3/YOUR_KEY
-AAVE_PROVIDER_ADDRESS=0x0496275d34753A48320CA58103d5220d394FF77F
-```
-
----
-
-## Local Development
-
-### 1. Install Dependencies
-
-```bash
-# Install Node dependencies
-yarn install
-
-# Install Python dependencies for ML
-cd ml && pip install -r requirements.txt && cd ..
-```
-
-### 2. Start Local Environment
-
-```bash
-# Start all services with Docker Compose
-docker-compose up -d
-
-# Or run individually:
-# Start Hardhat node
-npx hardhat node
-
-# In another terminal, deploy contracts
-npx hardhat run scripts/deploy.js --network localhost
-
-# Start the bot
-cd server && node scripts/server.js
-
-# Start ML service
-cd ml && python ml_scorer.py
-
-# Start frontend
-cd frontend && npm start
-```
-
-### 3. Run Tests
-
-```bash
-# Smart contract tests
-npx hardhat test
-
-# Coverage report
-yarn coverage
-
-# Fork tests
-ENABLE_MAINNET_FORK=true npx hardhat test test/integration/flashloan.spec.js
-```
-
----
-
-## Testnet Deployment
-
-### 1. Deploy Contracts to Sepolia
-
-```bash
-# Set environment variables
-export DEPLOYER_PRIVATE_KEY=0x...
-export SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/...
-
-# Deploy (deploys the timelock, then ArbitrageFlashloan, then ConnextAdapter)
-npx hardhat run scripts/deploy.js --network sepolia
-
-# Verify ArbitrageFlashloan on Etherscan. Its constructor takes exactly
-# (provider, profitRecipient, admin, executor, routers); the script prints the
-# exact command, including the routers array.
-npx hardhat verify --network sepolia ARB_FLASHLOAN_ADDRESS \
-  $AAVE_LENDING_POOL_ADDRESS_PROVIDER $PROFIT_RECIPIENT $TIMELOCK_ADDRESS $OPERATOR_ADDRESS '[0xRouter1,0xRouter2]'
-```
-
-### 2. Deploy Services to Staging
-
-```bash
-# Apply Kubernetes configs
-kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/configmap-testnet.yaml
-kubectl apply -f k8s/secret.yaml
-kubectl apply -f k8s/bot-deployment.yaml
-kubectl apply -f k8s/ml-deployment.yaml
-kubectl apply -f k8s/frontend-deployment.yaml
-
-# Verify deployment
-kubectl get pods -n flashloan-arb-staging
-```
-
-### 3. Configure Bot for Testnet
-
-Update the ConfigMap with testnet addresses:
-
-```yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: bot-config
-  namespace: flashloan-arb-staging
-data:
-  CHAIN_ID: "11155111"
-  NETWORK: "sepolia"
-  MIN_PROFIT_DAI: "0.1" # Lower threshold for testing
-```
-
----
-
-## Mainnet Deployment
-
-### Pre-Deployment Checklist
-
-- [ ] All tests passing
-- [ ] Security audit completed
-- [ ] Contract verified on Etherscan
-- [ ] Monitoring dashboards configured
-- [ ] Alert channels tested
-- [ ] Rollback procedure documented
-- [ ] Team on-call schedule confirmed
-
-### 1. Deploy Contracts
-
-```bash
-# IMPORTANT: Double-check all addresses and parameters
-export MAINNET_RPC_URL=https://mainnet.infura.io/v3/...
-export DEPLOYER_PRIVATE_KEY=0x...
-
-# Deploy with specific gas settings
-npx hardhat run scripts/deploy.js --network mainnet
-
-# Verify immediately
-npx hardhat verify --network mainnet DEPLOYED_ADDRESS
-```
-
-### 2. Deploy Services
-
-```bash
-# Create production namespace
 kubectl create namespace flashloan-arb
+```
 
-# Apply secrets (from secure vault)
-kubectl apply -f k8s/secret-production.yaml
+Use a separate, deliberately prepared overlay and namespace for staging. Do not reuse mainnet configuration for Sepolia.
 
-# Apply configs
-kubectl apply -f k8s/configmap-mainnet.yaml
+### 2.2 Create application Secrets from an external file
 
-# Deploy services (with rolling update)
-kubectl apply -f k8s/bot-deployment.yaml
-kubectl apply -f k8s/ml-deployment.yaml
-kubectl apply -f k8s/frontend-deployment.yaml
+Never commit a Kubernetes Secret manifest containing credentials, base64-encoded or otherwise. Kubernetes base64 encoding is not encryption.
 
-# Monitor rollout
+The tracked [arb-secrets.env.example](../k8s/arb-secrets.env.example) lists the keys referenced by the current example workloads. Copy it to a private location outside the repository, replace every placeholder with values for the target environment, and restrict its permissions:
+
+```bash
+install -m 600 k8s/arb-secrets.env.example /tmp/arb-secrets.env
+# Edit /tmp/arb-secrets.env using a secure editor; do not paste secrets into shell history.
+```
+
+Create/update the Secret in the namespace used by the prepared manifests:
+
+```bash
+kubectl create secret generic arb-secrets \
+  --namespace flashloan-arb \
+  --from-env-file=/tmp/arb-secrets.env \
+  --dry-run=client -o yaml | kubectl apply -f -
+rm -f /tmp/arb-secrets.env
+```
+
+The current example workloads reference these Secret keys:
+
+- Bot: `PRIVATE_KEY`, `RELAY_AUTH_PRIVATE_KEY`, `MAINNET_WEBSOCKET`, `INFURA_KEY`, `REDIS_PASSWORD`
+- Redis: `REDIS_PASSWORD`
+- ML training job: `DATABASE_URL`
+
+Supply only values actually required by the selected environment. Use a dedicated, least-privilege secret-management system for real deployments; do not use an operator's personal wallet. Never put private keys or RPC credentials in ConfigMaps.
+
+### 2.3 GHCR image-pull authentication
+
+The example Deployments and ML training resources refer to an image-pull Secret named `regcred`. If the corresponding GHCR packages are private, create a GitHub token with read-only `read:packages` permission and create the Secret in the same namespace as the workloads:
+
+```bash
+read -r -p "GitHub username: " GHCR_USER
+read -r -s -p "GitHub token (read:packages): " GHCR_TOKEN
+echo
+kubectl create secret docker-registry regcred \
+  --namespace flashloan-arb \
+  --docker-server=ghcr.io \
+  --docker-username="$GHCR_USER" \
+  --docker-password="$GHCR_TOKEN" \
+  --dry-run=client -o yaml | kubectl apply -f -
+unset GHCR_TOKEN
+```
+
+If packages are public, image-pull authentication may not be required; remove the `imagePullSecrets` references from the prepared overlay rather than creating an unnecessary credential. Never commit a token or generated Secret YAML.
+
+The current checked-in workload image paths do not match the image paths produced by the repository's staging workflow. Confirm package names and publish immutable tags before deploying; do not assume the `:latest` images in the examples exist.
+
+### 2.4 Configuration examples
+
+[k8s/configuration.example.yaml](../k8s/configuration.example.yaml) contains non-secret example ConfigMaps only. It includes mainnet-oriented defaults and the `flashloan-arb` namespace; inspect and adapt it before use. It is not a Sepolia configuration and is not a complete application configuration for the current bot.
+
+## 3. Staging and mainnet
+
+There is currently **no verified, ready-to-run Kubernetes staging or mainnet procedure in this repository**. The existing CI workflows can build/test code, and deployment workflows describe intended automation, but the checked-in manifests and workflow targets are not aligned sufficiently to claim a reproducible cluster deployment.
+
+Do not run the old commands that referenced missing `configmap-testnet.yaml`, `configmap-mainnet.yaml`, or `secret-production.yaml`. Do not deploy the example mainnet ConfigMap as a substitute for a reviewed production configuration.
+
+A staging deployment becomes supportable only after a staging overlay, staging namespace, package paths/tags, secrets, database/Redis dependencies, storage, and smoke tests have been verified together. Mainnet requires those same checks plus completed contract/security review, monitored operations, key custody, rollback planning, and all LIVE commissioning gates. A Kubernetes deployment alone does not establish profitability or production readiness.
+
+## 4. Monitoring and rollback references
+
+The repository includes example Prometheus and Grafana resources under `k8s/`. They are configuration references, not evidence of a running monitoring stack. Review scrape targets and alerting integration against the actual deployed services before use.
+
+For a cluster that has been independently commissioned, standard Kubernetes rollout inspection/rollback commands are:
+
+```bash
 kubectl rollout status deployment/bot-logic-deploy -n flashloan-arb
-```
-
-### 3. Post-Deployment Verification
-
-```bash
-# Check pod health
-kubectl get pods -n flashloan-arb
-
-# Check logs
-kubectl logs -f deployment/bot-logic-deploy -n flashloan-arb
-
-# Verify metrics endpoint
-kubectl port-forward svc/bot-logic-svc 3001:3001 -n flashloan-arb
-curl http://localhost:3001/api/health
-
-# Check Grafana dashboards
-# Navigate to your Grafana URL and verify data is flowing
-```
-
----
-
-## Monitoring Setup
-
-### Prometheus Configuration
-
-The bot exposes metrics at `/metrics`. Configure Prometheus to scrape:
-
-```yaml
-scrape_configs:
-  - job_name: "flashloan-bot"
-    static_configs:
-      - targets: ["bot-logic-svc:3001"]
-    metrics_path: /metrics
-    scrape_interval: 15s
-```
-
-### Key Metrics to Monitor
-
-| Metric                 | Alert Threshold  | Description          |
-| ---------------------- | ---------------- | -------------------- |
-| `arb_success_total`    | Rate < 0 for 5m  | No successful trades |
-| `arb_failure_total`    | Rate > 10/min    | High failure rate    |
-| `daily_pnl_dai`        | < -100 DAI       | Daily loss threshold |
-| `gas_price_gwei`       | > GAS_CEILING    | Gas too expensive    |
-| `bot_active`           | = 0 unexpectedly | Bot stopped          |
-| `consecutive_failures` | > 3              | Circuit breaker risk |
-
-### Grafana Dashboards
-
-Import dashboards from `infra/grafana/dashboards/`:
-
-- `trading-performance.json` - P&L, trade stats, win rate
-- `system-health.json` - CPU, memory, latency, errors
-
----
-
-## Rollback Procedures
-
-### Kubernetes Rollback
-
-```bash
-# View rollout history
 kubectl rollout history deployment/bot-logic-deploy -n flashloan-arb
-
-# Rollback to previous version
 kubectl rollout undo deployment/bot-logic-deploy -n flashloan-arb
-
-# Rollback to specific revision
-kubectl rollout undo deployment/bot-logic-deploy --to-revision=2 -n flashloan-arb
 ```
 
-### Emergency Stop Procedures
-
-1. **Stop Bot via API**:
-
-   ```bash
-   curl -X POST https://your-api/api/stop-bot -H "x-api-key: YOUR_KEY"
-   ```
-
-2. **Scale Down Deployment**:
-
-   ```bash
-   kubectl scale deployment bot-logic-deploy --replicas=0 -n flashloan-arb
-   ```
-
-3. **Pause Smart Contract** (if implemented):
-   ```bash
-   # Using Hardhat console
-   npx hardhat console --network mainnet
-   > const contract = await ethers.getContractAt("ArbitrageFlashloan", "ADDRESS")
-   > await contract.pause()
-   ```
-
-### Contract Upgrade Procedure
-
-The current contracts are not upgradeable. For contract changes:
-
-1. Deploy new contract version
-2. Migrate funds from old contract (if any)
-3. Update bot configuration with new address
-4. Redeploy bot services
-5. Monitor closely for first 24 hours
-
----
-
-## Troubleshooting
-
-### Common Issues
-
-#### Bot Not Finding Opportunities
-
-- Check gas price vs ceiling setting
-- Verify RPC endpoint is responsive
-- Check if pools have sufficient liquidity
-- Review `routes_discovered_total` metric
-
-#### High Failure Rate
-
-- Check `arb_failure_total{reason="..."}` for breakdown
-- Common reasons: slippage, gas estimation, MEV competition
-- Consider increasing slippage tolerance temporarily
-
-#### Transaction Reverts
-
-- Check contract pause status
-- Verify sufficient liquidity in Aave
-- Remember the contract is profit-or-revert: a route that is no longer profitable after the Aave premium and gas will revert by design. Tune `MIN_PROFIT_DAI` and slippage rather than expecting losing trades to settle.
-- Check for contract upgrades on DEXes
-
-#### ML Service Unavailable
-
-- Check ML pod status: `kubectl get pods -l app=ml-scorer`
-- Review ML service logs
-- Bot will fallback to liquidity-based sorting
-
-### Log Analysis
-
-```bash
-# Stream bot logs
-kubectl logs -f deployment/bot-logic-deploy -n flashloan-arb
-
-# Search for errors
-kubectl logs deployment/bot-logic-deploy -n flashloan-arb | grep -i error
-
-# Export logs for analysis
-kubectl logs deployment/bot-logic-deploy -n flashloan-arb > bot-logs.txt
-```
-
-### Support Channels
-
-- GitHub Issues: [Repository Issues](https://github.com/your-repo/issues)
-- Team Slack: #flashloan-arb-support
-- On-Call: Check rotation schedule
-
----
-
-## Security Considerations
-
-1. **Never commit private keys** - Use environment variables or secret management
-2. **Rotate keys regularly** - Especially the Flashbots signer key
-3. **Monitor for unauthorized access** - Review API access logs
-4. **Keep dependencies updated** - Run `npm audit` regularly
-5. **Restrict network access** - Use Kubernetes network policies
-6. **Enable audit logging** - Track all configuration changes
-
----
-
-## Appendix
-
-### Resource Requirements
-
-| Service    | CPU        | Memory      | Replicas |
-| ---------- | ---------- | ----------- | -------- |
-| Bot        | 500m-1000m | 512Mi-1Gi   | 2        |
-| ML Scorer  | 250m-500m  | 256Mi-512Mi | 1        |
-| Frontend   | 100m-250m  | 128Mi-256Mi | 2        |
-| Redis      | 100m-250m  | 128Mi-256Mi | 1        |
-| PostgreSQL | 500m-1000m | 1Gi-2Gi     | 1        |
-
-### Estimated Costs
-
-- Infura/Alchemy: ~$200-500/month (depending on requests)
-- AWS/GCP Kubernetes: ~$200-400/month (3-node cluster)
-- PostgreSQL (managed): ~$50-100/month
-- Total: ~$500-1000/month base infrastructure
+These commands are operational examples only; they do not imply that the example deployment currently exists or is healthy.

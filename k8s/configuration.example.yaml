@@ -1,56 +1,6 @@
-# ═══════════════════════════════════════════════════════════════════════════════
-# KUBERNETES SECRETS - Flashloan Arbitrage Bot
-# ═══════════════════════════════════════════════════════════════════════════════
-# All values must be base64 encoded:
-#   echo -n "your-value" | base64
-#
-# SECURITY: Never commit real secrets to version control!
-# Use kubectl create secret or external secrets manager (AWS, Vault, etc.)
-# ═══════════════════════════════════════════════════════════════════════════════
-apiVersion: v1
-kind: Secret
-metadata:
-  name: arb-secrets
-  namespace: flashloan-arb
-  labels:
-    app: flashloan-arb
-type: Opaque
-data:
-  # ─── Required Secrets ───────────────────────────────────────────────────────
-  # Bot wallet private key (0x...)
-  PRIVATE_KEY: BASE64_PRIVATE_KEY
-  # Unfunded relay-auth identity (searcher reputation); must differ from PRIVATE_KEY
-  RELAY_AUTH_PRIVATE_KEY: BASE64_RELAY_AUTH_PRIVATE_KEY
-
-  # RPC/WebSocket URLs (base64 encoded)
-  MAINNET_RPC_URL: BASE64_MAINNET_RPC_URL
-  MAINNET_WEBSOCKET: BASE64_WSS_URL
-
-  # API Keys
-  INFURA_KEY: BASE64_INFURA_KEY
-  ALCHEMY_API_KEY: BASE64_ALCHEMY_KEY
-
-  # ─── Database Secrets ───────────────────────────────────────────────────────
-  # PostgreSQL connection string
-  DATABASE_URL: BASE64_DATABASE_URL
-  PG_PASSWORD: BASE64_PG_PASSWORD
-
-  # Redis password
-  REDIS_PASSWORD: BASE64_REDIS_PASSWORD
-
-  # ─── Optional Service Secrets ───────────────────────────────────────────────
-  # Slack webhook for alerts
-  SLACK_WEBHOOK_URL: BASE64_SLACK_WEBHOOK
-
-  # ML model API secret
-  SCORER_SHARED_SECRET: BASE64_SCORER_SECRET
-
-  # Etherscan API key (for contract verification)
-  ETHERSCAN_API_KEY: BASE64_ETHERSCAN_KEY
-
-  # TheGraph API key
-  THEGRAPH_API_KEY: BASE64_THEGRAPH_KEY
----
+# EXAMPLE CONFIGURATION ONLY — NOT A DEPLOYMENT MANIFEST.
+# Contains non-secret ConfigMaps. Mainnet-oriented defaults and namespace are
+# examples; review and adapt before use. No Kubernetes Secret is defined here.
 # ═══════════════════════════════════════════════════════════════════════════════
 # ConfigMap for non-sensitive bot configuration
 # ═══════════════════════════════════════════════════════════════════════════════
