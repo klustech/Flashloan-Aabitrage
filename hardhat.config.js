@@ -139,6 +139,7 @@ module.exports = {
     ...(arbitrumForkingConfig
       ? {
           arbitrumFork: {
+            url: ARB_RPC_URL,
             chainId: 42161,
             allowUnlimitedContractSize: true,
             forking: arbitrumForkingConfig,
@@ -148,6 +149,7 @@ module.exports = {
     ...(optimismForkingConfig
       ? {
           optimismFork: {
+            url: OP_RPC_URL,
             chainId: 10,
             allowUnlimitedContractSize: true,
             forking: optimismForkingConfig,
