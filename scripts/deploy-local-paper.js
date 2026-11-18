@@ -30,6 +30,14 @@ async function main() {
   const apiKey = process.env.API_KEY;
   if (!apiKey) throw new Error("API_KEY must already be configured in the repository .env");
 
+  // Use canonical Ethereum mainnet addresses on the fork, not stale local .env overrides.
+  for (const key of [
+    "AAVE_LENDING_POOL_ADDRESS_PROVIDER", "AAVE_V2_LENDING_POOL",
+    "UNISWAP_ROUTER_ADDRESS", "SUSHISWAP_ROUTER_ADDRESS",
+    "UNISWAP_V3_ROUTER", "UNISWAP_V3_QUOTER",
+    "PANCAKE_V3_ROUTER", "PANCAKE_V3_FACTORY", "PANCAKE_V3_QUOTER",
+    "TOKENS_DAI", "TOKENS_WETH", "TOKENS_USDC", "TOKENS_USDT", "TOKENS_WBTC",
+  ]) delete process.env[key];
   const profile = productionProfile();
   const accounts = await ethers.provider.listAccounts();
   if (accounts.length < 4) throw new Error("Hardhat node must expose at least four unlocked local accounts");
