@@ -99,7 +99,7 @@ async function main() {
       executor.executors(operatorAddress),
       executor.admin(),
       executor.profitRecipient(),
-      executor.provider(),
+      executor.functions["provider()"]().then(([value]) => value),
       executor.lendingPool(),
     ]);
   if (version.toNumber() !== 4) throw new Error("Deployed executor is not version 4");
