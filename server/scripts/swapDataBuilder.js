@@ -161,7 +161,10 @@ async function buildArbitrageData(route, options = {}, provider) {
 
       case DexType.BALANCER: {
         if (!poolId || poolId === ethers.constants.HashZero) throw new Error("Balancer poolId required");
-        outputAmt = await getBalancerQuote(tokenIn, tokenOut, currentAmtBN);
+        outputAmt = await getBalancerQuote(tokenIn, tokenOut, currentAmtBN, {
+          poolId,
+          provider,
+        });
 
         step = {
           dexType,
