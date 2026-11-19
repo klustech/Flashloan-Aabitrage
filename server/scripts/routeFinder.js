@@ -215,15 +215,18 @@ async function findNegativeCycles(adjacencyGraph, allPools) {
         ethers.utils.parseUnits("1", 18)
       );
       return parseFloat(ethers.utils.formatUnits(quote, 18));
-    } else if (pool.dex === "balancer_v2") {
-      const { sor } = await require("./balancerUtils").initBalancer(provider);
-      const swapInfo = await sor.getSwaps(
+    } else if (pool.dex === "balancer_v2" || pool.dex === "BalancerV2") {
+      const { getBalancerQuoteDirect } = require("./balancerUtils");
+      const poolId = pool.poolAddress || pool.pairAddress;
+      if (!poolId) throw new Error("Balancer pool ID is missing");
+      const quote = await getBalancerQuoteDirect(
+        provider,
+        poolId,
         tA,
         tB,
-        "SwapExactIn",
-        ethers.utils.parseUnits("1", 18).toString()
+        ethers.utils.parseUnits("1", 18)
       );
-      return parseFloat(ethers.utils.formatUnits(swapInfo.returnAmount, 18));
+      return parseFloat(ethers.utils.formatUnits(quote, 18));
     } else if (pool.dex === "curve_v2") {
       const idxA = pool.tokens
         .map((x) => x.toLowerCase())
