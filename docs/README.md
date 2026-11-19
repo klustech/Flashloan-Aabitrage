@@ -12,6 +12,7 @@ This index points to the canonical operator and developer documentation. Read th
 | Contribution process | [CONTRIBUTING.md](../CONTRIBUTING.md) |
 | Vulnerability reporting | [Security policy](../SECURITY.md) |
 | Licensing | [Repository LICENSE](../LICENSE) |
+| Third-party dependencies and source notices | [Third-party licence audit](../THIRD_PARTY_LICENSE_AUDIT.md) |
 
 ## Operator path
 
