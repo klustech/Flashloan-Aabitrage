@@ -6,13 +6,8 @@
 
 const { ethers } = require("ethers");
 
-// Try to load Balancer SDK, but don't fail if not installed
-let BalancerSDK, Network;
-try {
-  ({ BalancerSDK, Network } = require("@balancer-labs/sdk"));
-} catch (err) {
-  console.warn("[balancerUtils] @balancer-labs/sdk not installed, using direct vault interactions");
-}
+// Use the Balancer V2 Vault ABI directly. This keeps quoting independent of
+// the GPL-licensed legacy Balancer SDK and SOR packages.
 
 // Balancer Vault ABI for direct interactions
 const BALANCER_VAULT_ABI = [
@@ -39,9 +34,6 @@ const SwapKind = {
   GIVEN_OUT: 1,
 };
 
-// Cached SDK instances
-let balancerInstance = null;
-let sorInstance = null;
 let rpcProvider = null;
 
 /**
@@ -56,37 +48,7 @@ async function initBalancer(provider) {
 
   rpcProvider = provider;
 
-  // If SDK is available, use it
-  if (BalancerSDK && Network) {
-    const network = await provider.getNetwork();
-    const chainId = network.chainId;
-
-    // Map chainId to Balancer Network
-    let balancerNetwork = Network.MAINNET;
-    if (chainId === 137) balancerNetwork = Network.POLYGON;
-    else if (chainId === 42161) balancerNetwork = Network.ARBITRUM;
-    else if (chainId === 10) balancerNetwork = Network.OPTIMISM;
-
-    const rpcUrl = provider.connection?.url || process.env.MAINNET_RPC_URL || process.env.ETH_RPC_URL;
-
-    balancerInstance = new BalancerSDK({
-      network: balancerNetwork,
-      rpcUrl,
-    });
-
-    sorInstance = balancerInstance.sor;
-
-    // Fetch pool data for SOR
-    await sorInstance.fetchPools();
-
-    return {
-      balancer: balancerInstance,
-      sor: sorInstance,
-      vault: new ethers.Contract(BALANCER_VAULT, BALANCER_VAULT_ABI, provider),
-    };
-  }
-
-  // Fallback to direct vault interaction
+  // Direct Vault access is the supported Balancer integration.
   return {
     balancer: null,
     sor: null,
@@ -104,30 +66,9 @@ async function initBalancer(provider) {
  */
 async function getBalancerQuote(tokenIn, tokenOut, amountIn, options = {}) {
   const provider = options.provider || rpcProvider;
-
-  // Try SOR first if available
-  if (sorInstance) {
-    try {
-      const swapInfo = await sorInstance.getSwaps(
-        tokenIn,
-        tokenOut,
-        SwapKind.GIVEN_IN,
-        amountIn.toString()
-      );
-      if (swapInfo && swapInfo.returnAmount) {
-        return ethers.BigNumber.from(swapInfo.returnAmount);
-      }
-    } catch (err) {
-      console.warn(`[balancerUtils] SOR quote failed: ${err.message}, trying direct query`);
-    }
-  }
-
-  // Fallback to direct vault query if poolId is provided
-  if (options.poolId && provider) {
-    return getBalancerQuoteDirect(provider, options.poolId, tokenIn, tokenOut, amountIn);
-  }
-
-  throw new Error("Balancer quote failed: No SOR available and no poolId provided");
+  if (!provider) throw new Error("Balancer quote failed: provider is required");
+  if (!options.poolId) throw new Error("Balancer quote failed: poolId is required");
+  return getBalancerQuoteDirect(provider, options.poolId, tokenIn, tokenOut, amountIn);
 }
 
 /**
@@ -274,39 +215,15 @@ function buildBatchSwapParams(hops, amountIn, minAmountOut) {
  * @param {string} tokenB - Second token
  * @returns {Array} - Array of pool info objects
  */
-async function findBalancerPools(tokenA, tokenB) {
-  if (!sorInstance) {
-    console.warn("[balancerUtils] SOR not initialized, cannot find pools");
-    return [];
-  }
-
-  // Use SOR's internal pool data
-  const pools = sorInstance.getPools();
-  const matchingPools = [];
-
-  for (const pool of pools) {
-    const tokens = pool.tokensList || [];
-    const hasA = tokens.some(t => t.toLowerCase() === tokenA.toLowerCase());
-    const hasB = tokens.some(t => t.toLowerCase() === tokenB.toLowerCase());
-
-    if (hasA && hasB) {
-      matchingPools.push({
-        id: pool.id,
-        address: pool.address,
-        poolType: pool.poolType,
-        tokens: pool.tokensList,
-        swapFee: pool.swapFee,
-        totalLiquidity: pool.totalLiquidity,
-      });
-    }
-  }
-
-  return matchingPools;
+async function findBalancerPools() {
+  // Pool discovery is handled by liquidityScanner; this utility deliberately
+  // does not bundle or invoke the legacy GPL-licensed Smart Order Router.
+  return [];
 }
 
-// Export legacy references for backward compatibility
-const balancer = balancerInstance;
-const sor = sorInstance;
+// Legacy exports retained for callers that inspect these fields.
+const balancer = null;
+const sor = null;
 
 module.exports = {
   initBalancer,
