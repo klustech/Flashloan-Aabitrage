@@ -3,11 +3,11 @@
 **Audit date:** 19 November 2026  
 **Branch reviewed:** `main`  
 **Scope:** repository manifests and lockfiles, selected Solidity interfaces, root licence notice and identified upstream licence declarations.  
-**Status: NOT CLEARED FOR PUBLIC RELEASE.** This is a repository-level screening, not a legal opinion or a complete installed-artifact/SBOM audit.
+**Status: Balancer GPL dependency blocker remediated in source/manifests; overall release still requires remaining provenance, inventory and legal checks.** This is a repository-level screening, not a legal opinion or a complete installed-artifact/SBOM audit.
 
 ## Executive summary
 
-The repository's own top-level licence is MIT, but that does not mean every dependency or third-party-derived source file is MIT. The current dependency graph contains production GPL-3.0-only Balancer packages, the frontend lockfile has extensive missing licence metadata, and several Solidity interface files need provenance/header verification.
+The repository's own top-level licence is MIT, but that does not mean every dependency or third-party-derived source file is MIT. The legacy GPL-3.0-only Balancer SDK/SOR dependencies identified in the initial audit have now been removed from the root and server manifests; Balancer quoting uses the Vault ABI directly. The frontend lockfile still has extensive missing licence metadata, and several Solidity interface files need provenance/header verification.
 
 **Do not describe the complete project and all its dependencies as MIT-only. Do not remove or overwrite third-party licence notices to make the repository appear uniformly MIT.**
 
@@ -23,9 +23,9 @@ Three npm projects were identified:
 
 Counts are lockfile package-location entries, not unique package names across the whole repository. The absence of a `license` field in a lockfile is **not proof that a package is unlicensed or proprietary**; it means its licence cannot be cleared from this lockfile alone. npm lockfiles describe the resolved dependency tree, but package licence metadata still needs verification against package licence files/registry metadata. See the [npm package-lock documentation](https://docs.npmjs.com/cli/v11/configuring-npm/package-lock-json).
 
-### Critical: production GPL dependencies
+### Resolved: legacy production GPL Balancer dependencies
 
-Both root and server manifests declare these as regular production dependencies:
+The initial audit found these packages as regular production dependencies in the root/server manifests and lockfiles. They have now been removed from both manifests and their direct lockfile package entries:
 
 | Package | Locked version | Declared licence | Repository usage found |
 |---|---:|---|---|
