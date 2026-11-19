@@ -153,9 +153,11 @@ Do not interpret a command name, test count in old notes, or a successful compil
 
 ## Licensing
 
-The repository's root licence is MIT, subject to the file-specific third-party licensing notice for the Aave-derived interfaces. In particular, `contracts/interfaces/ILendingPool.sol` and `contracts/interfaces/ILendingPoolAddressesProvider.sol` identify AGPL-3.0 in their SPDX headers. See [LICENSE](LICENSE) and the individual source headers.
+The repository's own top-level licence is MIT, with file-specific third-party notices. The Aave-derived `contracts/interfaces/ILendingPool.sol` and `contracts/interfaces/ILendingPoolAddressesProvider.sol` identify AGPL-3.0 in their SPDX headers; see [LICENSE](LICENSE).
 
-Do not assume every dependency, generated artifact, dataset or third-party file is relicensed under MIT. Review file headers and dependency licences before redistributing modified or bundled copies.
+**Important: the dependency set is not MIT-only.** The current root and server lockfiles include production dependencies `@balancer-labs/sdk@1.1.6` and `@balancer-labs/sor@4.1.3`, both declared GPL-3.0-only. The frontend lockfile also has numerous entries without licence metadata, and some Solidity interface provenance still requires verification. The repository is therefore **not yet cleared for public release under an unqualified MIT-only description**.
+
+Read the [third-party dependency licence audit](THIRD_PARTY_LICENSE_AUDIT.md) before redistributing or building the project. Do not assume every dependency, generated artifact, dataset or third-party file is relicensed under MIT. Review the applicable upstream licence and notices; seek legal advice where the treatment of a combined application is unclear.
 
 ## Contributing
 
