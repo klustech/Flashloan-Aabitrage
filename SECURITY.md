@@ -1,23 +1,34 @@
-# SECURITY.md
-
 # Security Policy
 
-## Reporting a Vulnerability
+Klustertech Flashloan Arbitrage is experimental software that interacts with smart contracts, blockchain networks, transaction relays and wallet-signing infrastructure. A vulnerability may put funds, keys, infrastructure or users at risk.
 
-If you discover a security vulnerability in this project or its infrastructure, please report it privately to **security@flashloan.arb**. If possible, encrypt your report using our PGP key before sending. Do not disclose details publicly until addressed.
+## Reporting a vulnerability
 
-## Bug Bounty Program
+**Do not disclose vulnerability details in a public GitHub issue, discussion, pull request or social-media post.**
 
-We run a bug bounty program. Rewards depend on issue severity. Send a detailed report (reproduction steps, impact) to **security@flashloan.arb**.
+If GitHub's private vulnerability reporting feature is enabled for this repository, use it to submit a report privately. If it is not enabled, contact the repository owner through a verified private contact channel before sending exploit details. Do not send secrets or exploit material to an unverified address.
 
-## Smart Contract Audits
+Please include, where safe:
 
-All Solidity contracts should be reviewed before deployment. We recommend running Slither and Foundry tests (see CI) and obtaining an external audit if using the contracts in production. Audit reports can be uploaded to the `docs` directory for transparency.
+- A concise description and affected component or commit.
+- Impact and realistic attack conditions.
+- Reproduction steps or a proof of concept that does not affect real users or funds.
+- Any suggested mitigation.
 
-## Operational Risk Controls
+Please allow maintainers reasonable time to investigate and coordinate a fix before public disclosure. Do not test against live users, production wallets, third-party infrastructure or contracts without explicit authorisation.
 
-- **Profit-or-revert on-chain:** `ArbitrageFlashloan` reverts the entire transaction unless the final balance is at least the borrowed amount plus the Aave premium plus `minProfit`. Any net loss reverts atomically, so a trade can never settle at a loss. (The previously documented `maxLossBps` / "max loss cap" was removed; it never actually enforced anything.) `MIN_PROFIT_DAI` sets the off-chain minimum profit the bot requires before it will even attempt a trade.
-- **Fail-closed API auth:** Every non-health API route requires a matching `x-api-key` header. The server refuses requests when `API_KEY` is unset, and CORS is restricted to `CORS_ORIGIN`.
-- **Private transaction submission by default:** Arbitrage transactions are submitted via Flashbots / private relays by default. The public-mempool fallback is disabled unless `ALLOW_PUBLIC_MEMPOOL_FALLBACK=true` is explicitly set.
-- Worker simulations must succeed before on-chain execution; failures cause the cycle to abort.
-- A circuit-breaker (now wired into the trade loop) halts trading after repeated failed cycles, requiring manual intervention to resume.
+## Bug bounty
+
+No active bug bounty programme or reward schedule is represented by this repository. Do not assume a report is eligible for payment.
+
+## Security review and deployment
+
+- Solidity contracts and deployment configuration require independent review before use with real funds.
+- Run relevant automated checks, but do not treat passing tests or static analysis as a security audit.
+- Use dedicated, least-privilege keys and infrastructure. Never reuse personal wallet keys.
+- Keep private keys, API keys, RPC credentials and passwords out of source control and logs.
+- Review token approvals, executor roles, admin/timelock configuration, relay settings and public-mempool fallback before any deployment.
+- PAPER mode is intended to remain unsigned and non-submitting. Do not weaken its safety controls to bypass a failed preflight.
+- Profit-or-revert checks do not protect against key compromise, malicious dependencies, operational mistakes, unexpected token behaviour or every form of economic loss.
+
+Security claims and supported configurations may change. Review the current code and documentation for the exact commit you use.
